@@ -40,7 +40,28 @@ function halo() {
 
 /* Une lanterne sur son piquet : un montant sombre, une cage claire, un halo.
    C'est le halo qui porte l'effet a distance, la cage n'est qu'un point. */
-function lanterne(texHalo, matBois, hauteur) {
+/* Les cinq jalons ne sont pas interchangeables : ils portent cinq dates, et
+   deux d'entre elles comptent vraiment. Leur donner la meme lanterne les
+   reduit a une guirlande decorative ; les differencier en fait une frise
+   qu'on lit en passant, sans qu'aucun texte n'ait a l'expliquer.
+
+   Ordre de rencontre, qui est aussi l'ordre du calendrier :
+     19 nov  sortie de GTA 6 sur consoles — une date subie, pas choisie
+     27 nov  BLACK FRIDAY — la plus haute et la plus vive : c'est le conseil
+             le plus utile de toute la balade
+     30 nov  Cyber Monday — le rattrapage, donc discret
+     fin nov L'ANNIVERSAIRE — teinte chaude, rosee, la seule qui ne parle pas
+             d'achat mais de quelqu'un
+     25 dec  NOEL — verte et blanche, la derniere, celle qu'on frole */
+const JALONS = [
+  { h: 1.35, verre: [1.9, 1.5, 0.9], halo: [1.0, 0.8, 0.5], taille: 0.95 },
+  { h: 2.05, verre: [4.0, 2.4, 0.8], halo: [2.4, 1.4, 0.5], taille: 1.45 },
+  { h: 1.30, verre: [1.8, 1.5, 1.0], halo: [0.95, 0.8, 0.55], taille: 0.90 },
+  { h: 1.80, verre: [3.8, 1.8, 1.5], halo: [2.2, 1.0, 0.85], taille: 1.30 },
+  { h: 1.95, verre: [2.2, 3.6, 2.2], halo: [1.2, 2.1, 1.3], taille: 1.35 },
+];
+
+function lanterne(texHalo, matBois, hauteur, jalon) {
   const g = new THREE.Group();
 
   const piquet = new THREE.Mesh(
@@ -52,7 +73,7 @@ function lanterne(texHalo, matBois, hauteur) {
   const matVerre = new THREE.MeshBasicMaterial({ fog: true });
   // Juste au-dessus du seuil du halo : plus haut, la lanterne devient une
   // tache blanche qui mange la clairiere.
-  matVerre.color.setRGB(3.2, 1.9, 0.7);
+  matVerre.color.setRGB(jalon.verre[0], jalon.verre[1], jalon.verre[2]);
   const cage = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.24, 0.17), matVerre);
   cage.position.y = hauteur + 0.10;
   g.add(cage);
@@ -65,9 +86,9 @@ function lanterne(texHalo, matBois, hauteur) {
     map: texHalo, transparent: true, opacity: 0.55,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
   });
-  matHalo.color.setRGB(1.8, 1.05, 0.42);
+  matHalo.color.setRGB(jalon.halo[0], jalon.halo[1], jalon.halo[2]);
   const h = new THREE.Sprite(matHalo);
-  h.scale.setScalar(1.15);
+  h.scale.setScalar(jalon.taille);
   h.position.y = hauteur + 0.10;
   g.add(h);
 
@@ -188,10 +209,11 @@ export class Clairieres {
         /* Cinq jalons, alignes le long de la traversee et decales du chemin
            pour qu'on passe a cote plutot qu'au travers. */
         for (let k = 0; k < 5; k++) {
+          const j = JALONS[k];
           const le = (k - 2) * 7.5;
           const x = p.x + tan.x * le + c.x * 4.6;
           const z = p.z + tan.z * le + c.z * 4.6;
-          const l = lanterne(texHalo, matBois, 1.5 + rand() * 0.5);
+          const l = lanterne(texHalo, matBois, j.h + rand() * 0.12, j);
           l.position.set(x, relief.hauteur(x, z) - 0.06, z);
           l.rotation.y = rand() * 0.6;
           this.groupe.add(l);
