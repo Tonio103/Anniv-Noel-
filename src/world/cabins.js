@@ -74,11 +74,17 @@ function construireCabane(rand, palier, texHalo) {
 
   /* Fenetres : deux carreaux emissifs sur la facade, plus un halo qui deborde
      sur la nuit. C'est le halo qui porte l'effet a distance, pas le carreau. */
-  const chaud = new THREE.MeshBasicMaterial({ color: 0xFFC470, fog: true });
+  /* Bien au-dela du blanc : c'est ce qui fait passer la fenetre au-dessus du
+     seuil du halo. La cible flottante du post-traitement l'accepte sans
+     ecretage, et la courbe ACES la ramene ensuite dans les clous. */
+  const chaud = new THREE.MeshBasicMaterial({ fog: true });
+  chaud.color.setRGB(4.2, 2.4, 0.9);
   const matHalo = new THREE.SpriteMaterial({
-    map: texHalo, color: 0xFFB55A, transparent: true, opacity: 0.55,
+    map: texHalo, transparent: true, opacity: 0.55,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
   });
+
+  matHalo.color.setRGB(2.6, 1.5, 0.6);
 
   for (const cx of [-L * 0.24, L * 0.24]) {
     const f = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.72), chaud);

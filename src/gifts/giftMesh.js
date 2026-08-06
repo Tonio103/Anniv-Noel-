@@ -49,7 +49,7 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
     color: 0xF0F6FC, roughness: 0.78, metalness: 0,
   });
   const matLueur = new THREE.SpriteMaterial({
-    color: glow, transparent: true, opacity: 0,
+    transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
     map: halo(),
   });
@@ -111,6 +111,9 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
   const calotte = new THREE.Mesh(new THREE.BoxGeometry(L * 1.03, size * 0.075, P * 1.03), matNeige);
   calotte.position.y = hc + size * 0.03;
   couvercle.add(calotte);
+
+  // Poussee au-dela du blanc pour franchir le seuil du halo.
+  matLueur.color.set(glow).multiplyScalar(3.2);
 
   /* --- la lumiere enfermee ------------------------------------------------
      Un panneau toujours face a la camera, avec un degre radial : c'est la

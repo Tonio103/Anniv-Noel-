@@ -24,6 +24,8 @@ import { Brume } from './world/mist.js';
 import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
 import { Cabanes } from './world/cabins.js';
+import { Fouillis } from './world/props.js';
+import { PostFX } from './core/postfx.js';
 import { Chemin } from './camera/path.js';
 import { Drone } from './camera/droneRig.js';
 import { Cerf } from './deer/deerRig.js';
@@ -89,6 +91,9 @@ async function demarrer() {
   const foret = new Foret(chemin, relief, palier, clairieres, uniformsVent);
   scene.add(foret.groupe);
 
+  const fouillis = new Fouillis(chemin, relief, palier, clairieres);
+  scene.add(fouillis.groupe);
+
   const neige = new Neige(scene, palier);
   const brume = new Brume(scene, palier);
   const details = new Details(scene, palier);
@@ -102,7 +107,14 @@ async function demarrer() {
   scene.environment = ciel.environnement(renderer);
   scene.environmentIntensity = 0.32;
 
-  brancherResize(renderer, camera, null, palier);
+  /* Post-traitement. Quand il est actif, la scene part dans une cible
+     flottante et c'est la passe finale qui applique la courbe ACES : le
+     materiau ne doit donc plus la faire lui-meme, sous peine de l'appliquer
+     deux fois et d'ecraser toutes les hautes lumieres. */
+  const postfx = new PostFX(renderer, palier);
+  if (postfx.actif) renderer.toneMapping = THREE.NoToneMapping;
+
+  const ajusterTaille = brancherResize(renderer, camera, postfx, palier);
 
   /* --------------------------------------------------------- cerf, camera */
   const cerf = new Cerf(palier, chemin, relief);
@@ -366,6 +378,9 @@ async function demarrer() {
     palier = p;
     renderer.setPixelRatio(p.dpr);
     renderer.shadowMap.enabled = p.ombres;
+    // Les cibles du post-traitement doivent suivre la nouvelle resolution.
+    postfx.palier = p;
+    ajusterTaille();
   });
 
   const boucle = new Boucle((dt, t) => {
@@ -373,7 +388,7 @@ async function demarrer() {
     pas(dt, t);
     // Les traces se dessinent dans leur propre cible avant la scene.
     empreintes.rendre(renderer, cerf.racine.position);
-    renderer.render(scene, camera);
+    postfx.rendre(scene, camera, t);
   });
 
   /* ------------------------------------------------------------- le seuil */
@@ -396,7 +411,7 @@ async function demarrer() {
 
   window.__scene = {
     renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
-    brume, details, cabanes, empreintes, boucle, palier,
+    brume, details, cabanes, empreintes, fouillis, postfx, boucle, palier,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
       demarree = true;
