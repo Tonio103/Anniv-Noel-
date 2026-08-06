@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2818">
+<meta name="robots" content="noindex, nofollow, noarchive, noimageindex, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Acc&egrave;s prot&eacute;g&eacute;</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Outfit:wght@300;400;500;600&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pine-1:#071A10; --pine-3:#17492C;
+  --gold:#F2C14E; --gold-light:#FFE9A8;
+  --red:#D42B3C; --red-light:#F4737C; --red-deep:#7A1220;
+  --cream:#FFF8EC; --cream-2:#D8C9B2; --cream-3:rgba(255,248,236,.5);
+  --e-back:cubic-bezier(.34,1.5,.64,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{background:radial-gradient(110% 88% at 50% 40%,var(--pine-3),var(--pine-1) 74%);background-attachment:fixed;overscroll-behavior:none}
+html,body{height:100%;height:100dvh;max-width:100%;overflow-x:hidden}
+body{
+  display:grid;place-items:center;
+  background:radial-gradient(110% 88% at 50% 40%,var(--pine-3),var(--pine-1) 74%);
+  color:var(--cream);font-family:"Outfit",system-ui,sans-serif;font-weight:300;
+  -webkit-font-smoothing:antialiased;
+}
+.box{
+  margin:calc(env(safe-area-inset-top,0px)) calc(env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px)) calc(env(safe-area-inset-left,0px));
+  width:calc(100% - 44px);max-width:410px;padding:38px 34px;border-radius:24px;text-align:center;
+  background:linear-gradient(158deg,rgba(255,255,255,.09),rgba(255,255,255,.03));
+  border:1px solid rgba(242,193,78,.36);box-shadow:0 30px 68px rgba(0,0,0,.6);
+}
+.box.shake{animation:shake .42s ease-in-out}
+@keyframes shake{
+  0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}
+  40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(4px)}
+}
+.lock{width:64px;height:64px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(212,43,60,.28);border:2px solid rgba(242,193,78,.5);
+  box-shadow:0 0 30px rgba(242,193,78,.28)}
+.lock svg{width:28px;height:28px;fill:none;stroke:var(--gold-light);stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+.lock.busy svg{animation:spin 1s linear infinite;transform-origin:50% 50%}
+@keyframes spin{to{transform:rotate(360deg)}}
+h1{font-family:"Fraunces",Georgia,serif;font-weight:900;font-size:clamp(24px,4vw,32px);
+  color:var(--gold-light);margin-bottom:8px;letter-spacing:-.01em}
+p.sub{font-size:13.5px;line-height:1.55;color:var(--cream-2);margin-bottom:22px}
+.row{display:flex;gap:9px}
+input{
+  flex:1;min-width:0;padding:14px 16px;border-radius:12px;
+  background:rgba(0,0,0,.28);border:1px solid rgba(242,193,78,.34);
+  color:var(--cream);font-family:"Outfit",sans-serif;font-size:16px;
+  letter-spacing:.08em;text-align:center;text-transform:uppercase;outline:none;
+  transition:border-color .25s,box-shadow .25s;
+}
+input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(242,193,78,.18)}
+button{
+  padding:14px 22px;border-radius:12px;cursor:pointer;flex-shrink:0;
+  background:linear-gradient(150deg,var(--red-light),var(--red) 44%,var(--red-deep));
+  border:1px solid rgba(255,233,168,.5);color:#FFF8EC;
+  font-family:"Outfit",sans-serif;font-size:14px;font-weight:600;
+  transition:transform .18s var(--e-back),box-shadow .25s,opacity .2s;
+}
+button:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 24px rgba(212,43,60,.45)}
+button:active:not(:disabled){transform:scale(.96)}
+button:disabled{opacity:.5;cursor:default;transform:none}
+.err{margin-top:14px;min-height:18px;font-size:13px;color:var(--red-light);opacity:0;transition:opacity .25s}
+.err.on{opacity:1}
+.bar{margin-top:14px;height:3px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;
+  opacity:0;transition:opacity .3s}
+.bar.on{opacity:1}
+.bar i{display:block;height:100%;width:0;border-radius:3px;
+  background:linear-gradient(90deg,var(--red),var(--gold));transition:width .25s linear}
+.hint{margin-top:16px;color:var(--cream-3);line-height:1.5;font-family:"Caveat",cursive;font-size:15px}
+</style>
+</head>
+<body>
+
+<div class="box" id="box">
+  <div class="lock" id="lockIcon">
+    <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/>
+      <path d="M8 10V7a4 4 0 018 0v3"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor" stroke="none"/></svg>
+  </div>
+  <h1>Acc&egrave;s prot&eacute;g&eacute;</h1>
+  <p class="sub">Cette page contient des informations personnelles.<br>Le code vous a &eacute;t&eacute; envoy&eacute; s&eacute;par&eacute;ment.</p>
+  <div class="row">
+    <input id="pw" type="text" inputmode="text" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" placeholder="CODE-XXXX-0000" aria-label="Code d'acces">
+    <button id="go">Entrer</button>
+  </div>
+  <div class="err" id="err">Code incorrect.</div>
+  <div class="bar" id="bar"><i id="barFill"></i></div>
+  <div class="hint">Ne le partagez pas, c'est juste pour nous &#10022;</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ======================================================================
+   AES-256-GCM · PBKDF2-SHA256 1000000 iterations · compression DEFLATE
+   avant chiffrement · rembourrage aleatoire · salt+iv authentifies (AAD).
+   Le bloc ci-dessous n'est pas du HTML : c'est du texte chiffre, illisible
+   sans le bon code meme en ouvrant le code source. Tout le dechiffrement
+   passe par window.crypto.subtle, une API native du navigateur.
+   ====================================================================== */
+
+var P = {
+  salt: "__SALT__",
+  iv:   "__IV__",
+  data: "__DATA__",
+  it:   __ITER__
+};
+
+function b64(s){
+  var bin = atob(s), a = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+
+async function derive(pass, salt, it){
+  var km = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(pass), {name:"PBKDF2"}, false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {name:"PBKDF2", salt:salt, iterations:it, hash:"SHA-256"},
+    km, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+}
+
+async function inflate(bytes){
+  var ds = new DecompressionStream("deflate");
+  var stream = new Blob([bytes]).stream().pipeThrough(ds);
+  return new Response(stream).text();
+}
+
+async function unlock(pass){
+  var salt = b64(P.salt), iv = b64(P.iv), data = b64(P.data);
+  var aad = new Uint8Array(salt.length + iv.length);
+  aad.set(salt, 0); aad.set(iv, salt.length);
+  var key = await derive(pass, salt, P.it);
+  var buf = await crypto.subtle.decrypt(
+    {name:"AES-GCM", iv:iv, additionalData:aad}, key, data);
+  var all = new Uint8Array(buf);
+  /* 4 premiers octets = longueur reelle, le reste apres est du rembourrage */
+  var len = (all[0]<<24 | all[1]<<16 | all[2]<<8 | all[3]) >>> 0;
+  return inflate(all.slice(4, 4+len));
+}
+
+var box=document.getElementById('box'), pw=document.getElementById('pw'),
+    btn=document.getElementById('go'), err=document.getElementById('err'),
+    lock=document.getElementById('lockIcon'), bar=document.getElementById('bar'),
+    fill=document.getElementById('barFill');
+
+var fails = 0, blocked = false;
+
+function penalty(){
+  /* Ralentissement progressif : gene serieusement une tentative
+     automatisee, sans jamais bloquer un humain qui se trompe. */
+  fails++;
+  if(fails < 3) return Promise.resolve();
+  var wait = Math.min(1000 * Math.pow(2, fails-3), 30000);
+  blocked = true; btn.disabled = true; bar.classList.add('on');
+  var t0 = Date.now();
+  return new Promise(function(res){
+    var iv2 = setInterval(function(){
+      var p = Math.min(1,(Date.now()-t0)/wait);
+      fill.style.width = (p*100)+'%';
+      if(p>=1){
+        clearInterval(iv2); bar.classList.remove('on'); fill.style.width='0%';
+        blocked=false; btn.disabled=false; res();
+      }
+    }, 60);
+  });
+}
+
+async function submit(){
+  if(blocked) return;
+  var val = (pw.value||'').trim().toUpperCase();
+  if(!val) return;
+  btn.disabled = true; lock.classList.add('busy'); err.classList.remove('on');
+  try{
+    var doc = await unlock(val);
+    /* On reecrit la page en place : l'adresse reste celle du site, aucune
+       URL temporaire ne peut etre copiee ou partagee par erreur. */
+    document.open(); document.write(doc); document.close();
+  } catch(e){
+    lock.classList.remove('busy');
+    err.classList.add('on');
+    box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+    await penalty();
+    btn.disabled = false; pw.select();
+  }
+}
+
+btn.addEventListener('click', submit);
+pw.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
+pw.addEventListener('input', function(){ err.classList.remove('on'); });
+setTimeout(function(){ try{ pw.focus(); }catch(e){} }, 300);
+
+})();
+</script>
+</body>
+</html>
