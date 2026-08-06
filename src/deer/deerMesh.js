@@ -84,9 +84,9 @@ function distSegment(px, py, pz, a, b) {
    pelage trop clair se fait pousser dans les blancs par la courbe ACES.
    -------------------------------------------------------------------------- */
 const ROBE = {
-  flanc: C(0x8A6C48), dorsal: C(0x4A3624), ventre: C(0xC0AC88),
-  croupe: C(0xCEBC96), membre: C(0x513D28), encolure: C(0x5A4430),
-  museau: C(0xA48C68),
+  flanc: C(0x9A7A52), dorsal: C(0x56402A), ventre: C(0xCEBA96),
+  croupe: C(0xDBC9A4), membre: C(0x5E4830), encolure: C(0x685039),
+  museau: C(0xB29A74),
 };
 
 function robeAu(x, y, z, c) {

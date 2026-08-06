@@ -15,12 +15,24 @@
 
 import * as THREE from 'three';
 
-/* Ajoute un cone dechiquete dans les tableaux fournis. */
-function pousserCone(pos, nor, { y0, y1, rayon, segments, rand, dechire, tombant }) {
+/* Ajoute un etage de branches dans les tableaux fournis.
+
+   Deux ajouts par rapport a un simple cone, et ce sont eux qui font toute la
+   difference entre un conifere et un cornet de carton :
+
+   · une PHASE propre a chaque etage. Sans elle, les creux et les bosses du
+     bord se superposent verticalement d'un etage a l'autre et l'arbre se
+     couvre de cannelures regulieres, tres visibles de loin ;
+   · une MODULATION PAR SOMMET, sombre au bord tombant et claire vers la
+     pointe. Un etage eclaire d'un seul tenant se lit comme un panneau plat ;
+     ce dégradé lui rend son epaisseur sans rien couter au rendu. */
+function pousserCone(pos, nor, col, { y0, y1, rayon, segments, rand, dechire, tombant, phase = 0, sombre = 0.58, clair = 1.14 }) {
   const anglePas = (Math.PI * 2) / segments;
   const rayons = [];
   for (let i = 0; i < segments; i++) {
-    rayons.push(rayon * (1 - dechire * 0.5 + rand() * dechire));
+    // Deux frequences : une grosse irregularite et un decoupage plus fin.
+    const g = Math.sin(i * 1.7 + phase) * 0.5 + 0.5;
+    rayons.push(rayon * (1 - dechire * 0.5 + (rand() * 0.6 + g * 0.4) * dechire));
   }
 
   const a = new THREE.Vector3();
@@ -45,13 +57,21 @@ function pousserCone(pos, nor, { y0, y1, rayon, segments, rand, dechire, tombant
 
     pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
     for (let k = 0; k < 3; k++) nor.push(n.x, n.y, n.z);
+
+    /* Le bord retombant est dans l'ombre de l'etage du dessus, la pointe
+       recoit le ciel. On module donc la teinte de l'instance plutot que de
+       poser une couleur absolue : la variation par arbre est preservee. */
+    const jitter = 0.94 + rand() * 0.12;
+    const kb = sombre * jitter, kc = clair * jitter;
+    col.push(kb, kb, kb, kb, kb, kb, kc, kc, kc);
   }
 }
 
-function versGeometrie(pos, nor) {
+function versGeometrie(pos, nor, col) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeBoundingSphere();
   return g;
 }
@@ -60,8 +80,8 @@ export function genererSapin(rand, detail = 6) {
   const segments = Math.max(6, detail * 2);
   const couches = detail >= 6 ? 15 : 10;
 
-  const fPos = [], fNor = [];
-  const nPos = [], nNor = [];
+  const fPos = [], fNor = [], fCol = [];
+  const nPos = [], nNor = [], nCol = [];
 
   /* Etages de branches, du plus large en bas au plus serre en haut.
      Ils se chevauchent largement : c'est le recouvrement qui remplit la
@@ -79,14 +99,18 @@ export function genererSapin(rand, detail = 6) {
     const y0 = basFeuillage + t * (1 - basFeuillage - 0.04);
     const hauteurEtage = 0.30 * (1 - t * 0.40);
 
-    pousserCone(fPos, fNor, {
+    pousserCone(fPos, fNor, fCol, {
       y0,
       y1: y0 + hauteurEtage,
       rayon: largeur,
       segments,
       rand,
-      dechire: 0.46,          // c'est ce chiffre qui casse l'aspect "cone"
-      tombant: 0.20,
+      dechire: 0.50,          // c'est ce chiffre qui casse l'aspect "cone"
+      tombant: 0.22,
+      phase: i * 2.39,        // decale chaque etage : pas de cannelures
+      // Les etages du bas sont enfouis sous ceux du dessus, donc plus sombres.
+      sombre: 0.42 + t * 0.22,
+      clair: 0.95 + t * 0.30,
     });
 
     /* Calotte de neige. Point delicat : elle doit DEPASSER du feuillage,
@@ -97,14 +121,18 @@ export function genererSapin(rand, detail = 6) {
     if (t < 0.92) {
       const montee = 0.14;                       // fraction de l'etage
       const rayonFeuillageIci = largeur * (1 - montee);
-      pousserCone(nPos, nNor, {
+      pousserCone(nPos, nNor, nCol, {
         y0: y0 + hauteurEtage * montee + 0.004,
         y1: y0 + hauteurEtage * 0.80,
         rayon: rayonFeuillageIci * (1.06 + rand() * 0.12),
         segments,
         rand,
-        dechire: 0.52,
+        dechire: 0.56,
         tombant: 0.13,
+        phase: i * 2.39 + 0.8,
+        // La neige aussi s'assombrit au bord, ou elle retombe dans l'ombre.
+        sombre: 0.66 + t * 0.14,
+        clair: 1.02 + t * 0.12,
       });
     }
   }
@@ -114,8 +142,8 @@ export function genererSapin(rand, detail = 6) {
   tronc.translate(0, 0.5, 0);
 
   return {
-    feuillage: versGeometrie(fPos, fNor),
-    neige: versGeometrie(nPos, nNor),
+    feuillage: versGeometrie(fPos, fNor, fCol),
+    neige: versGeometrie(nPos, nNor, nCol),
     tronc,
   };
 }

@@ -30,11 +30,16 @@ export class Foret {
     const modele = genererSapin(rand, palier.brancheDetail);
 
     /* --- materiaux --------------------------------------------------------- */
+    /* vertexColors : la geometrie porte une modulation clair/sombre par
+       sommet, que la couleur d'instance vient teinter. Les deux se
+       multiplient, donc la variation d'arbre a arbre est conservee. */
     this.matFeuillage = new THREE.MeshStandardMaterial({
       color: 0x44654E, roughness: 0.92, metalness: 0, flatShading: true,
+      vertexColors: true,
     });
     this.matNeige = new THREE.MeshStandardMaterial({
       color: 0xE4EEF8, roughness: 0.74, metalness: 0, flatShading: true,
+      vertexColors: true,
     });
     this.matTronc = new THREE.MeshStandardMaterial({
       color: 0x2B2119, roughness: 0.96, metalness: 0,
@@ -86,7 +91,8 @@ export class Foret {
         tronc.setMatrixAt(k, m);
 
         // Variation de teinte : sans elle, la foret parait peinte au rouleau.
-        teinte.setHSL(0.34 + a.teinte * 0.06, 0.22 + a.teinte * 0.16, 0.30 + a.teinte * 0.16);
+        // Releve pour compenser la modulation par sommet, de moyenne < 1.
+        teinte.setHSL(0.34 + a.teinte * 0.06, 0.22 + a.teinte * 0.16, 0.40 + a.teinte * 0.18);
         feuillage.setColorAt(k, teinte);
       }
 
