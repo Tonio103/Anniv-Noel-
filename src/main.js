@@ -25,6 +25,7 @@ import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
 import { Cabanes } from './world/cabins.js';
 import { Fouillis } from './world/props.js';
+import { Clairieres } from './world/clearing.js';
 import { PostFX } from './core/postfx.js';
 import { Chemin } from './camera/path.js';
 import { Drone } from './camera/droneRig.js';
@@ -103,6 +104,13 @@ async function demarrer() {
      par le shader de neige pour assombrir et creuser la surface. */
   const empreintes = new Empreintes(renderer, palier);
   relief.brancherEmpreintes(empreintes);
+
+  /* Ce qui habite les clairieres : les jalons de dates et le sapin de la
+     derniere halte. Ils reutilisent la silhouette d'arbre de la foret. */
+  const habitants = new Clairieres(
+    scene, chemin, relief, palier, STATIONS,
+    foret.modele, foret.matFeuillage, foret.matNeige
+  );
 
   scene.environment = ciel.environnement(renderer);
   scene.environmentIntensity = 0.32;
@@ -426,7 +434,7 @@ async function demarrer() {
 
   window.__scene = {
     renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
-    brume, details, cabanes, empreintes, fouillis, postfx, boucle, palier,
+    brume, details, cabanes, empreintes, fouillis, habitants, postfx, boucle, palier,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
       demarree = true;

@@ -28,6 +28,8 @@ export class Foret {
 
     const rand = rng(20261225);
     const modele = genererSapin(rand, palier.brancheDetail);
+    // Expose : la clairiere finale reutilise la meme silhouette d'arbre.
+    this.modele = modele;
 
     /* --- materiaux --------------------------------------------------------- */
     /* vertexColors : la geometrie porte une modulation clair/sombre par
