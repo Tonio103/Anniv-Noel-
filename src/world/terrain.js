@@ -206,6 +206,25 @@ export class Relief {
     this.groupe.add(this.jupe);
   }
 
+  /* Branche la carte des traces. Sa fenetre se deplace avec le cerf, donc
+     l'emprise ET la texture doivent etre rafraichies a chaque image : le
+     rendu alterne entre deux cibles, et l'ancienne n'est plus valable. */
+  brancherEmpreintes(emp) {
+    const u = this.materiau.userData.uniforms;
+    u.uEmpreintes.value = emp.texture;
+    u.uAEmpreintes.value = 1;
+    this._emp = emp;
+  }
+
+  majEmpreintes() {
+    if (!this._emp) return;
+    const u = this.materiau.userData.uniforms;
+    const e = this._emp.emprise();
+    u.uEmpMin.value.set(e.xmin, e.zmin);
+    u.uEmpTaille.value.set(e.xmax - e.xmin, e.zmax - e.zmin);
+    u.uEmpreintes.value = this._emp.texture;
+  }
+
   /* Fait suivre au disque de fond la position de la camera. */
   maj(camera, ambiance) {
     this.jupe.position.x = camera.position.x;

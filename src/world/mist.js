@@ -59,7 +59,12 @@ const FRAG = /* glsl */ `
        optique gigantesque, et se transforme en mur laiteux des qu'on abaisse
        le regard. On pondere donc par l'inclinaison — vue rasante, presque
        rien ; vue de dessus, densite nominale. */
-    float face = pow(clamp(abs(versCam.y) / max(d, 1e-3), 0.0, 1.0), 0.75);
+    // L'exposant dose l'effet : trop eleve, la brume disparait a hauteur
+    // d'oeil ; trop bas, elle redevient un mur des qu'on baisse le regard.
+    float face = pow(clamp(abs(versCam.y) / max(d, 1e-3), 0.0, 1.0), 0.50);
+    // Plancher : meme vue de biais, il reste un voile — sinon la nappe
+    // n'existe qu'en plongee et la balade n'en voit jamais rien.
+    face = max(face, 0.16);
     // Devant l'objectif : on s'efface, sinon on traverse un mur.
     float pres = smoothstep(uPresProche, uPresProche * 3.0, d);
     // Au loin : le brouillard exponentiel prend le relais.
@@ -80,8 +85,8 @@ export class Brume {
     /* Peu de nappes, bien etagees. En empiler davantage ne rend pas la brume
        plus belle : ca la rend opaque et ca coute cher en remplissage. */
     const etages = palier.nom === 'bas'
-      ? [{ h: 0.55, d: 0.34 }, { h: 1.6, d: 0.22 }]
-      : [{ h: 0.35, d: 0.34 }, { h: 1.0, d: 0.26 }, { h: 1.9, d: 0.18 }, { h: 3.1, d: 0.11 }];
+      ? [{ h: 0.5, d: 0.40 }, { h: 1.6, d: 0.26 }]
+      : [{ h: 0.35, d: 0.40 }, { h: 1.0, d: 0.30 }, { h: 1.9, d: 0.21 }, { h: 3.1, d: 0.13 }];
 
     const geo = new THREE.PlaneGeometry(190, 190, 1, 1);
     geo.rotateX(-Math.PI / 2);
@@ -128,7 +133,7 @@ export class Brume {
   /* Epaissit ou allege la brume — les clairieres en portent moins. */
   densite(k) {
     for (let i = 0; i < this.nappes.length; i++) {
-      const base = [0.34, 0.26, 0.18, 0.11][i] ?? 0.15;
+      const base = [0.40, 0.30, 0.21, 0.13][i] ?? 0.15;
       this.nappes[i].uniforms.uDensite.value = base * k;
     }
   }

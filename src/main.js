@@ -21,6 +21,9 @@ import { accorderNeige } from './world/snowMaterial.js';
 import { Foret } from './world/forest.js';
 import { Neige } from './world/snowfall.js';
 import { Brume } from './world/mist.js';
+import { Empreintes } from './world/footprints.js';
+import { Details } from './world/details.js';
+import { Cabanes } from './world/cabins.js';
 import { Chemin } from './camera/path.js';
 import { Drone } from './camera/droneRig.js';
 import { Cerf } from './deer/deerRig.js';
@@ -88,6 +91,13 @@ async function demarrer() {
 
   const neige = new Neige(scene, palier);
   const brume = new Brume(scene, palier);
+  const details = new Details(scene, palier);
+  const cabanes = new Cabanes(scene, chemin, relief, palier, clairieres);
+
+  /* Les traces de sabots : une texture en coordonnees monde, echantillonnee
+     par le shader de neige pour assombrir et creuser la surface. */
+  const empreintes = new Empreintes(renderer, palier);
+  relief.brancherEmpreintes(empreintes);
 
   scene.environment = ciel.environnement(renderer);
   scene.environmentIntensity = 0.32;
@@ -323,10 +333,12 @@ async function demarrer() {
 
     cerf.maj(dt, t);
 
-    /* Le son se cale sur les posers reels, jamais sur une minuterie. */
+    /* Le son ET les traces se calent sur les posers reels, jamais sur une
+       minuterie : le sabot marque la neige exactement ou il se pose. */
     for (const p of cerf.posers) {
       sfx.sabot(voixSabots?.entree, p.force);
       if (Math.random() < 0.42) sfx.grelots(voixCerf?.entree, 0.5 + p.force * 0.5);
+      empreintes.ajouter(p.pos.x, p.pos.z, cerf.racine.rotation.y, p.force);
     }
     cerf.posers.length = 0;
 
@@ -344,6 +356,9 @@ async function demarrer() {
     foret.maj(camera);
     neige.maj(dt, t, camera, renderer);
     brume.maj(dt, t, camera, relief, ciel.actuel);
+    details.maj(dt, t, camera, relief);
+    cabanes.maj(dt);
+    relief.majEmpreintes();
     son.maj(dt, cerf.vitesse);
   }
 
@@ -356,6 +371,8 @@ async function demarrer() {
   const boucle = new Boucle((dt, t) => {
     vigie.tic(dt);
     pas(dt, t);
+    // Les traces se dessinent dans leur propre cible avant la scene.
+    empreintes.rendre(renderer, cerf.racine.position);
     renderer.render(scene, camera);
   });
 
@@ -378,7 +395,8 @@ async function demarrer() {
   boucle.demarrer();
 
   window.__scene = {
-    renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte, brume, boucle, palier,
+    renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
+    brume, details, cabanes, empreintes, boucle, palier,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
       demarree = true;
@@ -390,7 +408,12 @@ async function demarrer() {
     },
     simuler(secondes) {
       const h = 1 / 60;
-      for (let acc = 0; acc < secondes; acc += h) { boucle.t += h; pas(h, boucle.t); }
+      for (let acc = 0; acc < secondes; acc += h) {
+        boucle.t += h; pas(h, boucle.t);
+        // Les traces se posent au rendu : sans cet appel, une marche
+        // simulee ne laisserait aucune empreinte derriere elle.
+        empreintes.rendre(renderer, cerf.racine.position);
+      }
     },
     phase: () => phase,
   };

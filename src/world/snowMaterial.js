@@ -106,11 +106,19 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
             if(fu.x > 0.0 && fu.x < 1.0 && fu.y > 0.0 && fu.y < 1.0){
               float d = texture2D(uEmpreintes, fu).r;
               if(d > 0.002){
-                vec2 px = 1.0 / uEmpTaille * 1.6;
+                // Un texel de la carte, pas une fraction du monde : sans
+                // ca le pas depend de la taille de la fenetre et la pente
+                // des traces devient illisible.
+                vec2 px = vec2(1.5 / 512.0);
                 float dx = texture2D(uEmpreintes, fu + vec2(px.x, 0.0)).r - d;
                 float dz = texture2D(uEmpreintes, fu + vec2(0.0, px.y)).r - d;
-                normal = normalize(normal + vec3(dx, 0.0, dz) * 26.0);
-                diffuseColor.rgb *= mix(1.0, 0.74, clamp(d, 0.0, 1.0));
+                /* Signe NEGATIF et amplitude modeste : une trace est un creux.
+                   Avec un facteur eleve, la normale bascule si fort que le
+                   pas accroche la lumiere et ressort en bosse blanche — ce
+                   qui s'etait produit a 26. L'essentiel de la lecture vient
+                   de l'assombrissement, la normale ne fait qu'appuyer. */
+                normal = normalize(normal - vec3(dx, 0.0, dz) * 5.0);
+                diffuseColor.rgb *= mix(1.0, 0.55, clamp(d * 1.3, 0.0, 1.0));
               }
             }
           }
