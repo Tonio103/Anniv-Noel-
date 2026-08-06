@@ -15,7 +15,7 @@ export const PALIERS = {
     ombres: false,
     ombreTaille: 512,
     postfx: 'leger',      // bloom seul, pas de profondeur de champ
-    flocons: 1400,
+    flocons: 2600,
     empreintes: false,
     segTerrain: 96,
     brancheDetail: 4,
@@ -27,7 +27,7 @@ export const PALIERS = {
     ombres: true,
     ombreTaille: 1024,
     postfx: 'moyen',      // bloom + vignette + grain
-    flocons: 3200,
+    flocons: 5200,
     empreintes: true,
     segTerrain: 144,
     brancheDetail: 6,
@@ -39,7 +39,7 @@ export const PALIERS = {
     ombres: true,
     ombreTaille: 2048,
     postfx: 'complet',    // + profondeur de champ et rais de lumiere
-    flocons: 6000,
+    flocons: 9000,
     empreintes: true,
     segTerrain: 192,
     brancheDetail: 8,

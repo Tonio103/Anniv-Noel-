@@ -25,8 +25,8 @@ import { damp, clamp, lerp, smoothstep } from '../core/noise.js';
    Le pas : sequence laterale, trois appuis au sol en permanence.
    Le trot : bipedes diagonaux, plus vif, c'est l'allure de deplacement. */
 const ALLURES = {
-  pas:  { phases: { PG: 0.0, AG: 0.25, PD: 0.5, AD: 0.75 }, appui: 0.64, foulee: 1.35, hauteur: 0.13 },
-  trot: { phases: { AG: 0.0, PD: 0.0, AD: 0.5, PG: 0.5 },   appui: 0.42, foulee: 2.25, hauteur: 0.26 },
+  pas:  { phases: { PG: 0.0, AG: 0.25, PD: 0.5, AD: 0.75 }, appui: 0.64, foulee: 1.20, hauteur: 0.12 },
+  trot: { phases: { AG: 0.0, PD: 0.0, AD: 0.5, PG: 0.5 },   appui: 0.42, foulee: 2.00, hauteur: 0.24 },
 };
 
 export class Cerf {
