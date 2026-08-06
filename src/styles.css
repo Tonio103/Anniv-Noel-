@@ -104,8 +104,21 @@ body{
   text-shadow:0 0 60px rgba(150,200,240,.28), 0 14px 46px rgba(0,0,0,.7);
   opacity:0;animation:rise 1.3s .42s var(--ease) forwards;
 }
+.entry-occasion{
+  margin-top:18px;
+  display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;
+  justify-content:center;
+  padding:8px 18px 9px;border-radius:999px;
+  background:rgba(242,193,78,.10);
+  border:1px solid rgba(242,193,78,.30);
+  font-size:clamp(12.5px,3.2vw,15px);color:var(--ink-2);letter-spacing:.01em;
+  opacity:0;animation:rise 1.2s .58s var(--ease) forwards;
+}
+.entry-occasion b{font-weight:500;color:var(--gold-lt)}
+.entry-occasion i{font-style:normal;color:var(--ink-3);font-size:.9em}
+
 .entry-lead{
-  margin-top:20px;font-size:clamp(14px,3.7vw,17px);line-height:1.62;
+  margin-top:16px;font-size:clamp(14px,3.7vw,17px);line-height:1.62;
   color:var(--ink-2);
   opacity:0;animation:rise 1.2s .68s var(--ease) forwards;
 }

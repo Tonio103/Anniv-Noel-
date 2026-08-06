@@ -378,6 +378,7 @@ async function demarrer() {
     brume.maj(dt, t, camera, relief, ciel.actuel);
     details.maj(dt, t, camera, relief);
     cabanes.maj(dt);
+    habitants.maj(t);
     relief.majEmpreintes();
 
     /* Mise au point sur le sujet — le cerf, ou le paquet quand il est sorti.

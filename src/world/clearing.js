@@ -74,6 +74,58 @@ function lanterne(texHalo, matBois, hauteur) {
   return g;
 }
 
+/* SEIZE BOUGIES.
+
+   L'occasion est double — un anniversaire ET Noel — et jusqu'ici la balade
+   ne racontait que la seconde : neige, sapins, paquets. Rien nulle part ne
+   disait les seize ans.
+
+   Une bougie ne se lit pas comme une lanterne : elle est plus petite, sa
+   flamme est plus haute que large, et surtout elle VACILLE. C'est ce
+   tremblement qui la designe comme une bougie et non comme un point lumineux
+   de plus, donc il est anime plutot que fixe.
+
+   Elles sont plantees en arc, face au chemin, devant le sapin : on arrive
+   dessus, on les compte sans y penser. */
+function bougies(texHalo, rand, nombre) {
+  const g = new THREE.Group();
+  const cire = new THREE.MeshStandardMaterial({ color: 0xE8DCC4, roughness: 0.72 });
+
+  const matFlamme = new THREE.SpriteMaterial({
+    map: texHalo, transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
+  });
+  // Au-dela du blanc, pour franchir le seuil du halo du post-traitement.
+  matFlamme.color.setRGB(4.6, 2.6, 0.9);
+
+  const flammes = [];
+  for (let i = 0; i < nombre; i++) {
+    const t = i / (nombre - 1);
+    // Arc ouvert vers le chemin, legerement irregulier : un alignement
+    // parfait ferait guirlande electrique, pas bougies posees a la main.
+    const a = (-0.62 + t * 1.24) + (rand() - 0.5) * 0.05;
+    const r = 4.4 + (rand() - 0.5) * 0.5;
+    const h = 0.30 + rand() * 0.12;
+
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.042, h, 6), cire);
+    c.position.set(Math.sin(a) * r, h / 2, Math.cos(a) * r);
+    g.add(c);
+
+    const f = new THREE.Sprite(matFlamme.clone());
+    // La flamme est plus haute que large : c'est ce qui la distingue d'un
+    // simple point lumineux.
+    f.scale.set(0.16, 0.30, 1);
+    f.position.set(c.position.x, h + 0.10, c.position.z);
+    f.userData.phase = rand() * 6.28;
+    f.userData.base = h + 0.10;
+    g.add(f);
+    flammes.push(f);
+  }
+
+  g.userData.flammes = flammes;
+  return g;
+}
+
 /* Le sapin de la derniere clairiere : la meme silhouette que la foret, mais
    constellee de points chauds. */
 function sapinDeFete(modele, matFeuillage, matNeige, texHalo, rand, palier) {
@@ -146,6 +198,16 @@ export class Clairieres {
         }
       }
 
+      if (st.scene?.tree) {
+        /* Seize bougies, une par annee. Elles sont plantees devant le sapin,
+           face a l'arrivee. */
+        const b = bougies(texHalo, rand, 16);
+        b.position.set(p.x, relief.hauteur(p.x, p.z), p.z);
+        b.rotation.y = Math.atan2(tan.x, tan.z);
+        this.groupe.add(b);
+        this.bougies = b;
+      }
+
       if (st.scene?.tree && modeleSapin) {
         /* Devant, dans l'axe de marche plutot que sur le cote : c'est le
            dernier objet de la balade, il doit etre dans le champ quand on
@@ -160,5 +222,21 @@ export class Clairieres {
 
     scene.add(this.groupe);
     this.nb = this.groupe.children.length;
+  }
+
+  /* Le vacillement des flammes. Deux frequences incommensurables et une
+     phase propre a chaque bougie : sans ca, les seize battent ensemble et
+     l'effet tombe a plat. */
+  maj(temps) {
+    const f = this.bougies?.userData.flammes;
+    if (!f) return;
+    for (let i = 0; i < f.length; i++) {
+      const s = f[i];
+      const ph = s.userData.phase;
+      const v = Math.sin(temps * 7.3 + ph) * 0.5 + Math.sin(temps * 11.9 + ph * 1.7) * 0.5;
+      s.scale.set(0.15 + v * 0.02, 0.28 + v * 0.05, 1);
+      s.position.y = s.userData.base + v * 0.012;
+      s.material.opacity = 0.88 + v * 0.10;
+    }
   }
 }
