@@ -371,6 +371,14 @@ async function demarrer() {
     details.maj(dt, t, camera, relief);
     cabanes.maj(dt);
     relief.majEmpreintes();
+
+    /* Mise au point sur le sujet — le cerf, ou le paquet quand il est sorti.
+       Elle se met a jour ICI, dans le pas de simulation, et non dans la
+       boucle de rendu : sinon elle ne converge pas quand le temps est
+       avance sans dessiner, et le plan de nettete reste ou il etait. */
+    postfx.viser(camera.position.distanceTo(
+      halte.cadeau ? halte.ancre(ancre) : cerf.ancre(ancre)
+    ));
     son.maj(dt, cerf.vitesse);
   }
 

@@ -12,6 +12,8 @@
    diffuser — sur une image deja ramenee a [0,1], un bloom ne fait que baver
    du gris.
 
+   0. FLOU DE LA SCENE ENTIERE, en demi-resolution, pour la profondeur de
+      champ ;
    1. EXTRACTION des hautes lumieres, en demi-resolution ;
    2. FLOU separable, deux passes croisees repetees deux fois — un flou large
       coute cher en une seule passe et se voit en croix ;
@@ -21,6 +23,17 @@
    L'ordre compte. Le halo s'ajoute AVANT la courbe de tonalite, sinon il
    sature au lieu de se fondre. Le grain vient APRES, sinon la courbe l'ecrase
    dans les ombres, la ou il est justement le plus utile.
+
+   PROFONDEUR DE CHAMP. C'est elle, plus que tout le reste, qui fait lire
+   l'image comme prise par un appareil plutot que calculee : l'oeil accepte
+   qu'un tronc passe flou au premier plan, et cette acceptation vaut
+   reconnaissance d'un objectif. La mise au point suit le cerf en permanence,
+   puisque c'est lui le sujet.
+
+   Elle reste VOLONTAIREMENT DISCRETE. Un flou marque transforme la foret en
+   maquette : au-dela d'un certain rayon, le cerveau lit une miniature filmee
+   de pres et non un paysage. On garde donc une large zone nette et un flou
+   plafonne.
 */
 
 import * as THREE from 'three';
@@ -73,8 +86,16 @@ const FRAG_FLOU = /* glsl */ `
 /* --- composition finale --------------------------------------------------- */
 const FRAG_FINAL = /* glsl */ `
   varying vec2 vUv;
-  uniform sampler2D uScene, uHalo;
+  uniform sampler2D uScene, uHalo, uFlou, uProfondeur;
   uniform float uExpo, uHaloForce, uVignette, uGrain, uAberr, uTemps;
+  uniform float uNear, uFar, uFocus, uNet, uPlage, uDof;
+
+  /* Le tampon de profondeur n'est pas lineaire : la precision est concentree
+     pres de la camera. Il faut le redresser pour raisonner en metres. */
+  float distanceReelle(float d){
+    float z = d * 2.0 - 1.0;
+    return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
+  }
 
   /* Courbe ACES, version approchee de Narkowicz. Elle tient les hautes
      lumieres sans virer au gris comme un simple Reinhard, et c'est elle qui
@@ -104,6 +125,16 @@ const FRAG_FINAL = /* glsl */ `
       col.b = texture2D(uScene, uv - d).b;
     } else {
       col = texture2D(uScene, uv).rgb;
+    }
+
+    /* Profondeur de champ. Le cercle de confusion croit avec l'ecart a la
+       mise au point ; on melange vers la version floue de la scene. Le flou
+       est plafonne : au-dela, la foret se met a ressembler a une maquette. */
+    if(uDof > 0.001){
+      float d = distanceReelle(texture2D(uProfondeur, uv).x);
+      float ecart = abs(d - uFocus);
+      float coc = smoothstep(uNet, uNet + uPlage, ecart) * uDof;
+      col = mix(col, texture2D(uFlou, uv).rgb, coc);
     }
 
     // Halo AVANT la courbe : ajoute apres, il saturerait au lieu de se fondre.
@@ -151,8 +182,16 @@ export class PostFX {
     this.rtScene = new THREE.WebGLRenderTarget(2, 2, {
       ...commun, type: THREE.HalfFloatType, depthBuffer: true,
     });
+    /* La profondeur est relue par la passe finale : il faut donc une vraie
+       texture, pas le simple tampon de rendu. */
+    this.profondeur = new THREE.DepthTexture(2, 2);
+    this.profondeur.type = THREE.UnsignedIntType;
+    this.rtScene.depthTexture = this.profondeur;
+
     this.rtA = new THREE.WebGLRenderTarget(2, 2, { ...commun, type: THREE.HalfFloatType });
     this.rtB = new THREE.WebGLRenderTarget(2, 2, { ...commun, type: THREE.HalfFloatType });
+    // Scene floutee, pour la profondeur de champ.
+    this.rtC = new THREE.WebGLRenderTarget(2, 2, { ...commun, type: THREE.HalfFloatType });
 
     this.matHaut = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG_HAUT,
@@ -181,6 +220,11 @@ export class PostFX {
         uGrain: { value: 0.028 },
         uAberr: { value: complet ? 0.9 : 0.0 },
         uTemps: { value: 0 },
+        uFlou: { value: null }, uProfondeur: { value: null },
+        uNear: { value: 0.35 }, uFar: { value: 620 },
+        // Large zone nette et flou plafonne : un flou marque ferait maquette.
+        uFocus: { value: 10 }, uNet: { value: 10 }, uPlage: { value: 46 },
+        uDof: { value: complet ? 0.72 : 0.58 },
       },
       depthTest: false, depthWrite: false,
     });
@@ -198,6 +242,7 @@ export class PostFX {
     // flou, et ca divise le cout par quatre.
     this.rtA.setSize(Math.max(2, L >> 1), Math.max(2, H >> 1));
     this.rtB.setSize(Math.max(2, L >> 1), Math.max(2, H >> 1));
+    this.rtC.setSize(Math.max(2, L >> 1), Math.max(2, H >> 1));
   }
 
   _passe(mat, cible) {
@@ -206,9 +251,23 @@ export class PostFX {
     this.renderer.render(this.scenePasse, this.cam);
   }
 
+  /* Le sujet, donc le plan de mise au point. Suivi en continu : c'est ce qui
+     evite qu'un changement de cadrage laisse le cerf dans le flou. */
+  viser(distance) {
+    const u = this.matFinal.uniforms;
+    /* Borne de securite : une distance aberrante — sujet non encore place,
+       teleportation de mise au point — figerait le plan de nettete hors du
+       monde et noierait toute l'image dans le flou. */
+    const d = Math.min(Math.max(distance, 2), 90);
+    if (!isFinite(d)) return;
+    u.uFocus.value += (d - u.uFocus.value) * 0.12;
+  }
+
   rendre(scene, camera, temps) {
     const r = this.renderer;
     if (!this.actif) { r.setRenderTarget(null); r.render(scene, camera); return; }
+    this.matFinal.uniforms.uNear.value = camera.near;
+    this.matFinal.uniforms.uFar.value = camera.far;
 
     // 1. la scene, en flottant
     r.setRenderTarget(this.rtScene);
@@ -231,9 +290,21 @@ export class PostFX {
       this._passe(this.matFlou, this.rtA);
     }
 
-    // 4. composition a l'ecran
+    /* 4. la scene entiere, floutee. L'echantillonnage lineaire en
+       demi-resolution fait office de reduction : pas besoin d'une passe
+       dediee pour descendre en taille. */
+    this.matFlou.uniforms.uSrc.value = this.rtScene.texture;
+    this.matFlou.uniforms.uPas.value.set(2.0 / lw, 0);
+    this._passe(this.matFlou, this.rtB);
+    this.matFlou.uniforms.uSrc.value = this.rtB.texture;
+    this.matFlou.uniforms.uPas.value.set(0, 2.0 / lh);
+    this._passe(this.matFlou, this.rtC);
+
+    // 5. composition a l'ecran
     this.matFinal.uniforms.uScene.value = this.rtScene.texture;
     this.matFinal.uniforms.uHalo.value = this.rtA.texture;
+    this.matFinal.uniforms.uFlou.value = this.rtC.texture;
+    this.matFinal.uniforms.uProfondeur.value = this.profondeur;
     this.matFinal.uniforms.uTemps.value = temps || 0;
     this._passe(this.matFinal, null);
   }
