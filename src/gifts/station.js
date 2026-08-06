@@ -27,6 +27,7 @@ export const PHASES = {
   OUVERTURE: 'ouverture',
   LECTURE: 'lecture',
   REPRISE: 'reprise',
+  FIN: 'fin',
 };
 
 export class Halte {
@@ -54,15 +55,19 @@ export class Halte {
     this.nettoyer();
     this.station = station;
     const g = station.scene?.gift;
-    if (!g) return false;
 
     const p = chemin.point(s, new THREE.Vector3());
     const c = chemin.cote(s, new THREE.Vector3());
     // Legerement decale : le paquet ne doit pas etre pile dans l'axe, sinon
     // le cerf le masque au moment ou il sort.
-    p.addScaledVector(c, cote * (2.6 + g.size * 0.8));
+    p.addScaledVector(c, cote * (2.6 + (g ? g.size : 1) * 0.8));
     p.y = this.relief.hauteur(p.x, p.z);
     this.centre.copy(p);
+
+    /* Les clairieres n'ont rien a deterrer. On garde quand meme un centre a
+       jour : sans lui, la camera et l'invite viseraient le paquet de la
+       halte precedente, reste en arriere sur le chemin. */
+    if (!g) { this.enfoui = false; this.t = 0; this.ouvert = 0; return false; }
 
     this.cadeau = creerCadeau(g, this.palier);
     this.groupeCadeau.add(this.cadeau.groupe);
@@ -123,7 +128,7 @@ export class Halte {
 
     // La lueur enfermee monte avec l'emergence.
     const l = smoothstep(0.45, 0.9, avance);
-    this.cadeau.matLueur.opacity = l * 0.18;
+    if (this.ouvert <= 0) this.cadeau.matLueur.opacity = l * 0.16;
   }
 
   /* Ouverture : le couvercle bascule, la neige glisse, la lumiere sort. */
@@ -133,9 +138,12 @@ export class Halte {
     const o = smoothstep(0, 1, this.ouvert);
     const c = this.cadeau;
 
-    c.couvercle.position.y = c.hauteur + o * c.taille * 0.62;
-    c.couvercle.rotation.z = -o * 0.42;
-    c.couvercle.rotation.x = o * 0.16;
+    // Peu de levee, beaucoup de bascule : c'est ce qui se lit comme un
+    // couvercle qu'on souleve. Trop haut, il devient une seconde boite.
+    c.couvercle.position.y = c.hauteur + o * c.taille * 0.20;
+    c.couvercle.position.x = -o * c.taille * 0.30;
+    c.couvercle.rotation.z = -o * 0.85;
+    c.couvercle.rotation.x = o * 0.10;
 
     // La calotte de neige glisse et tombe.
     c.calotte.position.x = -o * c.taille * 0.55;
@@ -144,8 +152,8 @@ export class Halte {
     c.calotte.material.opacity = 1 - smoothstep(0.45, 0.95, o);
     c.calotte.material.transparent = true;
 
-    c.matLueur.opacity = 0.18 + o * 0.42;
-    c.lueur.scale.setScalar(1 + o * 0.7);
+    c.matLueur.opacity = 0.16 + o * 0.40;
+    c.lueur.scale.setScalar(c.taille * 3.4 * (1 + o * 0.55));
   }
 
   /* Intensite de la lumiere chaude que le paquet projette sur la neige. */

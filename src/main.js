@@ -153,6 +153,11 @@ async function demarrer() {
         const st = STATIONS[index];
         const cote = index % 2 === 0 ? 1 : -1;
         const pose = halte.preparer(st, chemin, chemin.haltes[index].s + 1.5, cote);
+        if (!pose) {
+          // Rien d'enfoui ici : le cerf s'arrete, se retourne, et c'est tout.
+          entrerPhase(PHASES.ATTENTE);
+          break;
+        }
         if (pose) {
           ancreCadeau.position.copy(halte.centre);
           if (son.pret && !voixCadeau) voixCadeau = sfx.ancrer(ancreCadeau, 42);
@@ -242,6 +247,11 @@ async function demarrer() {
         }
         break;
 
+      case PHASES.FIN:
+        // Il s'eloigne, puis se fond dans la neige et la brume.
+        if (cerf.s > chemin.longueur - 6) cerf.vitesseCible = 0;
+        break;
+
       case PHASES.PERCEE: {
         const a = clamp(horloge / DUREES.percee, 0, 1);
         halte.majEmergence(dt, a, t);
@@ -256,8 +266,15 @@ async function demarrer() {
 
       case PHASES.ATTENTE:
         halte.majEmergence(dt, 1, t);
-        drone.regarder(halte.ancre(ancre), 0.75);
-        invite.ancrer(halte.ancre(ancre), camera);
+        if (halte.cadeau) {
+          drone.regarder(halte.ancre(ancre), 0.75);
+          invite.ancrer(halte.ancre(ancre), camera);
+        } else {
+          // Sans paquet, l'anneau se pose sur le cerf lui-meme.
+          cerf.ancre(ancre); ancre.y += 0.35;
+          drone.regarder(ancre, 0.35);
+          invite.ancrer(ancre, camera);
+        }
         break;
 
       case PHASES.OUVERTURE:
@@ -281,8 +298,10 @@ async function demarrer() {
           if (index >= STATIONS.length - 1) {
             // Fin : il s'eloigne dans la neige, la camera prend de la hauteur.
             drone.cadrer('large');
-            phase = PHASES.ROUTE;
-            index = STATIONS.length;
+            drone.regarder(null, 0);
+            cerf.vitesseCible = 4.6;
+            phase = PHASES.FIN;
+            horloge = 0;
           } else {
             viser(index + 1);
             entrerPhase(PHASES.ROUTE);
