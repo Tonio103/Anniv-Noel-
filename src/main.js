@@ -386,7 +386,14 @@ async function demarrer() {
     palier = p;
     renderer.setPixelRatio(p.dpr);
     renderer.shadowMap.enabled = p.ombres;
-    // Les cibles du post-traitement doivent suivre la nouvelle resolution.
+
+    /* Retrograder ne servait a rien tant que les postes les plus couteux
+       restaient allumes : la chaine de post-traitement (sept passes plein
+       ecran) et la cible des empreintes continuaient de tourner. Ce sont
+       justement les deux premiers a couper sur une machine qui peine. */
+    if (p.postfx === 'leger') postfx.desactiver(renderer);
+    if (p.empreintes === false) empreintes.actif = false;
+
     postfx.palier = p;
     ajusterTaille();
   });

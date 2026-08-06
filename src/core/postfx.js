@@ -251,6 +251,23 @@ export class PostFX {
     this.renderer.render(this.scenePasse, this.cam);
   }
 
+  /* Repli en rendu direct, quand la surveillance de cadence retrograde vers
+     le palier bas.
+
+     Le point critique est la courbe de tonalite. Tant que la chaine est
+     active, c'est la passe finale qui l'applique, et le materiau ne doit
+     donc PAS la faire (NoToneMapping). En repassant au rendu direct sans
+     retablir ce reglage, plus personne ne l'applique : l'image part en
+     lineaire brut et se retrouve entierement cramee. Le repli doit donc
+     rendre au moteur ce que la chaine lui avait pris. */
+  desactiver(renderer) {
+    if (!this.actif) return;
+    this.actif = false;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = this.matFinal.uniforms.uExpo.value;
+    renderer.setRenderTarget(null);
+  }
+
   /* Le sujet, donc le plan de mise au point. Suivi en continu : c'est ce qui
      evite qu'un changement de cadrage laisse le cerf dans le flou. */
   viser(distance) {

@@ -64,9 +64,10 @@ src/
   shell.html            squelette · styles.css   habillage
   main.js               enchaînement des moments de la balade
   content/stations.js   ← TOUT LE CONTENU
-  core/                 rendu, paliers de qualité, boucle, bruit
-  world/                ciel, lumière, relief, neige, forêt, chute de neige
-  deer/                 maillage du cerf, démarche et cinématique inverse
+  core/                 rendu, qualité, boucle, bruit, post-traitement
+  world/                ciel, lumière, relief, neige, forêt, chute de neige,
+                        brume, empreintes, fouillis au sol, détails, cabanes
+  deer/                 champ implicite, peau, démarche et cinématique inverse
   camera/               chemin (la colonne vertébrale) et caméra-drone
   gifts/                paquet, déterrement, orchestration d'une halte
   audio/                synthèse temps réel — aucun fichier son
@@ -99,6 +100,19 @@ on entend de la lumière, jamais un accord.
 progression se lit dans le décor — la forêt s'épaissit, le jour tombe — et dans
 une trace d'empreintes, une par halte franchie.
 
+**Le cerf est une seule peau.** Il n'est pas assemblé à partir de morceaux :
+des capsules fusionnées par un minimum adouci forment un champ dont on extrait
+la surface (`deer/shape.js`). L'épaule et la hanche naissent du recouvrement,
+elles ne sont pas modelées. Là où deux tubes se rencontrent, on voit toujours
+deux tubes qui se rencontrent — aucun raffinement ne rattrape ça.
+
+**Le post-traitement travaille en flottant.** La scène est dessinée sans
+écrêtage, si bien qu'une fenêtre allumée peut valoir quatre fois le blanc :
+c'est la condition pour qu'un halo ait quelque chose à diffuser. Corollaire —
+le seuil d'extraction doit se situer *au-dessus de la neige éclairée*, qui
+dépasse largement 1 en linéaire. Réglé plus bas, le halo prend tout le champ
+neigeux et noie l'image.
+
 **Personne ne doit tomber sur un écran noir.** La page sera ouverte sur des
 appareils inconnus. Si le WebGL manque ou échoue, `ui/fallback.js` sert le
 contenu en clair et en entier. C'est moins beau, mais c'est le contenu qui
@@ -110,3 +124,10 @@ Trois paliers (`core/quality.js`). Le palier de départ vient de l'appareil ; en
 cas de ralentissement durable, on redescend automatiquement. On ne remonte
 jamais tout seul : une oscillation de qualité se remarque bien plus qu'un rendu
 légèrement plus simple.
+
+Rétrograder coupe réellement les deux postes les plus coûteux — la chaîne de
+post-traitement (sept passes plein écran) et la cible des empreintes. Attention
+si vous y touchez : tant que la chaîne est active, c'est elle qui applique la
+courbe de tonalité, et le matériau ne doit pas la faire. Repasser en rendu
+direct sans rétablir `toneMapping` sur le moteur donne une image entièrement
+cramée.
