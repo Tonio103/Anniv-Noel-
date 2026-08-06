@@ -74,21 +74,31 @@ export class Drone {
   cadrer(nom) {
     const c = {
       // En route : assez loin pour voir le cerf en entier et les troncs defiler.
-      route:   { recul: 7.8, hauteur: 3.0, lateral: 1.7, fov: 58 },
+      route:   { recul: 7.8, hauteur: 3.0, lateral: 1.7, fov: 58, biais: 0, bas: 0 },
       // A l'approche d'une halte : on se rapproche et on descend.
-      approche:{ recul: 6.0, hauteur: 2.3, lateral: 2.6, fov: 55 },
+      approche:{ recul: 6.0, hauteur: 2.3, lateral: 2.6, fov: 55, biais: 0, bas: 0 },
       // Le cadeau sort : on passe sur le cote, presque au ras de la neige.
-      halte:   { recul: 4.6, hauteur: 1.7, lateral: 3.4, fov: 52 },
+      halte:   { recul: 4.6, hauteur: 1.7, lateral: 3.4, fov: 52, biais: 0, bas: 0 },
       // Lecture : on s'ecarte pour laisser la place a la carte.
-      lecture: { recul: 6.4, hauteur: 2.4, lateral: 3.9, fov: 54 },
-      // Depart et final : plan large.
-      large:   { recul: 11.5, hauteur: 4.6, lateral: 2.2, fov: 62 },
+      lecture: { recul: 6.4, hauteur: 2.4, lateral: 3.9, fov: 54, biais: 0, bas: 0 },
+      /* Depart et final : plan large. Le cerf est volontairement decale et
+         place bas dans le cadre — au seuil, le titre occupe tout le centre,
+         et un sujet centre finit cache derriere. Le decalage sert aussi la
+         composition partout ailleurs. */
+      /* Au seuil, le titre occupe tout le centre de l'ecran. Il ne suffit
+         PAS d'ecarter la camera pour degager le cerf : elle pivote pour le
+         garder dans l'axe, et il revient au milieu. C'est la VISEE qu'il faut
+         decaler — on regarde a cote et au-dessus de lui, ce qui le repousse
+         vers le bas et sur un cote du cadre. */
+      large:   { recul: 12.5, hauteur: 4.8, lateral: 3.0, fov: 62, biais: 3.4, bas: 2.2 },
     }[nom];
     if (!c) return;
     this.reculCible = c.recul;
     this.hauteurCible = c.hauteur;
     this.lateralCible = c.lateral;
     this.fovCible = c.fov;
+    this.biaisCible = c.biais || 0;
+    this.basCible = c.bas || 0;
   }
 
   maj(dt, temps, cerf) {
@@ -97,6 +107,8 @@ export class Drone {
     this.hauteur = damp(this.hauteur, this.hauteurCible, 0.9, dt);
     this.lateral = damp(this.lateral, this.lateralCible, 0.7, dt);
     this.fov = damp(this.fov, this.fovCible, 0.8, dt);
+    this.biais = damp(this.biais || 0, this.biaisCible || 0, 0.9, dt);
+    this.basCadre = damp(this.basCadre || 0, this.basCible || 0, 0.9, dt);
 
     /* --- derive lente : le cadrage ne se repete jamais -------------------- */
     const oscLat = Math.sin(temps * 0.117) * 1.9 + Math.sin(temps * 0.041) * 1.1;
@@ -150,6 +162,13 @@ export class Drone {
     // Bascule vers le cadeau quand il y en a un.
     if (this._interet && this._forceInteret > 0.001) {
       avance.lerp(this._interet, clamp(this._forceInteret, 0, 1));
+    }
+
+    /* Decalage de cadrage : viser a cote du sujet le repousse vers le bord
+       oppose, viser au-dessus le fait descendre dans l'image. */
+    if (this.biais || this.basCadre) {
+      avance.addScaledVector(this._cote, this.biais);
+      avance.y += this.basCadre;
     }
 
     avance.x += this.bruit(temps * 0.4, 9.1) * 0.20;
