@@ -20,6 +20,7 @@ import { Relief } from './world/terrain.js';
 import { accorderNeige } from './world/snowMaterial.js';
 import { Foret } from './world/forest.js';
 import { Neige } from './world/snowfall.js';
+import { Brume } from './world/mist.js';
 import { Chemin } from './camera/path.js';
 import { Drone } from './camera/droneRig.js';
 import { Cerf } from './deer/deerRig.js';
@@ -86,6 +87,7 @@ async function demarrer() {
   scene.add(foret.groupe);
 
   const neige = new Neige(scene, palier);
+  const brume = new Brume(scene, palier);
 
   scene.environment = ciel.environnement(renderer);
   scene.environmentIntensity = 0.32;
@@ -341,6 +343,7 @@ async function demarrer() {
     relief.maj(camera, ciel.actuel);
     foret.maj(camera);
     neige.maj(dt, t, camera, renderer);
+    brume.maj(dt, t, camera, relief, ciel.actuel);
     son.maj(dt, cerf.vitesse);
   }
 
@@ -375,7 +378,7 @@ async function demarrer() {
   boucle.demarrer();
 
   window.__scene = {
-    renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte, boucle, palier,
+    renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte, brume, boucle, palier,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
       demarree = true;
