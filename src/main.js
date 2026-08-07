@@ -1,0 +1,697 @@
+/* La foret du cerf.
+
+   Un cerf traverse une foret enneigee ; un drone le suit ; a chaque halte, un
+   cadeau se deterre de la neige. Le tout en un seul plan, sans coupe.
+
+   Ce fichier est le chef d'orchestre : il enchaine les moments de la balade
+   et ne fait rien d'autre. Chaque piece (foret, cerf, camera, son, cartes)
+   vit dans son propre module.
+*/
+
+import * as THREE from 'three';
+import { STATIONS } from './content/stations.js';
+import { detecterPalier, Vigie, PALIERS } from './core/quality.js';
+import { creerRendu, brancherResize, webglDisponible } from './core/renderer.js';
+import { Boucle } from './core/loop.js';
+import { clamp, lerp, smoothstep } from './core/noise.js';
+import { Ciel } from './world/sky.js';
+import { Lumieres } from './world/lighting.js';
+import { Relief } from './world/terrain.js';
+import { accorderNeige } from './world/snowMaterial.js';
+import { Foret } from './world/forest.js';
+import { Neige } from './world/snowfall.js';
+import { Brume } from './world/mist.js';
+import { Empreintes } from './world/footprints.js';
+import { Details } from './world/details.js';
+import { Cabanes } from './world/cabins.js';
+import { Fouillis } from './world/props.js';
+import { PremierPlan } from './world/foreground.js';
+import { Poudre } from './world/puffs.js';
+import { Clairieres } from './world/clearing.js';
+import { PostFX } from './core/postfx.js';
+import { Chemin } from './camera/path.js';
+import { Drone } from './camera/droneRig.js';
+import { Cerf } from './deer/deerRig.js';
+import { Halte, PHASES } from './gifts/station.js';
+import { Son } from './audio/engine.js';
+import { Bruitages } from './audio/sfx.js';
+import { Carte } from './ui/card.js';
+import { Invite, Trace, PanneauSon, Fin, brancherSeuil } from './ui/hud.js';
+
+const params = new URLSearchParams(location.search);
+const DEBUG = params.has('debug');
+
+/* Duree des moments qui ne dependent pas du visiteur, en secondes. */
+const DUREES = { fouille: 2.4, percee: 3.4, ouverture: 1.35 };
+
+async function demarrer() {
+  const canvas = document.getElementById('gl');
+  const boot = document.getElementById('boot');
+
+  const gl = webglDisponible();
+  if (!gl) {
+    const { afficherRepli } = await import('./ui/fallback.js');
+    boot.classList.add('out');
+    afficherRepli();
+    return;
+  }
+
+  let palier = detecterPalier(gl);
+  const force = params.get('q');
+  if (force && PALIERS[force]) {
+    palier = { ...PALIERS[force], mobile: palier.mobile, force: true };
+    palier.dpr = Math.min(palier.dpr, window.devicePixelRatio || 1);
+  }
+  if (DEBUG) console.log('palier', palier.nom, palier.gpu);
+
+  const renderer = creerRendu(canvas, palier);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(58, 1, 0.35, 620);
+
+  /* Uniformes partages par tous les vegetaux : le temps et le vent, plus les
+     deux couleurs de l'ambiance courante. Les mettre en commun garantit que la
+     foret, le premier plan et les sapins des clairieres virent ENSEMBLE quand
+     le ciel change — trois jeux separes finiraient par diverger. */
+  const uniformsVent = {
+    uTemps: { value: 0 },
+    uVent: { value: new THREE.Vector2(0.85, 0.34) },
+    uLuneCol: { value: new THREE.Color(0xFFD2A0) },
+    uCielCol: { value: new THREE.Color(0x7A9CBC) },
+  };
+
+  /* ---------------------------------------------------------------- monde */
+  const chemin = new Chemin(STATIONS.length, 7);
+
+  const clairieres = [];
+  for (let i = 0; i < STATIONS.length; i++) {
+    const st = STATIONS[i];
+    if (st.kind === 'clearing' || st.kind === 'final') {
+      const p = chemin.haltes[i].pos;
+      clairieres.push({ x: p.x, z: p.z, r: st.kind === 'final' ? 38 : 30, h: 0 });
+    }
+  }
+
+  const ciel = new Ciel(scene, palier);
+  const lumieres = new Lumieres(scene, palier);
+  const relief = new Relief(chemin, palier, clairieres);
+  scene.add(relief.groupe);
+  for (const c of clairieres) c.h = relief.hauteur(c.x, c.z);
+
+  const foret = new Foret(chemin, relief, palier, clairieres, uniformsVent);
+  scene.add(foret.groupe);
+
+  const fouillis = new Fouillis(chemin, relief, palier, clairieres);
+  scene.add(fouillis.groupe);
+
+  /* Le premier plan : les futs clairs qui rayent l'image au passage et les
+     branches basses sous lesquelles on plonge. Sans eux, la camera glisse
+     sur un rail ; avec eux, elle vole. */
+  const avant = new PremierPlan(chemin, relief, palier, clairieres, uniformsVent, {
+    modele: foret.modele, matFeuillage: foret.matFeuillage, matNeige: foret.matNeige,
+  });
+  scene.add(avant.groupe);
+
+  const neige = new Neige(scene, palier);
+  const brume = new Brume(scene, palier);
+  const details = new Details(scene, palier);
+  const cabanes = new Cabanes(scene, chemin, relief, palier, clairieres);
+
+  /* Les traces de sabots : une texture en coordonnees monde, echantillonnee
+     par le shader de neige pour assombrir et creuser la surface. */
+  const empreintes = new Empreintes(renderer, palier);
+  relief.brancherEmpreintes(empreintes);
+
+  /* Et la neige qu'il chasse a chaque poser. L'empreinte dit ou il est passe,
+     la poudre dit qu'il passe MAINTENANT. */
+  const poudre = new Poudre(scene, palier);
+  const solPourPoudre = (x, z) => relief.hauteur(x, z);
+
+  /* La taille d'un point est exprimee en pixels : elle doit suivre la hauteur
+     reelle du canevas, sinon la poudre double de taille des qu'on tourne le
+     telephone ou que la qualite retrograde. */
+  const ajusterPoudre = () => {
+    const h = renderer.domElement.clientHeight || window.innerHeight;
+    poudre.redimensionner(h * renderer.getPixelRatio(), camera.fov);
+  };
+  ajusterPoudre();
+  window.addEventListener('resize', () => setTimeout(ajusterPoudre, 150));
+  window.addEventListener('orientationchange', () => setTimeout(ajusterPoudre, 300));
+
+  /* Ce qui habite les clairieres : les jalons de dates et le sapin de la
+     derniere halte. Ils reutilisent la silhouette d'arbre de la foret. */
+  const habitants = new Clairieres(
+    scene, chemin, relief, palier, STATIONS,
+    foret.modele, foret.matFeuillage, foret.matNeige
+  );
+
+  scene.environment = ciel.environnement(renderer);
+  scene.environmentIntensity = 0.32;
+
+  /* Post-traitement. Quand il est actif, la scene part dans une cible
+     flottante et c'est la passe finale qui applique la courbe ACES : le
+     materiau ne doit donc plus la faire lui-meme, sous peine de l'appliquer
+     deux fois et d'ecraser toutes les hautes lumieres. */
+  const postfx = new PostFX(renderer, palier);
+  if (postfx.actif) renderer.toneMapping = THREE.NoToneMapping;
+
+  const ajusterTaille = brancherResize(renderer, camera, postfx, palier);
+
+  /* --------------------------------------------------------- cerf, camera */
+  // Abscisse de depart, partagee par le seuil et par le retour en fin de
+  // balade : les deux doivent poser la camera au meme endroit degage.
+  const DEPART = 26;
+
+  const cerf = new Cerf(palier, chemin, relief);
+  scene.add(cerf.racine);
+  /* Le cerf ne demarre pas a la lisiere meme du chemin.
+
+     La camera du seuil se tient douze metres DERRIERE lui. A s = 12, elle se
+     retrouvait donc AVANT le debut du trace — une zone que la regle du
+     couloir degage ne protege pas, puisque la distance au chemin y est
+     mesuree jusqu'a son premier point. L'appareil demarrait a l'interieur
+     d'un sapin et l'ecran d'accueil s'ouvrait sur un aplat noir. Le defaut
+     etait masque tant que le cadrage large visait au-dessus des cimes ; il
+     est apparu des qu'on l'a redescendu pour rendre le cerf visible. */
+  cerf.s = DEPART;
+
+  const drone = new Drone(camera, chemin, relief, palier);
+  drone.cadrer('large');
+  drone.poser(cerf, 0);
+
+  /* LE PLAN D'OUVERTURE, compose et non subi.
+
+     Le laisser au rig de suivi ne marchait pas. Ses derives lentes — celles
+     qui font justement qu'en route le cadrage ne se repete jamais — placent
+     la camera au petit bonheur : selon la seconde, elle se retrouvait dans
+     un sapin, ou visant le ciel, ou avec le cerf hors champ. Or c'est la
+     PREMIERE image, celle que toute la famille verra, et la seule qui doive
+     tenir plusieurs dizaines de secondes sans bouger.
+
+     On la pose donc explicitement, comme la derniere. La camera reste
+     vivante — flottement de main levee, respiration de l'objectif, neige qui
+     tombe, sapins qui travaillent — mais son cadre, lui, est choisi : le
+     cerf dans le tiers bas et decale, la trouee du chemin derriere lui, et
+     tout le centre libre pour le titre. */
+  function poserSeuil() {
+    const p0 = chemin.point(DEPART, new THREE.Vector3());
+    const tan0 = chemin.tangente(DEPART, new THREE.Vector3());
+    const cot0 = chemin.cote(DEPART, new THREE.Vector3());
+    const sol0 = relief.hauteur(p0.x, p0.z);
+
+    // En retrait sur l'axe du chemin : c'est le seul endroit dont on sache
+    // qu'il est degage, puisque c'est le couloir de marche lui-meme.
+    const poste = new THREE.Vector3(
+      p0.x - tan0.x * 10.5 + cot0.x * 1.2,
+      sol0 + 2.75,
+      p0.z - tan0.z * 10.5 + cot0.z * 1.2
+    );
+    /* On vise A COTE du cerf et AU-DESSUS : viser l'animal lui-meme le
+       ramenerait au centre, exactement derriere le titre. C'est la visee qui
+       compose, jamais la position seule. */
+    const vise = new THREE.Vector3(
+      p0.x + tan0.x * 5 - cot0.x * 5.4,
+      sol0 + 3.05,
+      p0.z + tan0.z * 5 - cot0.z * 5.4
+    );
+    drone.figer(vise, poste);
+    drone.pos.copy(poste);
+    drone.vise.copy(vise);
+  }
+  poserSeuil();
+
+  const halte = new Halte(scene, palier, relief);
+
+  /* ------------------------------------------------------------------ son */
+  const son = new Son();
+  const sfx = new Bruitages(son);
+  const ancreCadeau = new THREE.Object3D();
+  scene.add(ancreCadeau);
+  let voixCerf = null, voixSabots = null, voixCadeau = null;
+
+  /* --------------------------------------------------------------- ecrans */
+  const invite = new Invite();
+  const trace = new Trace(STATIONS.length - 1);
+  const panneau = new PanneauSon(son);
+  const carte = new Carte(() => fermerCarte());
+  const fin = new Fin(() => recommencer());
+  /* Les evenements de la fin ne doivent se produire qu'une fois : la phase
+     dure et son horloge repasse en boucle par les memes seuils. */
+  const finBruits = { grelots: false, texte: false };
+
+  /* ------------------------------------------------------- machine d'etat */
+  let phase = PHASES.ROUTE;
+  let index = 0;              // halte 0 = le seuil, on vise la 1
+  let horloge = 0;            // temps ecoule dans la phase courante
+  let demarree = false;
+  const ancre = new THREE.Vector3();
+
+  function viser(i) {
+    index = i;
+    const st = STATIONS[i];
+    if (st?.scene?.light) ciel.viser(st.scene.light);
+  }
+
+  /* Le sens de l'arc de camera, alterne d'une halte a l'autre. */
+  const sensArc = () => (index % 2 === 0 ? 1 : -1);
+
+  function entrerPhase(p) {
+    phase = p;
+    horloge = 0;
+
+    switch (p) {
+      case PHASES.ROUTE:
+        cerf.vitesseCible = 6.2;
+        cerf.regard = 0;
+        drone.cadrer('route');
+        drone.regarder(null, 0);
+        drone.arc(0, 0);
+        panneau.attenuer(false);
+        break;
+
+      case PHASES.APPROCHE:
+        cerf.vitesseCible = 2.3;
+        drone.cadrer('approche');
+        /* L'arc commence des l'approche, doucement, et son SENS ALTERNE d'une
+           halte a l'autre. Sans cette alternance, les six haltes tournent
+           toutes du meme cote et le procede se voit ; avec, chaque arrivee
+           compose differemment sans qu'on sache pourquoi. */
+        drone.arc(sensArc() * 0.045, 0.15);
+        break;
+
+      case PHASES.FOUILLE: {
+        cerf.vitesseCible = 0;
+        drone.cadrer('halte');
+        const st = STATIONS[index];
+        const cote = index % 2 === 0 ? 1 : -1;
+        const pose = halte.preparer(st, chemin, chemin.haltes[index].s + 1.5, cote);
+        if (!pose) {
+          // Rien d'enfoui ici : le cerf s'arrete, se retourne, et c'est tout.
+          entrerPhase(PHASES.ATTENTE);
+          break;
+        }
+        if (pose) {
+          ancreCadeau.position.copy(halte.centre);
+          if (son.pret && !voixCadeau) voixCadeau = sfx.ancrer(ancreCadeau, 42);
+          // Le son passe SOUS la neige avant que l'image ne montre quoi que
+          // ce soit : c'est l'attente qui fait exister le moment.
+          sfx.grondement(voixCadeau?.entree, DUREES.fouille + DUREES.percee * 0.5);
+        }
+        break;
+      }
+
+      case PHASES.PERCEE:
+        cerf.grattage = 0;
+        cerf.regard = 0.35;
+        break;
+
+      case PHASES.ATTENTE: {
+        const st = STATIONS[index];
+        invite.montrer(st.prompt || 'Touchez le cadeau');
+        cerf.regard = 0.8;         // il se retourne et attend
+        drone.cadrer('halte');
+        // Le paquet est sorti : on tourne un peu plus vite autour de lui.
+        drone.arc(sensArc() * 0.085, 0.35);
+        break;
+      }
+
+      case PHASES.OUVERTURE:
+        sfx.ouverture(voixCadeau?.entree);
+        cerf.regard = 0.5;
+        // L'ouverture se regarde de face : l'arc se calme le temps du geste.
+        drone.arc(sensArc() * 0.030, 0.25);
+        break;
+
+      case PHASES.LECTURE:
+        drone.cadrer('lecture');
+        /* Pendant la lecture, l'arc est a peine perceptible — mais il existe.
+           C'est lui qui empeche la carte de se poser sur une image morte, et
+           donc de ressembler a une diapositive. */
+        drone.arc(sensArc() * 0.022, 0);
+        panneau.attenuer(true);
+        carte.ouvrir(STATIONS[index].card);
+        break;
+
+      case PHASES.REPRISE:
+        trace.marquer(index - 1);
+        cerf.regard = 0;
+        cerf.vitesseCible = 6.2;
+        drone.cadrer('route');
+        drone.arc(0, 0);
+        panneau.attenuer(false);
+        break;
+    }
+  }
+
+  function fermerCarte() {
+    if (phase !== PHASES.LECTURE) return;
+    entrerPhase(PHASES.REPRISE);
+  }
+
+  /* On recommence SUR PLACE, sans recharger : la page est dechiffree en
+     memoire et un rechargement redemanderait le code d'acces a la famille.
+     Il suffit de ramener le cerf a la lisiere et de rendre la main au drone
+     — la foret, elle, n'a pas bouge. */
+  function recommencer() {
+    finBruits.grelots = false;
+    finBruits.texte = false;
+    halte.nettoyer();
+    trace.effacer();
+    cerf.s = DEPART;
+    cerf.regard = 0;
+    cerf.grattage = 0;
+    cerf.placer(cerf.s);
+    drone.liberer();
+    drone.cadrer('route');
+    drone.poser(cerf, boucle.t);
+    viser(1);
+    entrerPhase(PHASES.ROUTE);
+  }
+
+  /* Un geste, n'importe ou : sur un telephone, exiger de viser le paquet
+     serait penible et raterait souvent. L'anneau dit ou regarder ; le doigt
+     peut tomber ou il veut. */
+  function toucher() {
+    if (phase === PHASES.ATTENTE) {
+      const st = STATIONS[index];
+      /* L'anneau se retire ICI, et non dans le cas OUVERTURE : les haltes
+         sans paquet — les clairieres — sautent directement a la lecture, si
+         bien que leur invite n'etait jamais rangee. Elle restait affichee
+         jusqu'a la fin de la balade, y compris par-dessus l'image finale. */
+      invite.cacher();
+      entrerPhase(st.scene?.gift ? PHASES.OUVERTURE : PHASES.LECTURE);
+    }
+  }
+  canvas.addEventListener('pointerdown', toucher);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toucher(); }
+  });
+
+  /* ----------------------------------------------------------------- pas  */
+  function pas(dt, t) {
+    uniformsVent.uTemps.value = t;
+    horloge += dt;
+
+    const cible = chemin.haltes[index];
+
+    switch (phase) {
+      case PHASES.ROUTE:
+        if (demarree && cible && cerf.s > cible.s - 24) entrerPhase(PHASES.APPROCHE);
+        break;
+
+      case PHASES.APPROCHE:
+        if (cerf.s > cible.s - 1.2 || cerf.vitesse < 0.12) entrerPhase(PHASES.FOUILLE);
+        break;
+
+      case PHASES.FOUILLE:
+        // Il gratte la neige : c'est ce geste qui declenche la sortie.
+        cerf.grattage = clamp(horloge / DUREES.fouille, 0, 1);
+        if (horloge > DUREES.fouille) {
+          cerf.grattage = 0;
+          entrerPhase(PHASES.PERCEE);
+        }
+        break;
+
+      /* LA FIN.
+
+         Jusqu'ici il n'y en avait pas : la derniere carte se refermait, le
+         cerf repartait, la camera le suivait, et ca s'arretait la. Une
+         experience qui s'interrompt n'est pas une experience qui se termine.
+
+         Elle est donc ecrite en quatre temps, minutes a la seconde :
+
+           0 s   il ralentit — le voyage se relache ;
+           2,6 s IL SE RETOURNE. C'est le seul geste qui compte. Il a jete des
+                 coups d'oeil en arriere pendant toute la balade ; celui-ci
+                 est le dernier, et il dure ;
+           6,0 s LA CAMERA RENONCE A LE SUIVRE. Elle se pose et le laisse
+                 partir. Tant qu'elle suit, il n'y a pas de fin : le sujet
+                 reste centre et on attend la suite. C'est le renoncement de
+                 l'appareil qui fait la fin, pas le depart de l'animal ;
+           9,5 s le texte se pose en bas, sur la clairiere allumee.
+
+         Rien ne recouvre l'image a aucun moment. */
+      case PHASES.FIN: {
+        const T = horloge;
+
+        if (T < 2.6) {
+          cerf.vitesseCible = lerp(4.6, 1.1, smoothstep(0, 2.6, T));
+        } else if (T < 6.0) {
+          // L'adieu. Il s'arrete franchement et nous regarde.
+          cerf.vitesseCible = 0;
+          cerf.regard = smoothstep(2.6, 3.5, T) * smoothstep(6.0, 5.2, T) * 0.95;
+          if (!finBruits.grelots && T > 3.0) {
+            finBruits.grelots = true;
+            sfx.grelots(voixCerf?.entree, 0.8);
+            sfx.naseaux(voixCerf?.entree);
+          }
+        } else {
+          cerf.regard = 0;
+          // Il repart, mais sans hate : ce n'est pas une fuite.
+          cerf.vitesseCible = 3.0 * smoothstep(6.0, 7.4, T);
+          if (cerf.s > chemin.longueur - 4) cerf.vitesseCible = 0;
+        }
+
+        if (T < 6.0) {
+          drone.cadrer(T < 2.6 ? 'large' : 'lecture');
+          cerf.ancre(ancre);
+          drone.regarder(ancre, T < 2.6 ? 0 : 0.85);
+        } else if (!drone.fige) {
+          /* LA DERNIERE IMAGE, composee et non subie.
+
+             Elle vise le sapin allume et les seize bougies, pas le cerf :
+             c'est le decor qui doit rester dans le cadre quand l'animal en
+             sort. Et la camera est POSEE a un endroit precis — en retrait,
+             en hauteur, legerement de cote — parce que se figer sur place la
+             laissait au hasard de sa derive, parfois au milieu meme de l'arc
+             de bougies, qui remplissait alors l'ecran. */
+          const sFin = chemin.haltes[STATIONS.length - 1].s;
+          const p0 = chemin.point(sFin, new THREE.Vector3());
+          const tanF = chemin.tangente(sFin, new THREE.Vector3());
+          const cotF = chemin.cote(sFin, new THREE.Vector3());
+          const sol0 = relief.hauteur(p0.x, p0.z);
+
+          // Visee : entre les bougies et le sapin, un peu au-dessus du sol.
+          ancre.set(
+            p0.x + tanF.x * 8 + cotF.x * 2.5,
+            sol0 + 2.6,
+            p0.z + tanF.z * 8 + cotF.z * 2.5
+          );
+          const poste = new THREE.Vector3(
+            p0.x - tanF.x * 13 - cotF.x * 4,
+            sol0 + 6.2,
+            p0.z - tanF.z * 13 - cotF.z * 4
+          );
+          drone.regarder(null, 0);
+          drone.figer(ancre, poste);
+        }
+
+        if (T > 9.5 && !finBruits.texte) {
+          finBruits.texte = true;
+          fin.montrer();
+        }
+        break;
+      }
+
+      case PHASES.PERCEE: {
+        const a = clamp(horloge / DUREES.percee, 0, 1);
+        halte.majEmergence(dt, a, t);
+        drone.regarder(halte.ancre(ancre), smoothstep(0.1, 0.6, a) * 0.75);
+        if (halte.emergence._jaillieA >= 0 && !halte._gerbeJouee) {
+          halte._gerbeJouee = true;
+          sfx.gerbe(voixCadeau?.entree);
+        }
+        if (a >= 1) { halte._gerbeJouee = false; entrerPhase(PHASES.ATTENTE); }
+        break;
+      }
+
+      case PHASES.ATTENTE:
+        halte.majEmergence(dt, 1, t);
+        if (halte.cadeau) {
+          drone.regarder(halte.ancre(ancre), 0.75);
+          invite.ancrer(halte.ancre(ancre), camera);
+        } else {
+          // Sans paquet, l'anneau se pose sur le cerf lui-meme.
+          cerf.ancre(ancre); ancre.y += 0.35;
+          drone.regarder(ancre, 0.35);
+          invite.ancrer(ancre, camera);
+        }
+        break;
+
+      case PHASES.OUVERTURE:
+        halte.majEmergence(dt, 1, t);
+        halte.majOuverture(dt, t);
+        drone.regarder(halte.ancre(ancre), 0.8);
+        if (horloge > DUREES.ouverture) entrerPhase(PHASES.LECTURE);
+        break;
+
+      case PHASES.LECTURE:
+        halte.majEmergence(dt, 1, t);
+        halte.majOuverture(dt * 0.35, t);
+        drone.regarder(halte.ancre(ancre), 0.55);
+        carte.ancrer(halte.ancre(ancre), camera);
+        break;
+
+      case PHASES.REPRISE:
+        halte.majEmergence(dt, 1, t);
+        drone.regarder(halte.ancre(ancre), Math.max(0, 0.55 - horloge * 0.55));
+        if (horloge > 1.4) {
+          if (index >= STATIONS.length - 1) {
+            // Fin : elle est ecrite dans le cas PHASES.FIN, en quatre temps.
+            drone.cadrer('large');
+            drone.regarder(null, 0);
+            cerf.vitesseCible = 4.6;
+            finBruits.grelots = false;
+            finBruits.texte = false;
+            phase = PHASES.FIN;
+            horloge = 0;
+          } else {
+            viser(index + 1);
+            entrerPhase(PHASES.ROUTE);
+          }
+        }
+        break;
+    }
+
+    /* La lueur du paquet eclaire vraiment la neige autour. */
+    if (halte.cadeau) {
+      halte.ancre(ancre);
+      const g = STATIONS[index]?.scene?.gift;
+      lumieres.poserLueur(ancre, g ? g.glow : 0xFFC98A, halte.eclat());
+    } else {
+      lumieres.poserLueur(null, undefined, 0);
+    }
+
+    cerf.maj(dt, t);
+
+    /* Le son ET les traces se calent sur les posers reels, jamais sur une
+       minuterie : le sabot marque la neige exactement ou il se pose. */
+    for (const p of cerf.posers) {
+      sfx.sabot(voixSabots?.entree, p.force);
+      if (Math.random() < 0.42) sfx.grelots(voixCerf?.entree, 0.5 + p.force * 0.5);
+      empreintes.ajouter(p.pos.x, p.pos.z, cerf.racine.rotation.y, p.force);
+      /* La poudre part vers l'arriere de la marche. Le corps est modelise
+         museau vers -Z, d'ou le signe : c'est la meme convention que dans
+         placer(), et s'en ecarter enverrait la neige devant lui. */
+      poudre.poser(
+        p.pos.x, p.pos.y, p.pos.z,
+        -Math.sin(cerf.racine.rotation.y), -Math.cos(cerf.racine.rotation.y),
+        p.force
+      );
+    }
+    cerf.posers.length = 0;
+    poudre.maj(dt, solPourPoudre);
+    fin.maj(dt);
+
+    drone.maj(dt, t, cerf);
+
+    ciel.maj(dt, t, camera);
+    poudre.accorder(scene.fog);
+    lumieres.accorder(ciel.actuel);
+    // Le feuillage suit la meme ambiance que la lumiere et la neige.
+    uniformsVent.uLuneCol.value.set(ciel.actuel.soleil);
+    uniformsVent.uCielCol.value.set(ciel.actuel.ciel);
+    lumieres.maj(camera, cerf.racine.position);
+    accorderNeige(relief.materiau, ciel.actuel, lumieres.dir);
+    if (cerf.materiau.userData.uniforms) {
+      cerf.materiau.userData.uniforms.uLisereCol.value.set(ciel.actuel.soleil);
+      cerf.materiau.userData.uniforms.uLisereDir.value.copy(lumieres.dir);
+    }
+    relief.maj(camera, ciel.actuel);
+    foret.maj(camera);
+    avant.maj(camera);
+    neige.maj(dt, t, camera, renderer);
+    brume.maj(dt, t, camera, relief, ciel.actuel);
+    details.maj(dt, t, camera, relief);
+    cabanes.maj(dt);
+    habitants.maj(t);
+    relief.majEmpreintes();
+
+    /* Mise au point sur le sujet — le cerf, ou le paquet quand il est sorti.
+       Elle se met a jour ICI, dans le pas de simulation, et non dans la
+       boucle de rendu : sinon elle ne converge pas quand le temps est
+       avance sans dessiner, et le plan de nettete reste ou il etait. */
+    postfx.viser(camera.position.distanceTo(
+      halte.cadeau ? halte.ancre(ancre) : cerf.ancre(ancre)
+    ));
+    son.maj(dt, cerf.vitesse);
+  }
+
+  const vigie = new Vigie(palier, (p) => {
+    palier = p;
+    renderer.setPixelRatio(p.dpr);
+    renderer.shadowMap.enabled = p.ombres;
+
+    /* Retrograder ne servait a rien tant que les postes les plus couteux
+       restaient allumes : la chaine de post-traitement (sept passes plein
+       ecran) et la cible des empreintes continuaient de tourner. Ce sont
+       justement les deux premiers a couper sur une machine qui peine. */
+    if (p.postfx === 'leger') postfx.desactiver(renderer);
+    if (p.empreintes === false) empreintes.actif = false;
+
+    postfx.palier = p;
+    ajusterTaille();
+    ajusterPoudre();
+  });
+
+  const boucle = new Boucle((dt, t) => {
+    vigie.tic(dt);
+    pas(dt, t);
+    // Les traces se dessinent dans leur propre cible avant la scene.
+    empreintes.rendre(renderer, cerf.racine.position, dt);
+    postfx.rendre(scene, camera, t);
+  });
+
+  /* ------------------------------------------------------------- le seuil */
+  viser(0);
+  boot.classList.add('out');
+  setTimeout(() => { boot.hidden = true; }, 900);
+  document.getElementById('entry').hidden = false;
+
+  brancherSeuil(() => {
+    son.demarrer(camera);
+    voixCerf = sfx.ancrer(cerf.tete, 40);
+    voixSabots = sfx.ancrer(cerf.racine, 34);
+    panneau.montrer();
+    demarree = true;
+    /* La camera reprend son role de suiveur. Elle ne saute pas : `liberer`
+       la remet en poursuite depuis sa position actuelle, et l'elasticite du
+       rig fait le raccord. C'est le premier mouvement de la balade, et il
+       doit avoir l'air d'un decollage, pas d'une coupe. */
+    drone.liberer();
+    drone.cadrer('route');
+    viser(1);
+    entrerPhase(PHASES.ROUTE);
+  });
+
+  boucle.demarrer();
+
+  window.__scene = {
+    renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
+    brume, details, cabanes, empreintes, fouillis, habitants, postfx, boucle, palier,
+    son, sfx, avant,
+    /* Outils de controle : placer la balade a une halte, avancer le temps. */
+    aller(i, ph) {
+      demarree = true;
+      viser(Math.min(i, STATIONS.length - 1));
+      cerf.s = chemin.haltes[index].s - (ph ? 2 : 30);
+      entrerPhase(ph || PHASES.ROUTE);
+      document.getElementById('entry').hidden = true;
+      drone.poser(cerf, boucle.t);
+    },
+    simuler(secondes) {
+      const h = 1 / 60;
+      for (let acc = 0; acc < secondes; acc += h) {
+        boucle.t += h; pas(h, boucle.t);
+        // Les traces se posent au rendu : sans cet appel, une marche
+        // simulee ne laisserait aucune empreinte derriere elle.
+        empreintes.rendre(renderer, cerf.racine.position, h);
+      }
+    },
+    phase: () => phase,
+  };
+}
+
+demarrer().catch((e) => {
+  console.error(e);
+  import('./ui/fallback.js').then(({ afficherRepli }) => afficherRepli(e));
+});

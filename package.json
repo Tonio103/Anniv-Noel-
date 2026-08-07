@@ -1,0 +1,19 @@
+{
+  "name": "foret-du-cerf",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Balade 3D dans une foret enneigee — liste d'anniversaire et de Noel d'Antoine",
+  "scripts": {
+    "dev": "node build/serve.mjs",
+    "bundle": "node build/build.mjs",
+    "build": "node build/build.mjs && node build/encrypt.mjs",
+    "shots": "node build/shots.mjs",
+    "apercu": "node build/preview.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright-core": "^1.49.0",
+    "three": "^0.185.0"
+  }
+}
