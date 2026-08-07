@@ -704,3 +704,23 @@ body{
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.15s!important}
 }
+
+/* --------------------------------------------------------------------------
+   Le compteur d'images (`?fps=1` seulement).
+
+   Volontairement laid et minuscule : c'est un instrument, pas un element de
+   la presentation. Il se place en haut a gauche, seul coin que ni les
+   reperes du HUD ni la carte n'occupent jamais.
+   -------------------------------------------------------------------------- */
+.fps{
+  position:fixed;z-index:200;
+  top:calc(8px + var(--safe-t));left:calc(8px + var(--safe-l));
+  padding:7px 10px;border-radius:9px;
+  background:rgba(4,10,16,.82);
+  border:1px solid rgba(190,220,240,.20);
+  font:500 11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:rgba(226,240,255,.78);
+  pointer-events:none;white-space:nowrap;
+}
+.fps b{font-size:16px;font-weight:700;margin-right:3px}
+.fps i{display:block;font-style:normal;opacity:.72}

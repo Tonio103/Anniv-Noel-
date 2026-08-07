@@ -752,12 +752,21 @@ async function demarrer() {
     ajusterPoudre();
   });
 
+  /* Compteur d'images, uniquement sur `?fps=1`. C'est la seule mesure de ce
+     projet que je ne peux pas faire moi-meme : je rends en logiciel, et le
+     chiffre obtenu ici ne dit rien de ce que fait un telephone. Celui-ci
+     mesure chez la personne qui regarde. */
+  const compteur = params.has('fps')
+    ? new (await import('./ui/compteur.js')).Compteur(renderer, palier)
+    : null;
+
   const boucle = new Boucle((dt, t) => {
     vigie.tic(dt);
     pas(dt, t);
     // Les traces se dessinent dans leur propre cible avant la scene.
     empreintes.rendre(renderer, cerf.racine.position, dt);
     postfx.rendre(scene, camera, t);
+    if (compteur) { compteur.maj(dt); compteur.apresRendu(); }
   });
 
   /* ------------------------------------------------------------- le seuil */
