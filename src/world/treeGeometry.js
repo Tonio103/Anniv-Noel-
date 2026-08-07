@@ -376,9 +376,26 @@ export function eclairerAiguilles(materiau, { uniforms, transmission = 1 } = {})
           // 2. Le ciel arrive par le haut ; le pied de l'arbre est enfoui.
           outgoingLight += diffuseColor.rgb * uCielCol * (0.10 + vHaut * 0.30) * 0.42;
 
-          // 3. Le bord des aiguilles s'allume, mais seulement face a la lune.
-          float tranche = pow(1.0 - abs(dot(N, V)), 3.0);
-          outgoingLight += uLuneCol * tranche * clamp(nl, 0.0, 1.0) * 0.30 * uTransm;
+          /* 3. Le bord des aiguilles s'allume, mais seulement face a la lune.
+
+             C'ETAIT LUI, LE CARTON BEIGE. Ce terme ajoutait la couleur de la
+             lune pure, sans la teinter du feuillage, a hauteur de 0,30 — soit
+             trois a cinq fois l'eclairement propre des aiguilles, et dans une
+             teinte tres ambree. Il etait cense ne toucher qu'une mince
+             silhouette, puisque la tranche ne monte qu'a l'incidence rasante.
+             Mais un etage de branches EST un plan large, et vu depuis le sol
+             un plan large est presque toujours rasant : la tranche valait donc
+             1 sur toute la surface. Chaque etage se remplissait a ras bord
+             et l'arbre entier virait au brun clair — l'aspect « planches de
+             carton » qu'on voyait sans que la geometrie y soit pour rien.
+
+             Deux corrections. La lumiere de bord est desormais teintee par
+             l'aiguille qu'elle traverse, donc elle ne peut plus virer au brun ;
+             et l'exposant monte pour que le terme se resserre reellement sur
+             le contour au lieu de couvrir la planche. */
+          vec3 bord = mix(uLuneCol, uLuneCol * diffuseColor.rgb * 4.0, 0.62);
+          float tranche = pow(1.0 - abs(dot(N, V)), 6.0);
+          outgoingLight += bord * tranche * clamp(nl, 0.0, 1.0) * 0.11 * uTransm;
         }
         #endif
         #include <opaque_fragment>

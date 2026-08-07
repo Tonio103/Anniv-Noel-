@@ -44,12 +44,22 @@ function geoRocher(rand, detail) {
   return g;
 }
 
-/* Calotte de neige d'un rocher : la meme forme, un peu plus grosse, dont on
-   ne garde que le dessus. Le reste est ecrase sous le sol. */
-function geoNeigeRocher(rand, detail) {
-  const g = new THREE.IcosahedronGeometry(0.53, detail);
-  bosseler(g, rand, 0.42);
-  g.scale(1, 0.62, 1);
+/* Calotte de neige d'un rocher : LA MEME FORME, gonflee, dont on ne garde que
+   le dessus.
+
+   « La meme » est ici une condition, pas une commodite. La calotte etait
+   regeneree a partir d'un icosaedre neuf, bosselee par un autre tirage
+   aleatoire et six pour cent plus grosse. Or les bosses vont jusqu'a vingt
+   pour cent : deux surfaces bosselees independamment s'entrecroisent, et le
+   rocher ressortait a travers sa propre neige presque partout. Resultat, des
+   cailloux nus sur un tapis blanc — le defaut exact que le commentaire d'en
+   tete promet d'eviter.
+
+   En partant de la geometrie deja bosselee et en la dilatant, la calotte
+   ENVELOPPE le rocher par construction, quel que soit le tirage. */
+function geoNeigeRocher(base) {
+  const g = base.clone();
+  g.scale(1.16, 1.16, 1.16);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     // Tout ce qui est sous l'equateur est ramene au niveau du bord : il ne
@@ -67,45 +77,123 @@ function geoSouche(rand) {
   return g;
 }
 
+/* Le chapeau de neige d'une souche.
+
+   Les souches etaient la seule famille declaree sans neige (`neige: null`), et
+   c'est justement celle qui en porte le plus dans la nature : une section de
+   coupe est horizontale, large et rugueuse, donc elle retient tout ce qui
+   tombe. Sans ce disque blanc, on lisait des tambours sombres poses sur la
+   neige — les taches noires du bas de cadre venaient en bonne partie de la.
+
+   Un galet aplati, deborde d'un centimetre ou deux, et legerement bombe : la
+   neige ne se pose pas a plat, elle s'amoncelle au milieu. */
+function geoNeigeSouche(rand) {
+  const g = new THREE.SphereGeometry(0.47, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  bosseler(g, rand, 0.14);
+  g.scale(1, 0.34, 1);
+  g.translate(0, 0.97, 0);
+  return g;
+}
+
+/* Tronc couche. FERME AUX DEUX BOUTS : il etait ouvert, et un tube ouvert vu
+   par l'extremite n'est pas un tronc, c'est un trou. Quand le hasard orientait
+   le tronc vers la camera, on regardait droit dans le vide — la face interne
+   opposee etant elle-meme eliminee par le tri des faces arriere, il ne restait
+   qu'un morceau de paroi, cette forme plate et anguleuse posee sur la neige
+   qu'on ne pouvait rattacher a rien. Un tronc scie a deux sections ; elles ne
+   coutent que douze triangles et elles rendent l'objet lisible. */
 function geoTronc(rand) {
-  const g = new THREE.CylinderGeometry(0.26, 0.33, 1, 8, 1, true);
+  const g = new THREE.CylinderGeometry(0.26, 0.33, 1, 8, 1, false);
   bosseler(g, rand, 0.14);
   g.rotateZ(Math.PI / 2);        // couche
   return g;
 }
 
-/* Neige accumulee sur un tronc couche : une demi-gouttiere posee dessus. */
+/* Neige accumulee sur un tronc couche : une demi-gouttiere posee dessus.
+
+   ELLE ETAIT SUR LE FLANC. Le demi-cylindre couvre la moitie +X du modele ;
+   apres rotateZ(+90°) cette moitie passe bien sur le dessus, ou elle doit
+   rester. Le rotateX(-90°) qui suivait la faisait basculer vers -Z, c'est-a-
+   dire contre le cote du tronc, la ou elle est invisible depuis le dessus. Les
+   troncs couches n'avaient donc jamais de neige, alors que la geometrie
+   existait et etait bien dessinee.
+
+   Le bosselage est aussi divise par deux : comme pour les rochers, la
+   gouttiere doit rester A L'EXTERIEUR du tronc, et deux bruits independants
+   sur des rayons voisins se traversent. */
 function geoNeigeTronc(rand) {
-  const g = new THREE.CylinderGeometry(0.30, 0.37, 1, 8, 1, true, 0, Math.PI);
-  bosseler(g, rand, 0.20);
+  /* Juste assez large pour couvrir sans deborder, et un peu moins d'un
+     demi-tour : a PI pile, la gouttiere descendait jusqu'a l'equateur du
+     tronc et, etant plus grosse que lui, elle depassait sur les cotes — le
+     tronc disparaissait dans un fourreau blanc, comme un tapis roule. La
+     neige doit se poser SUR le dos du tronc et s'arreter avant les flancs.
+     Raccourcie aussi de six pour cent, pour que les deux bouts scies
+     ressortent de dessous. */
+  const g = new THREE.CylinderGeometry(0.285, 0.355, 0.94, 8, 1, true,
+                                       Math.PI * 0.10, Math.PI * 0.80);
+  bosseler(g, rand, 0.07);
   g.rotateZ(Math.PI / 2);
-  g.rotateX(-Math.PI / 2);
   return g;
 }
 
 /* Buisson sec : quelques brindilles divergentes. On ne cherche pas le detail,
    seulement une silhouette griffue qui accroche la lumiere rasante. */
+/* Buisson sec.
+
+   IL RESSEMBLAIT A UNE ARAIGNEE. Sept brindilles epaisses partant TOUTES du
+   meme point, reparties a intervalles reguliers autour du cercle et montant
+   droit : ce n'est pas un buisson, c'est un cric. La regularite se voyait
+   immediatement, et le depart unique donnait ce corps central compact d'ou
+   sortaient des pattes.
+
+   Un vrai buisson sec part de plusieurs souches voisines, ses tiges se
+   courbent en s'elevant, et leurs longueurs n'ont rien de commun. Chaque
+   brindille est donc tracee en trois segments qui s'inclinent
+   progressivement, depuis une base dispersee. Elles sont aussi deux fois plus
+   fines : a vingt metres, une brindille de deux centimetres et demi est un
+   trait noir, alors qu'a un centimetre elle se fond en gris. */
 function geoBuisson(rand) {
   const pos = [], nor = [];
-  const nb = 7;
+  const nb = 13;
   for (let i = 0; i < nb; i++) {
-    const a = (i / nb) * Math.PI * 2 + rand() * 0.6;
-    const pente = 0.35 + rand() * 0.5;
-    const h = 0.55 + rand() * 0.6;
-    const ep = 0.014 + rand() * 0.012;
-    const dx = Math.cos(a) * pente, dz = Math.sin(a) * pente;
-    // Chaque brindille : un quad tres fin, croise pour rester visible de partout.
+    // Base dispersee : plusieurs departs, pas un moyeu unique.
+    const ab = rand() * Math.PI * 2;
+    const rb = Math.sqrt(rand()) * 0.16;
+    const bx = Math.cos(ab) * rb, bz = Math.sin(ab) * rb;
+
+    const a = rand() * Math.PI * 2;
+    const h = 0.34 + rand() * 0.72;
+    const ep = 0.006 + rand() * 0.007;
+    // La tige s'ecarte de plus en plus de la verticale en montant.
+    const ouvre = 0.20 + rand() * 0.55;
+
+    const SEG = 3;
     for (const perp of [[1, 0], [0, 1]]) {
       const ox = perp[0] * ep, oz = perp[1] * ep;
-      const q = [
-        [-ox, 0, -oz], [ox, 0, oz],
-        [dx * h + ox, h, dz * h + oz], [dx * h - ox, h, dz * h - oz],
-      ];
-      for (const [i0, i1, i2] of [[0, 1, 2], [0, 2, 3]]) {
-        for (const k of [i0, i1, i2]) {
-          pos.push(q[k][0], q[k][1], q[k][2]);
-          nor.push(0, 1, 0);
+      let px = bx, py = 0, pz = bz;
+      for (let s = 0; s < SEG; s++) {
+        const t0 = s / SEG, t1 = (s + 1) / SEG;
+        const et = ep * (1 - t1 * 0.7);          // la tige s'affine vers le haut
+        const nx = bx + Math.cos(a) * ouvre * h * t1 * t1;
+        const ny = h * t1;
+        const nz = bz + Math.sin(a) * ouvre * h * t1 * t1;
+        const e0 = ep * (1 - t0 * 0.7);
+        const q = [
+          [px - perp[0] * e0, py, pz - perp[1] * e0],
+          [px + perp[0] * e0, py, pz + perp[1] * e0],
+          [nx + perp[0] * et, ny, nz + perp[1] * et],
+          [nx - perp[0] * et, ny, nz - perp[1] * et],
+        ];
+        for (const [i0, i1, i2] of [[0, 1, 2], [0, 2, 3]]) {
+          for (const k of [i0, i1, i2]) {
+            pos.push(q[k][0], q[k][1], q[k][2]);
+            // Normale vers le haut : une brindille n'a pas de face, elle
+            // accroche la lumiere du ciel comme du feuillage.
+            nor.push(0, 1, 0);
+          }
         }
+        px = nx; py = ny; pz = nz;
+        void ox; void oz;
       }
     }
   }
@@ -126,14 +214,27 @@ export class Fouillis {
     const rand = rng(31415);
     const detail = palier.nom === 'bas' ? 0 : 1;
 
+    /* TOUT EST ENTOURE DE NEIGE, DONC RIEN N'EST AUSSI SOMBRE QU'ON CROIT.
+
+       Ces albedos avaient ete choisis comme on choisit une couleur de bois ou
+       de pierre en plein jour : 0x2A2018, c'est du brou de noix. Pose au
+       milieu d'un champ qui renvoie quatre-vingts pour cent de la lumiere, et
+       sous une lune faible, il ne reste rien — les souches et les buissons
+       sortaient en decoupes noires, comme des griffonnages a l'encre sur la
+       neige. Le rebond du sol (voir sky.js) rattrape une partie du probleme,
+       mais pas si la matiere elle-meme ne renvoie presque rien.
+
+       Les valeurs sont donc nettement plus claires que la couleur « vraie »
+       de l'objet. Ce n'est pas une triche : ce qu'on regarde, ce n'est jamais
+       l'albedo, c'est ce qui en sort. */
     const matRoche = new THREE.MeshStandardMaterial({
-      color: 0x4A4E55, roughness: 0.95, metalness: 0, flatShading: true,
+      color: 0x6C717A, roughness: 0.95, metalness: 0, flatShading: true,
     });
     const matBois = new THREE.MeshStandardMaterial({
-      color: 0x2A2018, roughness: 0.96, metalness: 0,
+      color: 0x53412F, roughness: 0.96, metalness: 0,
     });
     const matBrindille = new THREE.MeshStandardMaterial({
-      color: 0x3A2C1E, roughness: 0.95, metalness: 0,
+      color: 0x6B5840, roughness: 0.95, metalness: 0,
       side: THREE.DoubleSide,
     });
     const matNeige = new THREE.MeshStandardMaterial({
@@ -153,10 +254,12 @@ export class Fouillis {
 
     const semis = this._semer(rand, chemin, relief, clairieres, budget);
 
+    const geoRoc = geoRocher(rand, detail);
     const familles = [
-      { clef: 'rocher', geo: geoRocher(rand, detail), mat: matRoche,
-        neige: geoNeigeRocher(rand, detail) },
-      { clef: 'souche', geo: geoSouche(rand), mat: matBois, neige: null },
+      { clef: 'rocher', geo: geoRoc, mat: matRoche,
+        neige: geoNeigeRocher(geoRoc) },
+      { clef: 'souche', geo: geoSouche(rand), mat: matBois,
+        neige: geoNeigeSouche(rand) },
       { clef: 'tronc', geo: geoTronc(rand), mat: matBois,
         neige: geoNeigeTronc(rand) },
       { clef: 'buisson', geo: geoBuisson(rand), mat: matBrindille, neige: null },
@@ -189,8 +292,24 @@ export class Fouillis {
         mesh.setMatrixAt(i, m);
         if (coiffe) coiffe.setMatrixAt(i, m);
 
-        // Variation de teinte : sans elle, tous les rochers sont freres.
-        teinte.setHSL(0.58, 0.05 + o.t * 0.06, 0.24 + o.t * 0.16);
+        /* Variation de teinte : sans elle, tous les rochers sont freres.
+
+           UNE COULEUR D'INSTANCE MULTIPLIE, ELLE NE REMPLACE PAS. Celle-ci
+           etait construite comme une couleur de pierre — teinte froide,
+           clarte 0,24 a 0,40 — alors qu'elle vient s'appliquer PAR-DESSUS le
+           gris du materiau. Le produit tombait a un demi pour cent de
+           reflectance : rochers, souches et buissons se posaient sur la neige
+           en decoupes parfaitement noires, comme des trous perces dans le sol.
+           C'etait la chose la plus laide du cadre, et elle venait d'une
+           multiplication passee pour un remplacement.
+
+           Le multiplicateur tourne donc autour de 1, et ne fait plus que ce
+           qu'on lui demandait : eviter que deux rochers voisins soient
+           identiques. Il est ecrit en RGB lineaire — setRGB travaille
+           directement dans l'espace de travail — pour qu'on lise la valeur
+           neutre a l'oeil dans le code. */
+        const k = 0.80 + o.t * 0.40;
+        teinte.setRGB(k * 0.97, k, k * 1.06);
         mesh.setColorAt(i, teinte);
       }
 

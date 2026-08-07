@@ -124,6 +124,7 @@ export class Poudre {
     this.taille = taille;
     this.alpha = alpha;
     this.vit = new Float32Array(this.N * 3);
+    this.pic = new Float32Array(this.N);
     this.vie = new Float32Array(this.N);
     this.duree = new Float32Array(this.N);
     this.curseur = 0;
@@ -138,10 +139,17 @@ export class Poudre {
       const i = this.curseur;
       this.curseur = (this.curseur + 1) % this.N;
 
+      /* Dispersion initiale plus large. Quatorze grains laches dans un rayon
+         de neuf centimetres se recouvrent presque tous, et quatorze disques
+         translucides empiles font un disque opaque : la gerbe sortait en
+         boule de coton blanche collee au sabot, pas en poudre. On les etale,
+         et on baisse l'opacite de chacun — c'est le meme defaut que la buee
+         des naseaux, ou vingt-six couches a dix-huit pour cent faisaient une
+         plaque. Une poudreuse se lit a la SOMME de grains distincts. */
       const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 0.09;
+      const r = Math.sqrt(Math.random()) * 0.19;
       this.pos[i * 3] = x + Math.cos(a) * r;
-      this.pos[i * 3 + 1] = y + 0.02 + Math.random() * 0.05;
+      this.pos[i * 3 + 1] = y + 0.02 + Math.random() * 0.09;
       this.pos[i * 3 + 2] = z + Math.sin(a) * r;
 
       /* Une composante radiale faible, une composante arriere forte, et de la
@@ -157,8 +165,13 @@ export class Poudre {
       this.duree[i] = 0.42 + Math.random() * 0.46;
       this.vie[i] = this.duree[i];
       // Rayon en metres : un flocon chasse fait quatre a douze centimetres.
-      this.taille[i] = (0.040 + Math.random() * 0.075) * (0.7 + force * 0.5);
-      this.alpha[i] = 0.55 + Math.random() * 0.3;
+      this.taille[i] = (0.030 + Math.random() * 0.055) * (0.7 + force * 0.5);
+      /* Opacite MAXIMALE de ce grain-la. C'est une valeur par grain, et non
+         une constante appliquee a tous, parce que maj() reecrit `alpha` a
+         chaque image : fixer l'opacite au lancement ne servait a rien, elle
+         etait ecrasee des la premiere frame par une courbe commune a 0,85. */
+      this.pic[i] = 0.15 + Math.random() * 0.17;
+      this.alpha[i] = this.pic[i];
     }
     this.vivants = 1;
   }
@@ -183,7 +196,7 @@ export class Poudre {
 
       // Le grain s'etale en s'eteignant : une poudre se disperse.
       this.taille[i] *= 1 + 0.9 * dt;
-      this.alpha[i] = (1 - u) * (1 - u) * 0.85;
+      this.alpha[i] = (1 - u) * (1 - u) * this.pic[i];
 
       // Retombee : il se couche au sol au lieu de le traverser.
       const y0 = sol ? sol(this.pos[i * 3], this.pos[i * 3 + 2]) : 0;

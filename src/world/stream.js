@@ -21,47 +21,94 @@ import * as THREE from 'three';
 import { rng } from '../core/noise.js';
 
 /* Fentes et bulles prises dans la glace, dessinees une fois. C'est ce
-   reseau de craquelures qui fait lire "gele" plutot que "flaque". */
+   reseau de craquelures qui fait lire "gele" plutot que "flaque".
+
+   ET SURTOUT : DE LA NEIGE PAR-DESSUS.
+
+   Le ruban etait une bande uniforme de bleu tres sombre — fond de texture a
+   #0d1a24, multiplie par une couleur elle-meme sombre, ce qui donne du noir.
+   Tant qu'il etait enterre, personne ne l'a vu. Des qu'il est sorti, il a
+   traverse le bas du cadre comme une tranchee : quatre-vingt-douze metres de
+   trou noir en travers d'une neige eclatante.
+
+   Or un ruisseau gele en decembre n'est pas une patinoire propre. Il est
+   couvert de neige soufflee sur la plus grande partie de sa surface, et la
+   glace nue n'apparait que par plaques — la ou le vent balaie, la ou le
+   courant a travaille dessous. Ce sont ces plaques, rares et lisses, qui font
+   l'effet ; une bande pleine le detruit.
+
+   On tire donc DEUX cartes du meme masque de congeres : la couleur et la
+   rugosite. La ou la neige a pris, c'est blanc et mat ; ailleurs, c'est de la
+   glace grise et miroitante. Elles ne peuvent pas se contredire. */
 function texGlace() {
   const n = 256;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = n;
-  const c = cv.getContext('2d');
-  c.fillStyle = '#0d1a24';
-  c.fillRect(0, 0, n, n);
+  const faire = () => {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = n;
+    return [cv, cv.getContext('2d')];
+  };
+  const [cvCol, col] = faire();
+  const [cvRug, rug] = faire();
+
+  // Glace nue : un gris bleute qui reflete le ciel, pas un trou.
+  col.fillStyle = '#41586B';
+  col.fillRect(0, 0, n, n);
+  rug.fillStyle = '#1E1E1E';        // lisse : la glace miroite
+  rug.fillRect(0, 0, n, n);
 
   const r = rng(9182);
   // Craquelures : des polylignes claires qui se ramifient.
-  c.lineCap = 'round';
+  col.lineCap = 'round';
   for (let i = 0; i < 26; i++) {
     let x = r() * n, y = r() * n;
     let a = r() * Math.PI * 2;
-    c.beginPath();
-    c.moveTo(x, y);
+    col.beginPath();
+    col.moveTo(x, y);
     const seg = 3 + ((r() * 6) | 0);
     for (let k = 0; k < seg; k++) {
       a += (r() - 0.5) * 1.1;
       x += Math.cos(a) * (10 + r() * 34);
       y += Math.sin(a) * (10 + r() * 34);
-      c.lineTo(x, y);
+      col.lineTo(x, y);
     }
-    c.strokeStyle = `rgba(214,236,255,${0.10 + r() * 0.30})`;
-    c.lineWidth = 0.6 + r() * 1.6;
-    c.stroke();
+    col.strokeStyle = `rgba(224,240,255,${0.16 + r() * 0.34})`;
+    col.lineWidth = 0.6 + r() * 1.6;
+    col.stroke();
   }
   // Bulles emprisonnees.
   for (let i = 0; i < 90; i++) {
     const x = r() * n, y = r() * n, rr = 0.6 + r() * 2.2;
-    c.beginPath();
-    c.arc(x, y, rr, 0, Math.PI * 2);
-    c.fillStyle = `rgba(226,242,255,${0.08 + r() * 0.22})`;
-    c.fill();
+    col.beginPath();
+    col.arc(x, y, rr, 0, Math.PI * 2);
+    col.fillStyle = `rgba(232,246,255,${0.10 + r() * 0.26})`;
+    col.fill();
   }
 
-  const t = new THREE.CanvasTexture(cv);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  /* Les congeres. Des taches molles qui se recouvrent : le bord doit etre
+     franc au centre et flou en peripherie, sinon on lit un nuage peint. */
+  for (let i = 0; i < 46; i++) {
+    const x = r() * n, y = r() * n, rr = 14 + r() * 52;
+    for (const [ctx, teinte] of [[col, '236,244,252'], [rug, '208,208,208']]) {
+      const g = ctx.createRadialGradient(x, y, rr * 0.25, x, y, rr);
+      g.addColorStop(0, `rgba(${teinte},0.96)`);
+      g.addColorStop(0.6, `rgba(${teinte},0.72)`);
+      g.addColorStop(1, `rgba(${teinte},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, rr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  const couleur = new THREE.CanvasTexture(cvCol);
+  couleur.wrapS = couleur.wrapT = THREE.RepeatWrapping;
+  couleur.colorSpace = THREE.SRGBColorSpace;
+
+  // La rugosite est une donnee, pas une image : surtout pas de conversion sRGB.
+  const rugosite = new THREE.CanvasTexture(cvRug);
+  rugosite.wrapS = rugosite.wrapT = THREE.RepeatWrapping;
+
+  return { couleur, rugosite };
 }
 
 export class Ruisseau {
@@ -76,11 +123,17 @@ export class Ruisseau {
     /* La glace est LISSE et SOMBRE : c'est l'inverse exact de la neige, et
        c'est ce contraste qui porte tout l'effet. Une glace claire et mate
        passerait pour de la neige tassee et ne servirait a rien. */
+    /* La teinte vient desormais entierement des cartes : le materiau reste
+       blanc, sinon on assombrit deux fois et on retombe dans le trou noir. */
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x22333F, roughness: 0.14, metalness: 0.05,
-      map: tex, envMapIntensity: 1.6,
+      color: 0xFFFFFF, roughness: 1.0, metalness: 0.02,
+      map: tex.couleur, roughnessMap: tex.rugosite, envMapIntensity: 1.6,
+      // La glace affleure le sol : sans ce decalage, les deux surfaces se
+      // disputent la profondeur la ou elles se rejoignent.
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
     });
     mat.map.repeat.set(0.35, 0.35);
+    mat.roughnessMap.repeat.set(0.35, 0.35);
 
     const p = new THREE.Vector3();
     const tan = new THREE.Vector3();
@@ -108,6 +161,7 @@ export class Ruisseau {
       const pos = [], uv = [], idx = [];
       const demi = 46;
       let plusBas = Infinity;
+      const sol = [];
       for (let i = 0; i <= N; i++) {
         const u = i / N;
         const le = (u - 0.5) * 2 * demi;
@@ -119,14 +173,44 @@ export class Ruisseau {
         const cz = p.z + cot.z * le + tan.z * derive;
         const y = relief.hauteur(cx, cz);
         if (y < plusBas) plusBas = y;
+        sol.push(y);
 
         for (const cote of [-1, 1]) {
           pos.push(cx + tan.x * larg * cote, y, cz + tan.z * larg * cote);
           uv.push(u * 9, (cote + 1) * 0.5);
         }
       }
-      // La surface de l'eau est PLATE : c'est ce qui la distingue du sol.
-      for (let i = 0; i < pos.length; i += 3) pos[i + 1] = plusBas + 0.06;
+
+      /* LE RUISSEAU ETAIT ENTERRE.
+
+         La surface de l'eau est plate — c'est vrai, et c'est ce qui la
+         distingue du sol. Mais je l'avais aplatie sur QUATRE-VINGT-DOUZE
+         METRES d'un seul tenant, a l'altitude du point le plus bas de toute
+         la traversee. Sur un terrain qui ondule d'un metre ou deux, cela
+         enfouit le ruban partout sauf a cet unique point : la glace
+         n'existait nulle part, et il ne restait en surface que les pierres de
+         berge — quelques cailloux sombres semes sur une neige intacte, sans
+         rien pour les expliquer.
+
+         Un cours d'eau est plat EN TRAVERS et regulier EN LONG. On garde donc
+         la platitude d'une rive a l'autre, deja acquise puisque les deux
+         bords partagent la meme altitude, et on remplace l'aplatissement en
+         long par un profil LISSE : l'eau ignore les bosses de detail mais
+         suit la pente generale. Le maximum avec le terrain garantit qu'elle
+         n'est jamais engloutie, et le decalage de polygone evite qu'elle
+         clignote contre le sol la ou les deux se touchent. */
+      const lisse = sol.slice();
+      for (let passe = 0; passe < 8; passe++) {
+        const c = lisse.slice();
+        for (let i = 1; i < lisse.length - 1; i++) {
+          lisse[i] = (c[i - 1] + c[i] * 2 + c[i + 1]) * 0.25;
+        }
+      }
+      for (let i = 0; i <= N; i++) {
+        const y = Math.max(lisse[i], sol[i]) + 0.05;
+        pos[i * 6 + 1] = y;
+        pos[i * 6 + 4] = y;
+      }
 
       for (let i = 0; i < N; i++) {
         const a = i * 2, b = a + 1, c2 = a + 2, d = a + 3;

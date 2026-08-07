@@ -226,6 +226,7 @@ export class Relief {
     const u = this.materiau.userData.uniforms;
     u.uEmpreintes.value = emp.texture;
     u.uAEmpreintes.value = 1;
+    u.uEmpPas.value = 1.5 / emp.taille;
     this._emp = emp;
   }
 

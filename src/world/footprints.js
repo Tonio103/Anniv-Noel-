@@ -25,7 +25,7 @@ import * as THREE from 'three';
 /* Empreinte de sabot : deux ongles separes par une fente. Dessinee une fois
    sur un canevas, elle sert a tous les pas. */
 function tamponSabot() {
-  const n = 64;
+  const n = 128;
   const cv = document.createElement('canvas');
   cv.width = cv.height = n;
   const c = cv.getContext('2d');
@@ -44,16 +44,41 @@ function tamponSabot() {
      la trace — la ou la neige est reellement chassee par le pied qui pousse.
      Tout le reste de la lecture vient de l'assombrissement, qui est ce que
      produit un creux : il recoit moins de ciel. */
-  const onglon = (cx, cy, rx, ry) => {
-    const g = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.62, 'rgba(255,255,255,0.86)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
+  /* UN DEGRADE VIT DANS LE REPERE OU ON PEINT, PAS DANS CELUI OU ON LE CREE.
+
+     C'est le defaut qui a rendu les empreintes invisibles pendant tout ce
+     temps. Le degrade etait construit avec son centre en (cx, cy) AVANT le
+     translate/scale, puis peint APRES : le canevas applique la transformation
+     courante au degrade comme au reste, si bien que son centre partait a
+     (cx + cx·s, cy + cy) — loin du disque qu'il devait remplir. Tout le disque
+     tombait donc au-dela du rayon exterieur, ou la couleur est
+     `rgba(255,255,255,0)`. Le tampon etait entierement transparent : 0 pixel
+     sur 4096. On ajoutait bien une empreinte a chaque poser, on la dessinait
+     bien dans la carte — et on dessinait du vide.
+
+     La forme ET son degrade sont maintenant decrits dans le MEME repere : on
+     se place au centre de l'onglon, on met le repere a l'echelle, et dans ce
+     repere l'onglon est une goutte de rayon 1. Impossible de les desynchroniser. */
+  const onglon = (cx, cy, demiLarge, demiLong, incline) => {
     c.save();
     c.translate(cx, cy);
-    c.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry));
+    c.rotate(incline);
+    c.scale(demiLarge, demiLong);
+
+    const g = c.createRadialGradient(0, 0.2, 0.05, 0, 0, 1.05);
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.84, 'rgba(255,255,255,0.60)');
+    g.addColorStop(1.00, 'rgba(255,255,255,0)');
+
+    /* Goutte : large et arrondie a l'arriere, effilee vers l'avant (-y).
+       C'est ce profil, et non un ovale, qui donne la lecture "cervide" — le
+       poids porte sur l'arriere de l'onglon et la pince ouvre devant. */
     c.beginPath();
-    c.arc(0, 0, Math.max(rx, ry), 0, Math.PI * 2);
+    c.moveTo(0, -1);
+    c.bezierCurveTo(0.66, -0.52, 0.88, 0.42, 0, 1);
+    c.bezierCurveTo(-0.88, 0.42, -0.66, -0.52, 0, -1);
+    c.closePath();
     c.fillStyle = g;
     c.fill();
     c.restore();
@@ -62,8 +87,17 @@ function tamponSabot() {
   /* Deux onglons, pointe vers le haut de l'image (soit l'avant du pas), et
      ECARTES EN POINTE : un sabot de cervide s'ouvre vers l'avant. C'est cet
      ecartement en V qui le distingue d'une trace de sanglier ou de chien. */
-  onglon(n * 0.395, n * 0.44, n * 0.115, n * 0.235);
-  onglon(n * 0.605, n * 0.44, n * 0.115, n * 0.235);
+  onglon(n * 0.385, n * 0.45, n * 0.135, n * 0.255, -0.13);
+  onglon(n * 0.615, n * 0.45, n * 0.135, n * 0.255, +0.13);
+
+  /* La neige chassee par le pied qui pousse : un talon tres faible, en
+     arriere des deux onglons. Il ne doit pas se lire tout seul — il ne fait
+     qu'empecher la trace de finir net, comme decoupee a l'emporte-piece. */
+  const talon = c.createRadialGradient(n * 0.5, n * 0.74, 0, n * 0.5, n * 0.74, n * 0.2);
+  talon.addColorStop(0, 'rgba(255,255,255,0.30)');
+  talon.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = talon;
+  c.fillRect(0, n * 0.5, n, n * 0.5);
 
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -75,7 +109,13 @@ const ETENDUE = 72;          // cote de la fenetre, en metres
 export class Empreintes {
   constructor(renderer, palier) {
     this.actif = palier.empreintes !== false;
-    this.taille = palier.nom === 'haut' ? 1024 : 512;
+    /* FINESSE DE LA CARTE. La fenetre fait 72 m de cote : a 1024 texels, un
+       texel couvre SEPT CENTIMETRES. Une empreinte de vingt-cinq centimetres
+       n'y tenait donc que sur trois texels, et le filtrage lineaire la
+       ramenait a une tache grise sans forme. C'est une limite de la carte, pas
+       du tampon : aussi soigne soit-il, il ne peut pas etre plus fin que la
+       grille sur laquelle on le pose. */
+    this.taille = palier.nom === 'haut' ? 2048 : (palier.nom === 'moyen' ? 1024 : 512);
     this.texel = ETENDUE / this.taille;
 
     const opts = {
@@ -241,11 +281,16 @@ export class Empreintes {
            cap et l'appui varient d'un pas a l'autre. Sans ce desordre, la
            piste devient une frise de tampons identiques — l'oeil repere le
            motif immediatement et toute la credibilite du sol s'effondre. */
-        /* PLUS PETITES. Un sabot de cerf mesure sept a neuf centimetres de
-           long ; le tampon faisait trente-cinq a quarante centimetres, soit
-           quatre fois trop. Sur la neige, la piste se lisait comme une
-           succession de dalles et non comme des pas. */
-        const taille = (0.115 + e.force * 0.045) * (0.88 + e.alea * 0.24);
+        /* CE QU'ON VOIT N'EST PAS LE SABOT, C'EST LE TROU.
+
+           Le sabot d'un cerf mesure huit a neuf centimetres, et j'avais cale
+           le tampon dessus — d'ou une trace de douze centimetres, plus fine
+           qu'un texel et demi de la carte. Mais dans vingt centimetres de
+           poudreuse on ne voit jamais le sabot : on voit le puits que la patte
+           creuse en s'enfoncant, dont la neige se referme autour. Ce puits
+           fait bel et bien vingt-cinq centimetres. Se caler dessus est a la
+           fois plus juste et assez large pour que la carte le porte. */
+        const taille = (0.20 + e.force * 0.09) * (0.88 + e.alea * 0.24);
         m.visible = true;
         m.position.set(e.x, 0, e.z);
         m.scale.set(taille, taille * (1.30 + e.alea * 0.18), 1);

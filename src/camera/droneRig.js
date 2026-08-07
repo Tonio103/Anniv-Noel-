@@ -320,8 +320,15 @@ export class Drone {
     }
   }
 
-  /* Placement immediat, sans elasticite — pour le tout premier plan. */
+  /* Placement immediat, sans elasticite — pour le tout premier plan.
+
+     LEVE LE PLAN POSE. C'est ecrit dans le commentaire de liberer() depuis le
+     debut, mais ce n'etait pas fait : maj() commence par `if (this.fige)` et
+     partait donc dans la branche du plan fixe, qui ramene la camera vers sa
+     composition d'ouverture au lieu de la placer derriere le cerf. Un
+     placement demande alors que le drone est fige ne faisait rien du tout. */
   poser(cerf, temps = 0) {
+    this.fige = false;
     this._premiere = true;
     this.maj(1 / 60, temps, cerf);
     this.pos.copy(this.camera.position);

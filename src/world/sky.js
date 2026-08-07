@@ -12,34 +12,52 @@ import * as THREE from 'three';
 import { GLSL_NOISE } from '../core/noise.js';
 
 /* Chaque ambiance : couleur du zenith, de l'horizon, lueur basse, densite
-   de brouillard, et la teinte de la lumiere principale. */
+   de brouillard, et la teinte de la lumiere principale.
+
+   `sol` EST LE REBOND DU SOL, ET LE SOL EST DE LA NEIGE.
+
+   Ces valeurs etaient des bleus tres sombres — un reflexe de sol de terre ou
+   de roche. Or ici le sol renvoie environ quatre-vingts pour cent de ce qu'il
+   recoit : dans chaque plan, la neige est la surface LA PLUS CLAIRE du cadre.
+   Tout ce qui se pose dessus est donc eclaire par en dessous presque autant
+   que par le ciel.
+
+   Avec un rebond a 0x131F2E, rien de tout cela n'existait : les faces qui ne
+   voyaient pas la lune ne recevaient rien du tout, et rochers, troncs
+   couches, dessous de branches et ventre du cerf tombaient au noir. On lisait
+   des decoupes posees sur un drap au lieu d'objets poses dans la neige.
+
+   Les valeurs ci-dessous sont donc claires et a peine bleutees. Elles ne
+   touchent presque pas la neige elle-meme — sa normale pointe vers le haut,
+   donc elle recoit `ciel` — et servent uniquement ce qu'elles doivent
+   servir : les dessous. */
 export const AMBIANCES = {
   crepuscule: {
     zenith: 0x14304C, horizon: 0x4A6E88, lueur: 0xE8A75C,
     brouillard: 0x40607A, densite: 0.0092, etoiles: 0.12,
-    soleil: 0xFFD2A0, force: 1.75, ciel: 0x7A9CBC, sol: 0x2E4258, ambiant: 0.62,
+    soleil: 0xFFD2A0, force: 1.75, ciel: 0x7A9CBC, sol: 0xD2DCE6, ambiant: 0.82,
   },
   soir: {
     zenith: 0x0C1F38, horizon: 0x2E4C6E, lueur: 0xD08A54,
     brouillard: 0x2A4460, densite: 0.0108, etoiles: 0.45,
-    soleil: 0xFFC79A, force: 1.25, ciel: 0x5C7FA4, sol: 0x22344A, ambiant: 0.52,
+    soleil: 0xFFC79A, force: 1.25, ciel: 0x5C7FA4, sol: 0xC8D4E0, ambiant: 0.70,
   },
   nuit: {
     zenith: 0x050E1E, horizon: 0x16304C, lueur: 0x2E5A7E,
     brouillard: 0x16283C, densite: 0.0126, etoiles: 1.0,
-    soleil: 0xBFD8FF, force: 0.85, ciel: 0x3E6288, sol: 0x131F2E, ambiant: 0.46,
+    soleil: 0xBFD8FF, force: 0.85, ciel: 0x3E6288, sol: 0xB4C4D4, ambiant: 0.62,
   },
   clairiere: {
     /* Le ciel s'ouvre : plus d'etoiles, moins de brume, on respire. */
     zenith: 0x04101F, horizon: 0x1B3A58, lueur: 0x4E86A8,
     brouillard: 0x18304A, densite: 0.0082, etoiles: 1.0,
-    soleil: 0xD6E6FF, force: 1.05, ciel: 0x4E77A0, sol: 0x16243A, ambiant: 0.58,
+    soleil: 0xD6E6FF, force: 1.05, ciel: 0x4E77A0, sol: 0xBECDDA, ambiant: 0.78,
   },
   maison: {
     /* Derniere clairiere : une maison eclairee au loin rechauffe tout. */
     zenith: 0x061224, horizon: 0x2A3E52, lueur: 0xE8B26A,
     brouillard: 0x22354A, densite: 0.0098, etoiles: 0.86,
-    soleil: 0xFFD9A8, force: 1.15, ciel: 0x577FA6, sol: 0x2A2C34, ambiant: 0.66,
+    soleil: 0xFFD9A8, force: 1.15, ciel: 0x577FA6, sol: 0xD6D0C2, ambiant: 0.88,
   },
 };
 

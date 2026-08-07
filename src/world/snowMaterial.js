@@ -41,6 +41,10 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
                     emprise ? emprise.xmax - emprise.xmin : 1,
                     emprise ? emprise.zmax - emprise.zmin : 1) },
     uAEmpreintes:{ value: empreintes ? 1.0 : 0.0 },
+    // Pas de derivation, en uv : il depend de la finesse REELLE de la carte,
+    // qui change selon le palier. Fige a 1,5/512 il rendait la pente des
+    // traces quatre fois trop molle sur la carte fine.
+    uEmpPas:     { value: 1.5 / 512 },
   };
 
   mat.onBeforeCompile = (shader) => {
@@ -61,7 +65,7 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
         #include <common>
         varying vec3 vMonde;
         uniform vec3 uSoleilDir, uSoleilCol, uCielCol;
-        uniform float uScintille, uAEmpreintes;
+        uniform float uScintille, uAEmpreintes, uEmpPas;
         uniform sampler2D uEmpreintes;
         uniform vec2 uEmpMin, uEmpTaille;
         ${GLSL_NOISE}
@@ -130,7 +134,7 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
                 // Un texel de la carte, pas une fraction du monde : sans
                 // ca le pas depend de la taille de la fenetre et la pente
                 // des traces devient illisible.
-                vec2 px = vec2(1.5 / 512.0);
+                vec2 px = vec2(uEmpPas);
                 float dx = texture2D(uEmpreintes, fu + vec2(px.x, 0.0)).r - d;
                 float dz = texture2D(uEmpreintes, fu + vec2(0.0, px.y)).r - d;
                 /* Signe NEGATIF et amplitude modeste : une trace est un creux.

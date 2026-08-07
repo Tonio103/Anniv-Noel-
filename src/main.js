@@ -754,6 +754,7 @@ async function demarrer() {
 
   boucle.demarrer();
 
+  window.__THREE = THREE;   // outils de mesure des scripts de controle
   window.__scene = {
     renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
     brume, details, cabanes, empreintes, fouillis, habitants, postfx, boucle, palier,
