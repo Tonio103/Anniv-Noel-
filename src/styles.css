@@ -306,85 +306,128 @@ body{
   .card-in{max-height:min(76vh,720px);border-radius:20px}
 }
 
-/* --- typographie de la carte --- */
+/* --------------------------------------------------------------------------
+   TYPOGRAPHIE DE LA CARTE.
+
+   UNE SEULE REGLE, et elle explique tout ce qui suit : SEUL CE QUI EST
+   CLIQUABLE PORTE UN CADRE.
+
+   La version precedente empilait six traitements de conteneur differents —
+   une pastille pour le prix, une boite pour les notes, une boite pour les
+   liens, une pour le compte a rebours, une pour les jalons, une pour la liste
+   a cocher. Six rectangles arrondis a fond gris, tous de poids visuel
+   identique. L'oeil n'avait plus aucun moyen de savoir par ou commencer :
+   tout criait pareil, donc plus rien ne ressortait, et la carte donnait cette
+   impression de sac de pastilles.
+
+   Desormais : le texte informatif se structure par des FILETS et de l'ESPACE,
+   qui ne coutent rien et ne concurrencent rien ; les cadres sont reserves aux
+   liens, aux cases a cocher et aux chiffres du compte a rebours — c'est-a-
+   dire a ce qu'on touche ou a ce qu'on lit comme une valeur. Un cadre devient
+   alors une information : il dit "ceci reagit".
+   -------------------------------------------------------------------------- */
+.c-head{
+  margin-bottom:18px;padding-bottom:15px;
+  border-bottom:1px solid rgba(190,220,240,.16);
+}
 .c-kicker{
-  font-family:"Caveat",cursive;font-size:17px;color:var(--gold);
-  letter-spacing:.02em;margin-bottom:4px;
+  font-family:"Caveat",cursive;font-size:18px;color:var(--gold);
+  letter-spacing:.02em;margin-bottom:2px;
+}
+/* Titre et prix en vis-a-vis, alignes sur la meme ligne de base. */
+.c-head-ligne{
+  display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+  flex-wrap:wrap;
 }
 .c-title{
   font-family:"Fraunces",Georgia,serif;font-weight:700;
-  font-size:clamp(26px,6.4vw,34px);line-height:1.05;letter-spacing:-.02em;
-  color:var(--ink);margin-bottom:6px;
+  font-size:clamp(27px,6.6vw,36px);line-height:1.02;letter-spacing:-.022em;
+  color:var(--ink);
 }
 .c-price{
-  display:inline-flex;align-items:baseline;gap:7px;
-  margin:6px 0 16px;padding:6px 14px 7px;
-  border-radius:999px;
-  background:rgba(242,193,78,.13);
-  border:1px solid rgba(242,193,78,.32);
+  display:flex;align-items:baseline;gap:6px;white-space:nowrap;
 }
-.c-price b{font-family:"Fraunces",serif;font-weight:700;font-size:20px;color:var(--gold-lt)}
-.c-price span{font-size:11.5px;color:var(--ink-3);letter-spacing:.03em}
-.c-lead{font-size:15.5px;line-height:1.6;color:var(--ink);margin-bottom:14px}
+.c-price b{
+  font-family:"Fraunces",serif;font-weight:700;font-size:clamp(20px,4.8vw,25px);
+  color:var(--gold-lt);letter-spacing:-.01em;
+}
+.c-price span{font-size:11.5px;color:var(--ink-3);letter-spacing:.02em}
+
+.c-lead{font-size:16px;line-height:1.62;color:var(--ink);margin-bottom:15px}
 .c-lead strong{font-weight:500;color:var(--gold-lt)}
-.c-body{font-size:14px;line-height:1.62;color:var(--ink-2);margin-bottom:13px}
+.c-body{font-size:14.5px;line-height:1.68;color:var(--ink-2);margin-bottom:14px}
 .c-body strong{font-weight:500;color:var(--ink)}
 .c-body em{font-style:normal;color:var(--gold-lt)}
 
+/* Les notes : un filet vertical et de l'air, plus de boite. Le filet suffit
+   a dire "mise en garde" ou "bon plan", et il laisse le texte respirer au
+   lieu de l'enfermer. */
 .c-note{
-  margin:14px 0;padding:12px 15px;
-  border-radius:13px;border-left:2px solid var(--gold);
-  background:rgba(242,193,78,.08);
-  font-size:13.4px;line-height:1.55;color:var(--ink-2);
+  margin:16px 0;padding:2px 0 2px 15px;
+  border-left:2px solid var(--gold);
+  font-size:14px;line-height:1.62;color:var(--ink-2);
 }
-.c-note.warn{border-left-color:var(--red);background:rgba(212,43,60,.11)}
-.c-note.good{border-left-color:var(--green);background:rgba(95,191,128,.1)}
+.c-note.warn{border-left-color:var(--red)}
+.c-note.good{border-left-color:var(--green)}
 .c-note b{color:var(--ink);font-weight:500}
 
-.c-links{display:flex;flex-direction:column;gap:8px;margin:16px 0 6px}
+/* Les liens SONT cliquables : ils gardent donc leur cadre, et ce sont
+   desormais les seuls elements de texte a en avoir un. Ils ressortent
+   immediatement pour ce qu'ils sont. */
+.c-links{display:flex;flex-direction:column;gap:8px;margin:18px 0 6px}
 .c-link{
-  display:flex;align-items:center;gap:11px;
-  padding:12px 14px;border-radius:13px;
-  background:rgba(255,255,255,.045);
+  display:flex;align-items:center;gap:12px;
+  padding:12px 15px;border-radius:13px;
+  background:rgba(255,255,255,.05);
   border:1px solid var(--stroke);
   color:var(--ink);text-decoration:none;
-  font-size:13.6px;
+  font-size:13.8px;
   transition:background .25s,border-color .25s,transform .25s var(--ease);
 }
-.c-link:hover{background:rgba(255,255,255,.09);border-color:rgba(242,193,78,.4);transform:translateX(2px)}
-.c-link i{font-style:normal;color:var(--gold);font-size:15px;line-height:1}
-.c-link u{text-decoration:none;flex:1;min-width:0}
+.c-link:hover{background:rgba(255,255,255,.1);border-color:rgba(242,193,78,.45);transform:translateX(2px)}
+.c-link i{font-style:normal;color:var(--gold);font-size:15px;line-height:1;order:2}
+.c-link u{text-decoration:none;flex:1;min-width:0;order:1}
 .c-link u b{display:block;font-weight:500}
-.c-link u s{display:block;text-decoration:none;font-size:11.5px;color:var(--ink-3);margin-top:1px}
+.c-link u s{display:block;text-decoration:none;font-size:11.5px;color:var(--ink-3);margin-top:2px}
 
 .c-sub{
-  margin-top:18px;padding-top:13px;
+  margin-top:20px;padding-top:14px;
   border-top:1px solid rgba(190,220,240,.13);
-  font-size:11.5px;line-height:1.55;color:var(--ink-3);
+  font-size:11.5px;line-height:1.58;color:var(--ink-3);
 }
 .c-sub b{color:var(--ink-2);font-weight:400}
 
-/* compte a rebours */
-.c-count{display:flex;gap:7px;margin:14px 0 4px;flex-wrap:wrap}
+/* Compte a rebours : ce sont des VALEURS, et une valeur se lit mieux dans
+   sa case. C'est l'une des trois exceptions a la regle. */
+.c-count{display:flex;gap:8px;margin:16px 0 4px;flex-wrap:wrap}
 .c-cd{
   flex:1;min-width:58px;text-align:center;
-  padding:9px 6px 7px;border-radius:12px;
+  padding:10px 6px 8px;border-radius:12px;
   background:rgba(255,255,255,.05);border:1px solid var(--stroke);
 }
-.c-cd b{display:block;font-family:"Fraunces",serif;font-weight:700;font-size:22px;color:var(--gold-lt);line-height:1}
+.c-cd b{display:block;font-family:"Fraunces",serif;font-weight:700;font-size:23px;color:var(--gold-lt);line-height:1}
 .c-cd span{display:block;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin-top:5px}
 
-/* jalons */
-.c-mile{display:flex;flex-direction:column;gap:6px;margin:14px 0 4px}
+/* Les jalons deviennent une FRISE : une date, un filet, un evenement. Ils
+   racontent une suite dans le temps — l'aligner verticalement avec les dates
+   en colonne le dit bien mieux que six boites empilees. */
+.c-mile{margin:16px 0 4px;border-top:1px solid rgba(190,220,240,.12)}
 .c-mi{
-  display:flex;align-items:baseline;gap:11px;
-  padding:9px 13px;border-radius:11px;
-  background:rgba(255,255,255,.04);border:1px solid var(--stroke);
-  font-size:13px;
+  display:flex;align-items:baseline;gap:14px;
+  padding:10px 2px;
+  border-bottom:1px solid rgba(190,220,240,.12);
+  font-size:13.5px;
 }
-.c-mi b{font-family:"Fraunces",serif;font-weight:700;color:var(--gold-lt);font-size:13.5px;min-width:62px}
-.c-mi span{color:var(--ink-2)}
-.c-mi.hot{border-color:rgba(242,193,78,.45);background:rgba(242,193,78,.1)}
+.c-mi b{
+  font-family:"Fraunces",serif;font-weight:700;color:var(--ink-2);
+  font-size:13.5px;min-width:74px;
+}
+.c-mi span{color:var(--ink-3)}
+/* Le jalon qui compte : il est le seul en dore, et son texte passe au blanc.
+   Une seule chose mise en avant se remarque ; trois ne se remarquent plus. */
+.c-mi.hot b{color:var(--gold-lt)}
+.c-mi.hot span{color:var(--ink)}
+.c-mi.hot{background:linear-gradient(90deg,rgba(242,193,78,.10),transparent 70%)}
 
 /* liste a cocher du recap */
 .c-check{display:flex;flex-direction:column;gap:8px;margin:14px 0 4px}

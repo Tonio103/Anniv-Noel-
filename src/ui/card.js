@@ -100,14 +100,29 @@ export class Carte {
      loin sur le chemin serait un mensonge sur ce qui va se passer. */
   ouvrir(card, revue = false) {
     this.revue = revue;
+    /* LE TITRE ET LE PRIX SUR LA MEME LIGNE.
+
+       Le prix flottait sous le titre dans une pastille a lui, ce qui faisait
+       trois blocs empiles pour une seule information : "voici l'idee, voici
+       ce qu'elle coute". Mis en vis-a-vis sur une meme ligne de base, ils se
+       lisent d'un coup — c'est la mise en page d'une fiche produit, et c'est
+       exactement ce qu'est cette carte.
+
+       Un filet sous l'ensemble separe l'entete du corps. Un filet coute un
+       pixel et remplace avantageusement une boite. */
     const prix = card.price
-      ? `<div class="c-price"><b>${card.price.amount}</b><span>${card.price.note || ''}</span></div>`
+      ? `<p class="c-price"><b>${card.price.amount}</b>${
+          card.price.note ? `<span>${card.price.note}</span>` : ''}</p>`
       : '';
 
     this.scroll.innerHTML =
-      `<p class="c-kicker">${card.kicker || ''}</p>
-       <h2 class="c-title" id="cardTitle">${card.title}</h2>
-       ${prix}
+      `<header class="c-head">
+         ${card.kicker ? `<p class="c-kicker">${card.kicker}</p>` : ''}
+         <div class="c-head-ligne">
+           <h2 class="c-title" id="cardTitle">${card.title}</h2>
+           ${prix}
+         </div>
+       </header>
        ${card.blocks.map(bloc).join('')}`;
 
     this.bouton.textContent = revue ? 'Fermer' : (card.next || 'Continuer');

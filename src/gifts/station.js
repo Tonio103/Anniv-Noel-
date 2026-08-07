@@ -159,29 +159,86 @@ export class Halte {
     if (this.ouvert <= 0) this.cadeau.matLueur.opacity = l * 0.16;
   }
 
-  /* Ouverture : le couvercle bascule, la neige glisse, la lumiere sort. */
+  /* L'OUVERTURE, EN QUATRE TEMPS.
+
+     Elle se faisait en un seul geste : tout — le noeud, le couvercle, la
+     neige, la lumiere — partait ensemble et lineairement, en un peu plus
+     d'une seconde. Un paquet qu'on ouvre ne fait jamais ca. Ce qui rend
+     l'instant, c'est l'ORDRE des choses et les temps morts entre elles.
+
+       0,00 → 0,22   LE NOEUD SE DEFAIT. Rien d'autre ne bouge. Les boucles
+                     s'affaissent et glissent sur le cote — le ruban lache
+                     avant que quoi que ce soit ne s'ouvre, c'est le premier
+                     signe que ca va s'ouvrir.
+       0,15 → 0,55   LE COUVERCLE SE SOULEVE, d'abord tout droit sur quelques
+                     centimetres — le temps que la neige decroche — puis il
+                     bascule. La calotte glisse et tombe pendant ce temps.
+       0,30 → 0,70   LA LUMIERE SORT, et c'est elle qui fait l'evenement. Elle
+                     part d'un coup, deborde largement, puis retombe a son
+                     niveau de croisiere : c'est ce depassement, et lui seul,
+                     qui donne l'impression que quelque chose etait ENFERME.
+       0,55 → 1,00   LE COUVERCLE RETOMBE, s'immobilise de travers a cote de
+                     la boite. Un couvercle qui reste suspendu en l'air pour
+                     toujours est le detail qui trahit une animation.
+
+     Et la boite ELLE-MEME reagit : un leger enfoncement quand le couvercle
+     se souleve, un rebond quand il tombe. Sans cette reaction, on regarde
+     deux objets independants au lieu d'un seul qui s'ouvre. */
   majOuverture(dt, temps) {
     if (!this.cadeau) return;
-    this.ouvert = Math.min(1, this.ouvert + dt * 0.85);
-    const o = smoothstep(0, 1, this.ouvert);
+    // Un peu plus lent qu'avant : il y a maintenant quelque chose a suivre.
+    this.ouvert = Math.min(1, this.ouvert + dt * 0.62);
+    const t = this.ouvert;
     const c = this.cadeau;
 
-    // Peu de levee, beaucoup de bascule : c'est ce qui se lit comme un
-    // couvercle qu'on souleve. Trop haut, il devient une seconde boite.
-    c.couvercle.position.y = c.hauteur + o * c.taille * 0.20;
-    c.couvercle.position.x = -o * c.taille * 0.30;
-    c.couvercle.rotation.z = -o * 0.85;
-    c.couvercle.rotation.x = o * 0.10;
+    /* --- 1. le noeud se defait --------------------------------------- */
+    const denoue = smoothstep(0.0, 0.22, t);
+    if (c.noeud) {
+      // Les boucles s'affaissent, puis l'ensemble glisse et tombe.
+      c.noeud.scale.set(1 + denoue * 0.30, 1 - denoue * 0.72, 1 + denoue * 0.18);
+      c.noeud.rotation.z = denoue * 0.9;
+      c.noeud.position.x = -denoue * c.taille * 0.34;
+      c.noeud.position.y = c.hauteur * 0 + (1 - denoue) * 0.0
+        - smoothstep(0.16, 0.5, t) * c.taille * 1.3;
+    }
 
-    // La calotte de neige glisse et tombe.
-    c.calotte.position.x = -o * c.taille * 0.55;
-    c.calotte.position.y = c.taille * 0.19 - o * o * c.taille * 1.5;
-    c.calotte.rotation.z = -o * 1.1;
-    c.calotte.material.opacity = 1 - smoothstep(0.45, 0.95, o);
+    /* --- 2. le couvercle : d'abord droit, puis il bascule -------------- */
+    const leve = smoothstep(0.15, 0.36, t);       // decollement vertical
+    const bascule = smoothstep(0.30, 0.62, t);    // rotation
+    const chute = smoothstep(0.58, 1.0, t);       // il retombe au sol
+
+    c.couvercle.position.y = c.hauteur
+      + leve * c.taille * 0.34
+      - chute * c.taille * (0.34 + 0.72);
+    c.couvercle.position.x = -(bascule * 0.42 + chute * 0.55) * c.taille;
+    c.couvercle.position.z = chute * c.taille * 0.20;
+    // Il tourne surtout en tombant : un couvercle bascule quand il lache.
+    c.couvercle.rotation.z = -(bascule * 0.55 + chute * 1.45);
+    c.couvercle.rotation.x = bascule * 0.12 + chute * 0.35;
+
+    /* --- 3. la calotte de neige decroche et tombe ---------------------- */
+    const glisse = smoothstep(0.18, 0.46, t);
+    c.calotte.position.x = -glisse * c.taille * 0.62;
+    c.calotte.position.y = c.taille * 0.19 - glisse * glisse * c.taille * 2.0;
+    c.calotte.rotation.z = -glisse * 1.4;
     c.calotte.material.transparent = true;
+    c.calotte.material.opacity = 1 - smoothstep(0.34, 0.62, t);
 
-    c.matLueur.opacity = 0.16 + o * 0.40;
-    c.lueur.scale.setScalar(c.taille * 3.4 * (1 + o * 0.55));
+    /* --- 4. la lumiere sort, deborde, puis se pose --------------------- */
+    const sort = smoothstep(0.28, 0.52, t);
+    // Depassement : elle monte au-dela de sa valeur finale puis redescend.
+    const eclat = sort * (1 + Math.sin(clamp((t - 0.30) / 0.34, 0, 1) * Math.PI) * 1.15);
+    c.matLueur.opacity = 0.16 + eclat * 0.46;
+    c.lueur.scale.setScalar(c.taille * 3.4 * (1 + eclat * 1.05));
+    // Elle monte un peu en sortant, comme quelque chose qui s'echappe.
+    c.lueur.position.y = c.hauteur * 0.6 + sort * c.taille * 0.35;
+
+    /* --- la boite reagit ---------------------------------------------- */
+    const enfonce = Math.sin(clamp((t - 0.15) / 0.25, 0, 1) * Math.PI) * 0.035;
+    const rebond = Math.sin(clamp((t - 0.62) / 0.28, 0, 1) * Math.PI) * 0.05;
+    c.caisse.scale.set(1 + enfonce - rebond * 0.5, 1 - enfonce + rebond, 1 + enfonce - rebond * 0.5);
+
+    void temps;
   }
 
   /* Intensite de la lumiere chaude que le paquet projette sur la neige. */
@@ -194,11 +251,15 @@ export class Halte {
      se trahir par un HALO LOCAL et un degrade rapide — c'est le degrade qui
      dit d'ou vient la lumiere.
 
-     On divise donc l'intensite par deux et on resserre la portee (voir
-     lighting.js) : la neige s'allume franchement au pied du paquet et
-     redevient bleue a quelques metres. */
+     CORRECTION : en la divisant par deux j'avais jete ce qui faisait son
+     charme. La lueur elle-meme etait belle et devait rester forte ; c'est sa
+     PORTEE qui etait fautive. Vingt-six metres, avec une decroissance molle,
+     etendaient la teinte jusqu'au fond du cadre. On lui rend donc toute son
+     intensite, et on garde la portee resserree avec une decroissance plus
+     franche (voir lighting.js) : la neige s'embrase au pied du paquet, et
+     redevient bleue quelques metres plus loin. Fort ET local. */
   eclat() {
     if (!this.cadeau) return 0;
-    return (0.14 + this.ouvert * 1.1) * this.cadeau.taille * 1.7;
+    return (0.20 + this.ouvert * 1.6) * this.cadeau.taille * 3.1;
   }
 }

@@ -42,7 +42,7 @@ const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 
 /* Duree des moments qui ne dependent pas du visiteur, en secondes. */
-const DUREES = { fouille: 2.4, percee: 3.4, ouverture: 1.35 };
+const DUREES = { fouille: 2.4, percee: 3.4, ouverture: 1.95 };
 
 async function demarrer() {
   const canvas = document.getElementById('gl');
@@ -269,6 +269,9 @@ async function demarrer() {
   let horloge = 0;            // temps ecoule dans la phase courante
   let demarree = false;
   const ancre = new THREE.Vector3();
+  // Teinte de travail pour la lueur des cadeaux, allouee une fois.
+  const teinteLueur = new THREE.Color();
+  const BLANC_CHAUD = new THREE.Color(0xFFDCB4);
 
   function viser(i) {
     index = i;
@@ -605,7 +608,24 @@ async function demarrer() {
     if (halte.cadeau) {
       halte.ancre(ancre);
       const g = STATIONS[index]?.scene?.gift;
-      lumieres.poserLueur(ancre, g ? g.glow : 0xFFC98A, halte.eclat());
+      /* LA COULEUR DU CADEAU EST DESATURÉE AVANT D'ECLAIRER.
+
+         Une lumiere prend la teinte de sa source, mais une lampe rouge n'est
+         pas rouge pur : elle est chaude et legerement rouge. En utilisant la
+         couleur du paquet telle quelle, toute la neige a portee virait au
+         rose ou au vert franc, et on ne lisait plus une lumiere posee sur le
+         sol mais un calque de couleur pose sur l'image.
+
+         On mele donc la teinte du paquet a un blanc chaud. L'intensite, elle,
+         reste entiere — c'est la vivacite de la lueur qui plaisait, pas sa
+         saturation, et les deux se reglent separement. La neige s'embrase
+         donc autant qu'avant, mais elle reste de la neige. */
+      if (g) {
+        teinteLueur.set(g.glow).lerp(BLANC_CHAUD, 0.62);
+        lumieres.poserLueur(ancre, teinteLueur, halte.eclat());
+      } else {
+        lumieres.poserLueur(ancre, 0xFFC98A, halte.eclat());
+      }
     } else {
       lumieres.poserLueur(null, undefined, 0);
     }
