@@ -112,6 +112,59 @@ const FRAG = /* glsl */ `
     float halo = pow(max(dot(d, normalize(uSoleilDir)), 0.0), 62.0);
     col += uLueur * halo * 0.30 * bas;
 
+    /* LA LUNE.
+
+       Toute la lumiere de cette foret vient d'elle : la directionnelle
+       s'appelle uLuneCol dans le feuillage, le liseré des aiguilles se calcule
+       par rapport a elle, la neige lui doit ses ombres bleues. Elle n'etait
+       nulle part visible. On avait donc une scene entierement construite
+       autour d'une source qu'on ne voyait jamais — ce qui se ressent sans se
+       nommer : la lumiere semble venir de partout et de nulle part, et le ciel
+       manque du point vers lequel tout converge.
+
+       Elle est placee exactement sur la direction de la lumiere, ce qui rend
+       la scene coherente d'un coup : les ombres portent a l'oppose d'un objet
+       qu'on peut montrer du doigt.
+
+       Trois morceaux. Le DISQUE, avec un bord adouci sur un dixieme de son
+       rayon — un bord parfaitement net revele la resolution du dome et fait
+       « autocollant ». Les MERS, ces taches sombres qui empechent de la lire
+       comme une pastille blanche ; elles sont fixes puisque la Lune presente
+       toujours la meme face. Et le HALO, tres large et tres faible, qui est
+       la diffusion dans l'air froid : c'est lui qui donne l'echelle et pose
+       la lune DANS le ciel plutot que devant. */
+    {
+      vec3 versLune = normalize(uSoleilDir);
+      float cosA = dot(d, versLune);
+
+      // Rayon angulaire d'environ 0,011 rad, un peu plus que le vrai, pour
+      // qu'elle existe sur un ecran de telephone.
+      float disque = smoothstep(0.99988, 0.99995, cosA);
+
+      if (disque > 0.001) {
+        // Repere local sur le disque, pour y dessiner quelque chose.
+        vec3 axeU = normalize(cross(versLune, vec3(0.0, 1.0, 0.0)));
+        vec3 axeV = cross(axeU, versLune);
+        vec2 surLune = vec2(dot(d, axeU), dot(d, axeV)) * 92.0;
+
+        float mers = fbm3(vec3(surLune * 1.7, 3.1)) * 0.5 + 0.5;
+        mers = smoothstep(0.34, 0.72, mers);
+
+        // Assombrissement du bord : une sphere eclairee de face reste plus
+        // faible sur son pourtour.
+        float versBord = clamp(1.0 - dot(surLune, surLune) * 0.9, 0.0, 1.0);
+        float relief = 0.80 + 0.20 * sqrt(versBord);
+
+        vec3 teinte = mix(vec3(1.00, 0.97, 0.90), vec3(0.72, 0.74, 0.80), mers * 0.55);
+        col += teinte * disque * relief * 1.35;
+      }
+
+      // Diffusion large autour d'elle.
+      float autour = pow(max(cosA, 0.0), 340.0);
+      float loin   = pow(max(cosA, 0.0), 22.0);
+      col += vec3(0.80, 0.86, 1.00) * (autour * 0.34 + loin * 0.045);
+    }
+
     /* LES ETOILES. Elles etaient toutes de la meme taille et de la meme
        couleur : un semis regulier de points blancs, qui se lit comme du bruit
        plutot que comme un ciel. Un vrai ciel d'hiver est d'abord une affaire

@@ -132,10 +132,19 @@ const FRAG_FINAL = /* glsl */ `
        voir. */
     vec3 col;
     if(uAberr > 0.0001){
+      /* L'ecart est RADIAL, donc il sort du cadre sur les bords — c'est meme
+         la ou il est maximal, puisqu'il croit avec le carre de la distance au
+         centre. Une cible de rendu est echantillonnee en mode « bord
+         prolonge » : hors du domaine, on relit indefiniment le dernier texel,
+         ce qui l'etire en trainee le long de l'arete. On borne donc la
+         coordonnee a un demi-texel de la bordure. Le decalage y devient nul au
+         lieu de negatif, ce qui est exactement le comportement voulu : pas
+         d'aberration la ou il n'y a plus rien a decaler. */
       vec2 d = depuisCentre * r2 * uAberr;
-      col.r = texture2D(uScene, uv + d).r;
+      vec2 demi = 0.5 / vec2(textureSize(uScene, 0));
+      col.r = texture2D(uScene, clamp(uv + d, demi, 1.0 - demi)).r;
       col.g = texture2D(uScene, uv).g;
-      col.b = texture2D(uScene, uv - d).b;
+      col.b = texture2D(uScene, clamp(uv - d, demi, 1.0 - demi)).b;
     } else {
       col = texture2D(uScene, uv).rgb;
     }
