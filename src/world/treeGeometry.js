@@ -271,13 +271,94 @@ export function genererSapin(rand, detail = 6, simple = false, fond = false) {
   // branche. Au loin, une branche droite suffit largement.
   const segments = simple ? 1 : 2;
 
+  /* AU FOND, ON NE DESSINE PLUS DES BRANCHES : ON DESSINE DES JUPES.
+
+     Ma premiere tentative gardait des branches, mais tres larges et tres peu
+     nombreuses pour tenir le budget. Le resultat etait pire que ce qu'il
+     remplacait : cinq etages de six eventails larges, cela ne fait pas un
+     sapin, cela fait un TIPI — une carcasse triangulaire sur pattes. C'est ce
+     qu'on voyait au fond de la clairiere.
+
+     Le probleme est structurel : a budget tres serre, une silhouette faite de
+     branches est forcement soit clairsemee (arete de poisson) soit grossiere
+     (tipi). Il n'y a pas de reglage entre les deux.
+
+     A cette distance, pourtant, on ne cherche plus une structure : on cherche
+     un CONE ETAGE, sombre, au bord irregulier. Une pile de jupes coniques le
+     donne exactement, pour deux triangles par secteur, et son contour est bon
+     sous tous les angles puisqu'elle est de revolution. Le bruit sur le rayon
+     de chaque secteur suffit a lui oter son aspect tourne au tour. */
+  const pousserJupe = (pos, nor, col, { yHaut, yBas, rHaut, rBas, S, sombre, clair, rand }) => {
+    const bruit = [];
+    for (let i = 0; i <= S; i++) bruit.push(i === S ? 0 : (rand() - 0.5) * 0.30);
+    bruit[S] = bruit[0];
+    for (let i = 0; i < S; i++) {
+      const a0 = (i / S) * Math.PI * 2, a1 = ((i + 1) / S) * Math.PI * 2;
+      const k0 = 1 + bruit[i], k1 = 1 + bruit[i + 1];
+      const P = [
+        [Math.cos(a0) * rHaut * k0, yHaut, Math.sin(a0) * rHaut * k0, clair],
+        [Math.cos(a1) * rHaut * k1, yHaut, Math.sin(a1) * rHaut * k1, clair],
+        [Math.cos(a1) * rBas * k1, yBas, Math.sin(a1) * rBas * k1, sombre],
+        [Math.cos(a0) * rBas * k0, yBas, Math.sin(a0) * rBas * k0, sombre],
+      ];
+      for (const [x, y, z] of [[0, 1, 2], [0, 2, 3]]) {
+        for (const j of [x, y, z]) {
+          const v = P[j];
+          pos.push(v[0], v[1], v[2]);
+          // Normale de coque : vers l'exterieur et vers le haut.
+          const l = Math.hypot(v[0], v[2]) || 1;
+          const nx = (v[0] / l) * 0.66, nz = (v[2] / l) * 0.66;
+          const n = Math.hypot(nx, 0.75, nz);
+          nor.push(nx / n, 0.75 / n, nz / n);
+          col.push(v[3], v[3], v[3]);
+        }
+      }
+    }
+  };
+
   const fPos = [], fNor = [], fCol = [];
   const nPos = [], nNor = [], nCol = [];
   const bacNeige = { pos: nPos, nor: nNor, col: nCol };
 
+  const basFeuillage = 0.10 + rand() * 0.05;
+
+  /* Niveau de fond : une pile de jupes, et rien d'autre. On sort tout de
+     suite — ni fleche, ni neige, ni branches. */
+  if (fond) {
+    const NJ = 7;
+    const S = 7;
+    const hautTotal = 1 - basFeuillage - 0.03;
+    for (let i = 0; i < NJ; i++) {
+      const t0 = i / NJ, t1 = (i + 1.55) / NJ;   // les jupes se chevauchent
+      const profil = (u) => Math.pow(Math.max(0, 1 - u), 0.80) * 0.30 + 0.010;
+      pousserJupe(fPos, fNor, fCol, {
+        yHaut: basFeuillage + hautTotal * Math.min(1, t1),
+        yBas: basFeuillage + hautTotal * t0,
+        rHaut: profil(Math.min(1, t1)) * 0.30,
+        rBas: profil(t0) * (0.92 + rand() * 0.16),
+        S,
+        sombre: 0.62 + t0 * 0.30,
+        clair: 0.95 + t0 * 0.25,
+        rand,
+      });
+    }
+    const geo = (P, N, C) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+      g.computeBoundingSphere();
+      return g;
+    };
+    return {
+      feuillage: geo(fPos, fNor, fCol),
+      neige: geo([], [], []),
+      tronc: geo([], [], []),
+    };
+  }
+
   /* Etages de branches, du plus large en bas au plus serre en haut. Ils se
      chevauchent largement : c'est le recouvrement qui remplit la masse. */
-  const basFeuillage = 0.10 + rand() * 0.05;
   for (let i = 0; i < couches; i++) {
     const t = i / (couches - 1);
 

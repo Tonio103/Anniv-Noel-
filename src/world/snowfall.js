@@ -144,8 +144,18 @@ export class Neige {
        et son biais monte a 2,4 — donc beaucoup de petits, tres peu de gros.
        Ce qu'on veut, c'est qu'un flocon passe de temps en temps, pas qu'il y
        en ait toujours un devant l'oeil. */
-    this.loin = couche(Math.round(N * 0.88), 110, 0.115, 0.85, 2.6);
-    this.pres = couche(Math.round(N * 0.12), 30, 0.16, 0.30, 2.4);
+    /* IL EN TOMBE NETTEMENT PLUS. Antoine en veut davantage, et c'est aussi
+       la mesure la moins chere pour masquer ce qui reste d'apparition
+       d'arbres au loin : un rideau de flocons occupe l'oeil et casse la
+       lecture des silhouettes lointaines. Un flocon coute un point, donc
+       presque rien en geometrie ; ce qui coute est le remplissage, d'ou une
+       couche lointaine qui reste faite de tres petits grains.
+
+       Le rapport entre les deux couches ne bouge pas : la couche proche est
+       celle qui bouche l'image si on la laisse filer, et un flocon qui passe
+       de temps en temps vaut mieux qu'un flocon toujours devant l'oeil. */
+    this.loin = couche(Math.round(N * 0.90), 125, 0.100, 0.85, 2.8);
+    this.pres = couche(Math.round(N * 0.10), 30, 0.16, 0.30, 2.4);
 
     scene.add(this.loin.pts);
     scene.add(this.pres.pts);

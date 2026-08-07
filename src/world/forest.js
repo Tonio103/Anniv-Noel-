@@ -113,7 +113,18 @@ function fusionner(geos) {
   return g;
 }
 
-const TRONCONS = 14;
+/* GRANULARITE DU TRI.
+
+   Quatorze tronçons sur sept cent trente-huit metres, cela fait des blocs de
+   cinquante-trois metres : quand un bloc change de niveau de detail, ce n'est
+   pas un arbre qui change d'aspect, c'est un pan entier de foret d'un seul
+   coup. C'est la moitie du « pop-in » qui reste.
+
+   Maintenant que le niveau de fond ne coute presque rien, on peut se
+   permettre des blocs plus courts : la bascule ne touche plus qu'un tiers de
+   la surface a la fois, et elle passe beaucoup mieux. Le prix est en appels
+   de dessin, pas en triangles. */
+const TRONCONS = 22;
 
 export class Foret {
   constructor(chemin, relief, palier, clairieres, uniformsVent) {
@@ -512,7 +523,10 @@ export class Foret {
        et pas un gout, qui fixe la portee. */
     const portee = 250;
     // Au-dela : la silhouette seule (voir modeleFond).
-    const seuilFond = 105;
+    /* Repousse : la jupe de fond coute environ un tiers du niveau
+       intermediaire, donc on peut retarder la bascule jusque dans la zone ou
+       le brouillard couvre deja les deux tiers de l'objet. */
+    const seuilFond = 135;
     /* Bascule vers la version grossiere. Le seuil est genereux — les
        tronçons font une soixantaine de metres, donc un arbre du bord d'un
        tronçon « proche » peut deja etre a quatre-vingts metres. On prefere

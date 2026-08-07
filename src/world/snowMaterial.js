@@ -105,8 +105,26 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
           float distN = length(cameraPosition - vMonde);
           float pres = smoothstep(120.0, 14.0, distN);
 
-          // Grande echelle : les congeres allongees par le vent dominant.
-          // L'axe X est etire pour donner une direction au modele.
+          /* LE SOL EST CE QUI COUTE LE PLUS CHER DE TOUTE LA SCENE.
+
+             Il occupe la moitie basse de l'ecran — davantage en portrait — et
+             chaque pixel evaluait HUIT bruits : trois fbm pour la pente des
+             congeres, trois vnoise pour le grain, deux fbm pour les plaques.
+             Sur un telephone, dont le goulot est presque toujours le
+             remplissage et non la geometrie, c'est de tres loin le premier
+             poste de depense.
+
+             Deux economies qui ne coutent rien a l'image :
+
+             · les six echantillons servaient a estimer un GRADIENT par
+               differences finies. Un gradient a besoin de l'echantillon
+               central et de deux voisins, soit trois — pas six. On reutilise
+               donc h0 et g0 au lieu de les recalculer decales.
+
+             · le grain fin ne se voit qu'a quelques metres. Il est desormais
+               ENTIEREMENT saute au-dela, branchement compris : au-dela de
+               vingt metres on ne paie plus rien pour lui, alors qu'avant on
+               le calculait partout pour le multiplier ensuite par zero. */
           float e = 0.5;
           vec3 q = vMonde * vec3(0.10, 0.30, 0.30);
           float h0 = fbm3(q);
@@ -115,11 +133,14 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
           vec3 ondul = vec3(h0 - hx, 0.0, h0 - hz) * 0.42;
 
           // Petite echelle : le grain de la croute, visible de pres seulement.
-          vec3 q2 = vMonde * 2.1;
-          float g0 = vnoise(q2);
-          float gx = vnoise(q2 + vec3(0.26, 0.0, 0.0));
-          float gz = vnoise(q2 + vec3(0.0, 0.0, 0.26));
-          ondul += vec3(g0 - gx, 0.0, g0 - gz) * 0.20 * pres;
+          float finesse = smoothstep(22.0, 5.0, distN);
+          if (finesse > 0.01) {
+            vec3 q2 = vMonde * 2.1;
+            float g0 = vnoise(q2);
+            float gx = vnoise(q2 + vec3(0.26, 0.0, 0.0));
+            float gz = vnoise(q2 + vec3(0.0, 0.0, 0.26));
+            ondul += vec3(g0 - gx, 0.0, g0 - gz) * 0.20 * finesse;
+          }
 
           normal = normalize(normal + ondul * pres);
 
@@ -138,9 +159,12 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
              l'effet est volontairement faible — au-dela on lit des nuages
              peints sur le sol. Elle NE s'attenue PAS avec la distance : c'est
              tout son interet. */
+          /* Le deuxieme octave de cette carte est un detail de detail : il
+             module de trois pour cent une variation qui en fait deja onze.
+             Il ne survit pas a un examen honnete de son rapport cout/effet,
+             et il coutait un fbm complet sur chaque pixel de sol. */
           float plaque = fbm3(vMonde * vec3(0.026, 0.10, 0.026)) * 0.5 + 0.5;
-          float souffle = fbm3(vMonde * vec3(0.085, 0.20, 0.085) + 31.7) * 0.5 + 0.5;
-          float tasse = clamp(plaque * 0.72 + souffle * 0.28, 0.0, 1.0);
+          float tasse = clamp(plaque, 0.0, 1.0);
           diffuseColor.rgb *= 0.93 + tasse * 0.11;
           roughnessFactor = clamp(roughnessFactor - (tasse - 0.5) * 0.16, 0.30, 1.0);
 

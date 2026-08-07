@@ -112,14 +112,61 @@ const FRAG = /* glsl */ `
     float halo = pow(max(dot(d, normalize(uSoleilDir)), 0.0), 62.0);
     col += uLueur * halo * 0.30 * bas;
 
-    // Etoiles : un semis fixe, scintillement tres leger
+    /* LES ETOILES. Elles etaient toutes de la meme taille et de la meme
+       couleur : un semis regulier de points blancs, qui se lit comme du bruit
+       plutot que comme un ciel. Un vrai ciel d'hiver est d'abord une affaire
+       de HIERARCHIE — quelques etoiles franches, beaucoup de faibles, et
+       toutes ne sont pas blanches.
+
+       On tire donc trois grilles de tailles differentes. La plus grosse donne
+       les quelques etoiles qui accrochent vraiment l'oeil, les deux autres la
+       poussiere. Chacune a sa propre teinte, tiree entre le bleu et l'ambre,
+       et sa propre cadence de scintillement. */
     if(uEtoiles > 0.01){
-      vec3 p = d * 140.0;
-      float n = vnoise(floor(p));
-      float e = smoothstep(0.83, 0.995, n);
-      float scint = 0.72 + 0.28 * sin(uTemps * 1.7 + n * 40.0);
-      col += vec3(0.86, 0.92, 1.0) * e * scint * uEtoiles
-             * smoothstep(-0.02, 0.34, d.y);
+      float horizonEtoiles = smoothstep(-0.02, 0.30, d.y);
+      vec3 lot = vec3(0.0);
+      for(int k = 0; k < 3; k++){
+        float ech = 78.0 + float(k) * 96.0;
+        float seuil = 0.90 - float(k) * 0.035;
+        float force = 1.0 - float(k) * 0.28;
+        vec3 c = floor(d * ech);
+        float n = vnoise(c);
+        float e = smoothstep(seuil, seuil + 0.075, n);
+        if(e > 0.0){
+          float t = fract(n * 91.7);
+          // Bleutee ou ambree : aucune etoile n'est exactement blanche.
+          vec3 teinte = mix(vec3(0.72, 0.84, 1.0), vec3(1.0, 0.90, 0.74), t);
+          float scint = 0.62 + 0.38 * sin(uTemps * (0.9 + t * 2.2) + n * 60.0);
+          lot += teinte * e * scint * force;
+        }
+      }
+      col += lot * uEtoiles * horizonEtoiles;
+    }
+
+    /* LA VOIE LACTEE. Une bande diffuse qui traverse le ciel en biais. Elle
+       ne coute qu'un bruit et c'est elle qui fait passer le fond de « bleu
+       uni avec des points » a « ciel ». Volontairement faible : on doit la
+       deviner, pas la constater. */
+    if(uEtoiles > 0.3){
+      vec3 axe = normalize(vec3(0.42, 0.66, -0.62));
+      float le = 1.0 - abs(dot(d, axe));
+      float bande = smoothstep(0.86, 1.0, le);
+      float grain = fbm3(d * 5.5) * 0.5 + 0.5;
+      col += vec3(0.52, 0.60, 0.80) * bande * (0.28 + grain * 0.55) * 0.16
+             * uEtoiles * smoothstep(0.0, 0.30, d.y);
+    }
+
+    /* VOILES DE NUAGES HAUTS. Des cirrus etires par le vent d'altitude,
+       eclaires par en dessous par la lueur du couchant. Ils donnent au ciel
+       une profondeur qu'aucun degrade ne peut donner seul, et ils cassent la
+       regularite parfaite du fond. */
+    {
+      vec3 cq = vec3(d.x, d.y * 2.6, d.z) * 2.2 + vec3(uTemps * 0.004, 0.0, 0.0);
+      float voile = fbm3(cq) * 0.5 + 0.5;
+      voile = smoothstep(0.52, 0.88, voile);
+      float bande = smoothstep(0.02, 0.30, d.y) * smoothstep(0.92, 0.34, d.y);
+      vec3 teinte = mix(uHorizon, uLueur, pow(vers, 1.8) * 0.55);
+      col = mix(col, teinte * 1.35, voile * bande * 0.30);
     }
 
     // Voile de brume tres haut : evite un ciel trop "propre"
