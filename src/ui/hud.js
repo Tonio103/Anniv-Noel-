@@ -170,6 +170,37 @@ export function brancherSeuil(surEntree) {
   const entry = document.getElementById('entry');
   const btn = document.getElementById('enterBtn');
 
+  /* FILET DE SECURITE SUR LE SEUIL.
+
+     Les six elements de cet ecran arrivent en fondu par une animation CSS.
+     Les passer en `backwards` a deja supprime la dependance a la FIN de
+     l'animation — si les animations sont desactivees, tout s'affiche d'un
+     coup. Mais il reste un cas que le CSS seul ne peut pas couvrir : une
+     animation qui demarre et dont l'horloge n'avance pas. Elle reste alors
+     figee dans son delai, donc a l'etat initial, donc invisible — et c'est un
+     cas reellement observe ici, ou getAnimations() rapporte « running » avec
+     un currentTime bloque a zero.
+
+     Consequence si on ne fait rien : la famille ouvre une page noire, sans
+     titre et sans bouton pour entrer. Pour une page dont l'unique fonction
+     est d'etre lisible sur des appareils inconnus, c'est inacceptable, meme
+     avec une probabilite faible.
+
+     On verifie donc, une seule fois, trois secondes apres l'affichage : si le
+     titre est toujours transparent, on coupe les animations et on montre
+     tout. Un seul controle, aucun cout, et le pire cas devient « l'entree
+     n'est pas animee » au lieu de « personne ne peut entrer ». */
+  setTimeout(() => {
+    if (entry.hidden) return;
+    const titre = entry.querySelector('.entry-title');
+    if (!titre || Number(getComputedStyle(titre).opacity) > 0.05) return;
+    for (const el of entry.querySelectorAll('*')) {
+      el.style.animation = 'none';
+      el.style.opacity = '1';
+      el.style.transform = 'none';
+    }
+  }, 3000);
+
   const partir = () => {
     btn.removeEventListener('click', partir);
     entry.classList.add('out');

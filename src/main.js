@@ -151,13 +151,67 @@ async function demarrer() {
   const ajusterTaille = brancherResize(renderer, camera, postfx, palier);
 
   /* --------------------------------------------------------- cerf, camera */
+  // Abscisse de depart, partagee par le seuil et par le retour en fin de
+  // balade : les deux doivent poser la camera au meme endroit degage.
+  const DEPART = 26;
+
   const cerf = new Cerf(palier, chemin, relief);
   scene.add(cerf.racine);
-  cerf.s = 12;
+  /* Le cerf ne demarre pas a la lisiere meme du chemin.
+
+     La camera du seuil se tient douze metres DERRIERE lui. A s = 12, elle se
+     retrouvait donc AVANT le debut du trace — une zone que la regle du
+     couloir degage ne protege pas, puisque la distance au chemin y est
+     mesuree jusqu'a son premier point. L'appareil demarrait a l'interieur
+     d'un sapin et l'ecran d'accueil s'ouvrait sur un aplat noir. Le defaut
+     etait masque tant que le cadrage large visait au-dessus des cimes ; il
+     est apparu des qu'on l'a redescendu pour rendre le cerf visible. */
+  cerf.s = DEPART;
 
   const drone = new Drone(camera, chemin, relief, palier);
   drone.cadrer('large');
   drone.poser(cerf, 0);
+
+  /* LE PLAN D'OUVERTURE, compose et non subi.
+
+     Le laisser au rig de suivi ne marchait pas. Ses derives lentes — celles
+     qui font justement qu'en route le cadrage ne se repete jamais — placent
+     la camera au petit bonheur : selon la seconde, elle se retrouvait dans
+     un sapin, ou visant le ciel, ou avec le cerf hors champ. Or c'est la
+     PREMIERE image, celle que toute la famille verra, et la seule qui doive
+     tenir plusieurs dizaines de secondes sans bouger.
+
+     On la pose donc explicitement, comme la derniere. La camera reste
+     vivante — flottement de main levee, respiration de l'objectif, neige qui
+     tombe, sapins qui travaillent — mais son cadre, lui, est choisi : le
+     cerf dans le tiers bas et decale, la trouee du chemin derriere lui, et
+     tout le centre libre pour le titre. */
+  function poserSeuil() {
+    const p0 = chemin.point(DEPART, new THREE.Vector3());
+    const tan0 = chemin.tangente(DEPART, new THREE.Vector3());
+    const cot0 = chemin.cote(DEPART, new THREE.Vector3());
+    const sol0 = relief.hauteur(p0.x, p0.z);
+
+    // En retrait sur l'axe du chemin : c'est le seul endroit dont on sache
+    // qu'il est degage, puisque c'est le couloir de marche lui-meme.
+    const poste = new THREE.Vector3(
+      p0.x - tan0.x * 10.5 + cot0.x * 1.2,
+      sol0 + 2.75,
+      p0.z - tan0.z * 10.5 + cot0.z * 1.2
+    );
+    /* On vise A COTE du cerf et AU-DESSUS : viser l'animal lui-meme le
+       ramenerait au centre, exactement derriere le titre. C'est la visee qui
+       compose, jamais la position seule. */
+    const vise = new THREE.Vector3(
+      p0.x + tan0.x * 5 - cot0.x * 5.4,
+      sol0 + 3.05,
+      p0.z + tan0.z * 5 - cot0.z * 5.4
+    );
+    drone.figer(vise, poste);
+    drone.pos.copy(poste);
+    drone.vise.copy(vise);
+  }
+  poserSeuil();
 
   const halte = new Halte(scene, palier, relief);
 
@@ -296,7 +350,7 @@ async function demarrer() {
     finBruits.texte = false;
     halte.nettoyer();
     trace.effacer();
-    cerf.s = 12;
+    cerf.s = DEPART;
     cerf.regard = 0;
     cerf.grattage = 0;
     cerf.placer(cerf.s);
@@ -590,6 +644,12 @@ async function demarrer() {
     voixSabots = sfx.ancrer(cerf.racine, 34);
     panneau.montrer();
     demarree = true;
+    /* La camera reprend son role de suiveur. Elle ne saute pas : `liberer`
+       la remet en poursuite depuis sa position actuelle, et l'elasticite du
+       rig fait le raccord. C'est le premier mouvement de la balade, et il
+       doit avoir l'air d'un decollage, pas d'une coupe. */
+    drone.liberer();
+    drone.cadrer('route');
     viser(1);
     entrerPhase(PHASES.ROUTE);
   });

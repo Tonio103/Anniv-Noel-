@@ -95,7 +95,14 @@ export class Drone {
          garder dans l'axe, et il revient au milieu. C'est la VISEE qu'il faut
          decaler — on regarde a cote et au-dessus de lui, ce qui le repousse
          vers le bas et sur un cote du cadre. */
-      large:   { recul: 12.5, hauteur: 4.8, lateral: 3.0, fov: 62, biais: 3.4, bas: 2.2 },
+      /* Le decalage vertical avait ete pousse a 2,2 m pour degager le cerf de
+         sous le titre. Il l'a degage, mais en emportant tout le cadre avec
+         lui : la camera regardait le ciel, l'horizon tombait aux quatre
+         cinquiemes de l'image, et l'animal qu'on est cense apercevoir a la
+         lisiere se retrouvait hors champ, sous le bouton. Le decalage
+         LATERAL suffit a le sortir de derriere le texte ; le vertical n'a
+         qu'a le poser dans le tiers bas. */
+      large:   { recul: 12.5, hauteur: 3.4, lateral: 3.0, fov: 62, biais: 3.6, bas: 0.75 },
     }[nom];
     if (!c) return;
     this.reculCible = c.recul;
@@ -132,7 +139,13 @@ export class Drone {
 
   liberer() {
     this.fige = false;
-    this._premiere = true;
+    /* On NE remet PAS `_premiere` : ce drapeau fait sauter la camera d'un
+       bond sur sa cible, ce qui est bon pour un placement initial et
+       desastreux pour une reprise. En sortant d'un plan pose, on veut que
+       l'elasticite du rig rattrape la poursuite toute seule — le passage se
+       lit alors comme un decollage, et non comme une coupe. Les appelants
+       qui veulent un placement net enchainent avec poser(), qui leve le
+       drapeau lui-meme. */
     this.orbite = 0;
     this.orbiteCible = 0;
     this.descente = 0;

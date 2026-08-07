@@ -235,7 +235,15 @@ export class PremierPlan {
     const c = new THREE.Vector3();
     const liste = [];
 
-    let s = 8;
+    /* On ne plante rien dans les cinquante-cinq premiers metres.
+
+       Le plan d'ouverture est fixe et regarde le chemin dans cet intervalle
+       precis. Un fut y tombait en plein milieu du cadre et rayait le titre de
+       haut en bas — sur la seule image que toute la famille verra, et la
+       seule qu'elle regardera plusieurs dizaines de secondes. Ailleurs un fut
+       raye l'image un dixieme de seconde et c'est exactement ce qu'on lui
+       demande ; ici il s'installe. */
+    let s = 55;
     while (s < L - 12 && liste.length < budget) {
       s += 7 + rand() * 20;
 
