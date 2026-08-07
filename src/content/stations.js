@@ -56,6 +56,18 @@ export const STATIONS = [
         { t: 'lead', h: 'Le concert d’Orelsan est <strong>déjà offert</strong>. Il ne reste plus qu’à attendre.' },
         { t: 'note', tone: 'good', h: '<b>Dimanche 27&nbsp;décembre 2026</b>' },
         { t: 'p', h: 'C’est déjà le plus beau cadeau de la liste, et il est réglé. Le reste de cette balade, c’est juste au cas où.' },
+        /* L'ANNIVERSAIRE N'EXISTAIT QU'A LA FIN.
+           Il apparaissait a la clairiere des dates, puis au recapitulatif —
+           soit aux deux dernieres haltes sur dix, alors qu'il est la moitie de
+           l'occasion. Quelqu'un qui s'arrete en route ne voyait qu'une liste
+           de Noel. Il est donc pose des la premiere carte, ou il explique en
+           meme temps POURQUOI les deux listes n'en font qu'une. */
+        { t: 'faits', items: [
+          { k: 'Mes 16 ans', v: 'fin novembre 2026' },
+          { k: 'Noël', v: '25 décembre 2026' },
+          { k: 'Entre les deux', v: '<em>un mois — d’où une seule liste</em>' },
+        ]},
+        { t: 'p', h: 'Piochez ce qui vous plaît, pour l’une ou l’autre occasion, ça n’a aucune importance.' },
         { t: 'p', h: 'Vraiment, merci pour ça&nbsp;✦' },
       ],
       next: 'Suivre le cerf',
