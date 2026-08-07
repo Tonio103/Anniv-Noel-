@@ -19,6 +19,7 @@
 */
 
 import * as THREE from 'three';
+import { grainRond } from '../core/dot.js';
 import { clamp, smoothstep, lerp, rng } from '../core/noise.js';
 
 const NB_ECLATS = 160;
@@ -101,6 +102,7 @@ export class Emergence {
     const g2 = new THREE.BufferGeometry();
     g2.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this.matEclats = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02,
       color: 0xFFFFFF, size: 0.085, transparent: true, opacity: 0,
       depthWrite: false, sizeAttenuation: true,
     });

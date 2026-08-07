@@ -12,7 +12,14 @@
 import * as THREE from 'three';
 import { rng } from '../core/noise.js';
 
-export const ECART_HALTES = 92;   // distance approximative entre deux haltes
+/* Distance entre deux haltes.
+
+   Elle a ete reduite en meme temps que la vitesse du cerf. Le trajet durait
+   une douzaine de secondes a plus de vingt kilometres a l'heure : trop vite
+   pour qu'on regarde quoi que ce soit, et le sol defilant sous la camera
+   donnait une impression de course. En ralentissant sans raccourcir, chaque
+   trajet aurait dure vingt secondes ; on raccourcit donc d'autant. */
+export const ECART_HALTES = 66;
 
 export class Chemin {
   constructor(nbHaltes, germe = 7) {

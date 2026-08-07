@@ -49,6 +49,11 @@ export function brancherResize(renderer, camera, composer, palier) {
     // multiplie sa focale par ce facteur au lieu d'imposer la sienne.
     camera.userData.fovEchelle = camera.aspect < 0.72 ? 1.18
                                : camera.aspect < 1.0 ? 1.08 : 1.0;
+    /* Degre de « portraitude », de 0 a 1. Le drone s'en sert pour se
+       rapprocher et viser plus bas : en portrait, un cadrage regle pour le
+       paysage laisse le sujet minuscule en haut de l'image et remplit toute
+       la moitie basse de sol vide. C'est ce qu'on voyait sur telephone. */
+    camera.userData.portrait = Math.max(0, Math.min(1, (0.95 - camera.aspect) / 0.35));
     camera.updateProjectionMatrix();
 
     if (composer) composer.setSize(l, h, palier.dpr);

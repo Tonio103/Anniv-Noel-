@@ -141,11 +141,22 @@ export class Foret {
       // Trop loin du chemin : invisible sous le brouillard, inutile a dessiner.
       if (pr.d > 165) continue;
 
-      // Le couloir de marche reste degage, avec un bord irregulier.
-      // La marge doit tenir compte de l'ENVERGURE des branches, pas seulement
-      // du tronc : sinon un sapin de vingt metres etale ses branches jusque
-      // dans l'objectif et vient barrer l'image d'une masse noire.
-      const bord = 12 + rand() * 8;
+      /* Le couloir de marche reste degage, avec un bord irregulier.
+
+         MAIS IL ETAIT BEAUCOUP TROP LARGE. Douze a vingt metres de vide de
+         chaque cote, c'est quarante metres de clairiere permanente : sur un
+         telephone tenu en portrait, on ne voyait plus qu'une plaine blanche
+         avec une frise d'arbres au loin. On ne s'enfoncait dans rien.
+
+         La contrainte reste vraie — un sapin de vingt metres etale ses
+         branches sur trois metres de rayon et viendrait barrer l'image. La
+         reponse n'est donc pas d'approcher les gros, c'est de rapprocher les
+         PETITS : la marge devient proportionnelle a la taille de l'arbre. Un
+         grand reste au large, un jeune de huit metres vient a sept metres du
+         bord du chemin. La lisiere se remplit de sous-bois et le couloir
+         cesse d'etre une autoroute. */
+      const hauteurVoulue = (11.5 + rand() * 13.5) * (0.86 + (pr.s / chemin.longueur) * 0.28);
+      const bord = 5.0 + hauteurVoulue * 0.42 + rand() * 2.5;
       if (pr.d < bord) continue;
 
       // Clairieres : on n'y plante rien, et on adoucit la lisiere.
@@ -168,8 +179,11 @@ export class Foret {
 
       const y = relief.hauteur(x, z);
 
-      // Un peu plus hauts au coeur de la foret, plus rabougris a la lisiere.
-      const h = (11.5 + rand() * 13.5) * (0.86 + avancee * 0.28);
+      /* La hauteur retenue est celle qui a servi a calculer la marge : s'en
+         ecarter ici ferait planter un grand arbre a la distance autorisee
+         pour un petit, et il barrerait l'image — ce que toute la regle
+         ci-dessus existe pour empecher. */
+      const h = hauteurVoulue;
 
       arbres.push({
         x, y: y - 0.15, z, s: pr.s,

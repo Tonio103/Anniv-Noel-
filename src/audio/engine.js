@@ -68,7 +68,7 @@ export class Son {
     this.pret = false;
     this.ctx = null;
     this.volume = 0.62;
-    this.couches = { vent: true, grelots: true, neige: true };
+    this.couches = { vent: true, grelots: false, neige: true };
   }
 
   /* Le contexte ne peut naitre que d'un geste de l'utilisateur : on l'ouvre

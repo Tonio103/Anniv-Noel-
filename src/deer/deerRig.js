@@ -100,7 +100,20 @@ export class Cerf {
         mb.attache.position.z + (mb.avant ? 0.02 : -0.02)
       );
       mb.sabotMonde = new THREE.Vector3();
-      mb.sens = mb.avant ? -1 : 1;      // coude vers l'arriere, jarret vers l'avant
+      /* LE SENS DE PLIURE.
+
+         Il ne se derive pas au tableau : `rotateOnAxis` tourne autour d'un axe
+         exprime dans le repere LOCAL de l'os, et ce repere a deja ete pivote
+         par l'orientation vers la cible. Le raisonnement « une rotation
+         positive autour de X amene le genou vers l'arriere » est donc faux,
+         et c'est ce raisonnement qui avait fixe cette valeur.
+
+         Chez un cervide, le carpe de l'anterieur se plie VERS L'ARRIERE — la
+         patte avant se replie comme un bras, jamais vers l'avant. Le jarret du
+         posterieur se plie lui aussi vers l'arriere. Les deux membres vont
+         donc dans le meme sens ; c'est le decalage des masses, pas le sens de
+         pliure, qui les distingue a l'oeil. */
+      mb.sens = 1;
     }
 
     this.placer(this.s);

@@ -84,7 +84,20 @@ await page.evaluate(() => window.__scene.simuler(12));
 await page.waitForTimeout(600);
 const apres = await page.evaluate(() => ({ ...window.__compte }));
 const pas12s = apres.sabot - avant.sabot;
-console.log('sabots sur 12 s de marche :', pas12s, '| grelots :', apres.grelots - avant.grelots);
+const grelots12s = apres.grelots - avant.grelots;
+console.log('sabots sur 12 s de marche :', pas12s, '| appels de grelot :', grelots12s);
+
+/* PAS DE MUSIQUE : c'est une exigence, donc c'est un test.
+
+   Les grelots etaient declenches un poser sur deux. Au trot, cela faisait
+   cinq carillons par seconde — une nappe de clochettes continue, c'est-a-dire
+   de la musique. On verifie donc deux choses : que la couche est ETEINTE par
+   defaut, et que meme allumee elle reste un detail (moins d'un declenchement
+   par seconde de marche). */
+const etatCouches = await page.evaluate(() => ({ ...window.__scene.son.couches }));
+const silencieux = etatCouches.grelots === false;
+const rare = grelots12s <= 12;
+console.log('grelots eteints par defaut :', silencieux, '| cadence acceptable :', rare);
 
 /* Un cadeau qui sort de la neige : grondement puis gerbe. */
 await page.evaluate(() => window.__scene.aller(2));
@@ -116,7 +129,8 @@ const ko = [];
 (etat.pret ? ok : ko).push('moteur pret');
 (creteAmbiance > 0.0005 ? ok : ko).push('ambiance audible (rms ' + creteAmbiance.toFixed(4) + ')');
 (pas12s >= 8 ? ok : ko).push('sabots synchronises (' + pas12s + ' sur 12 s)');
-(apres.grelots - avant.grelots > 0 ? ok : ko).push('grelots');
+(silencieux ? ok : ko).push('grelots eteints par defaut');
+(rare ? ok : ko).push('aucune nappe de clochettes (' + grelots12s + ' sur 12 s)');
 (halte.grondement > 0 ? ok : ko).push('grondement d\'emergence');
 (halte.gerbe > 0 ? ok : ko).push('gerbe de poudreuse');
 (fin.ouverture > 0 ? ok : ko).push('ouverture du paquet');

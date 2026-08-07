@@ -7,26 +7,43 @@
    une oscillation visible, et un a-coup en pleine balade se remarque
    beaucoup plus qu'un rendu legerement plus simple. */
 
+/* LA RESOLUTION EST LE PREMIER POSTE, ET DE TRES LOIN.
+
+   Le palier bas rendait a `dpr: 1`. Sur un telephone dont l'ecran est en
+   trois fois — c'est-a-dire n'importe quel telephone recent — cela revient a
+   dessiner une image trois fois trop petite puis a l'etirer. Le resultat
+   ressemble litteralement a une video basse definition : escaliers enormes
+   sur chaque arete, silhouette du cerf en marches d'escalier.
+
+   Aucun autre reglage ne compte tant que celui-la est faux. Un decor moins
+   fourni se remarque a peine ; une image floue se remarque immediatement et
+   ruine tout le reste. On accepte donc de payer la definition en premier, et
+   de retirer des arbres si la machine peine — jamais l'inverse.
+
+   Les EMPREINTES reviennent aussi au palier bas. Elles coutent une cible de
+   512 pixels et deux quads par pas : c'est negligeable, et sans elles on
+   suit un animal qui glisse sur une nappe intacte, ce qui vide la balade de
+   son sujet meme. Les couper etait une fausse economie. */
 export const PALIERS = {
   bas: {
     nom: 'bas',
-    dpr: 1,
-    arbres: 620,
+    dpr: 1.6,
+    arbres: 1100,
     ombres: false,
     ombreTaille: 512,
-    postfx: 'leger',      // bloom seul, pas de profondeur de champ
+    postfx: 'moyen',      // halo + vignette + grain, pas de profondeur de champ
     flocons: 2600,
-    empreintes: false,
-    segTerrain: 96,
-    brancheDetail: 4,
+    empreintes: true,
+    segTerrain: 112,
+    brancheDetail: 5,
   },
   moyen: {
     nom: 'moyen',
-    dpr: 1.35,
-    arbres: 1500,
+    dpr: 2,
+    arbres: 1800,
     ombres: true,
     ombreTaille: 1024,
-    postfx: 'moyen',      // bloom + vignette + grain
+    postfx: 'moyen',
     flocons: 5200,
     empreintes: true,
     segTerrain: 144,
@@ -34,11 +51,11 @@ export const PALIERS = {
   },
   haut: {
     nom: 'haut',
-    dpr: 1.75,
-    arbres: 3000,
+    dpr: 2,
+    arbres: 3200,
     ombres: true,
     ombreTaille: 2048,
-    postfx: 'complet',    // + profondeur de champ et rais de lumiere
+    postfx: 'complet',    // + profondeur de champ
     flocons: 9000,
     empreintes: true,
     segTerrain: 192,
@@ -54,7 +71,23 @@ export function detecterPalier(gl) {
   const coeurs = navigator.hardwareConcurrency || 4;
   const mem = navigator.deviceMemory || 4;
 
-  let nom = mobile ? 'bas' : 'moyen';
+  /* UN TELEPHONE N'EST PAS UNE MACHINE FAIBLE.
+
+     La regle precedente disait : mobile → palier le plus bas, sans condition
+     et sans exception. Un iPhone recent tient pourtant cette scene a soixante
+     images par seconde en pleine definition ; le traiter comme un appareil de
+     2019 lui imposait une image trois fois trop petite, aucune empreinte et
+     un tiers des arbres. Autrement dit, la grande majorite des visiteurs — la
+     famille ouvre ce lien sur son telephone — voyait la plus mauvaise version
+     possible, et c'est la seule que personne n'avait regardee.
+
+     On part donc du palier moyen sur mobile, et on ne descend que si
+     l'appareil s'annonce vraiment modeste. La vigie, elle, reste la : si ca
+     rame, elle retrograde en deux secondes. Il vaut bien mieux commencer trop
+     haut et laisser la mesure corriger que de decider a l'avance, a partir
+     d'un seul booleen, que tous les telephones se valent. */
+  const modeste = coeurs <= 4 || mem <= 3;
+  let nom = mobile ? (modeste ? 'bas' : 'moyen') : 'moyen';
 
   let gpu = '';
   try {
@@ -67,9 +100,15 @@ export function detecterPalier(gl) {
 
   if (logiciel) nom = 'bas';
   else if (!mobile && (costaud || (coeurs >= 8 && mem >= 8))) nom = 'haut';
+  else if (mobile && !modeste && coeurs >= 6) nom = 'haut';
 
   const p = { ...PALIERS[nom] };
-  p.dpr = Math.min(p.dpr, window.devicePixelRatio || 1);
+  /* On ne depasse jamais la densite reelle de l'ecran — inutile — mais on ne
+     descend pas non plus sous 1,25 quand l'ecran est dense : c'est le seuil
+     en dessous duquel l'escalier devient franchement visible. */
+  const densite = window.devicePixelRatio || 1;
+  p.dpr = Math.min(p.dpr, densite);
+  if (densite >= 2 && !logiciel) p.dpr = Math.max(p.dpr, 1.25);
   p.mobile = mobile;
   p.logiciel = logiciel;
   p.gpu = gpu;

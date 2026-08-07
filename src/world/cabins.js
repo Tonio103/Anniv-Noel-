@@ -17,6 +17,7 @@
 */
 
 import * as THREE from 'three';
+import { grainRond } from '../core/dot.js';
 import { rng } from '../core/noise.js';
 
 /* Halo doux pour la lueur des fenetres. */
@@ -116,6 +117,7 @@ function construireCabane(rand, palier, texHalo) {
   const geoF = new THREE.BufferGeometry();
   geoF.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const fumee = new THREE.Points(geoF, new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02,
     color: 0xB8C4CE, size: 0.42, transparent: true, opacity: 0.16,
     depthWrite: false, sizeAttenuation: true,
   }));

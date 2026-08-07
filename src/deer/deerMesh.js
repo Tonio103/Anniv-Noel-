@@ -17,6 +17,7 @@
 */
 
 import * as THREE from 'three';
+import { grainRond } from '../core/dot.js';
 import { anatomie, champ, polygoniser, normalesParGradient, orienterFaces } from './shape.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -628,6 +629,7 @@ function creerSouffle() {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
   const m = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02,
     color: 0xDCE8F4, size: 0.075, transparent: true, opacity: 0.24,
     depthWrite: false, sizeAttenuation: true,
   });

@@ -227,14 +227,21 @@ export class Drone {
     if (!this.orbiteVitesse) this.orbite = damp(this.orbite, 0, 0.55, dt);
     this.descente = damp(this.descente || 0, this.descenteCible || 0, 0.8, dt);
 
+    /* Correction de portrait. Un telephone tenu debout ne montre presque pas
+       de largeur mais beaucoup de hauteur : au meme recul, le cerf devient
+       minuscule et la moitie basse du cadre n'est plus que du sol. On se
+       rapproche donc et on descend, ce qui lui rend sa taille et remplit le
+       bas avec la foret plutot qu'avec de la neige. */
+    const port = this.camera.userData.portrait || 0;
+
     const ca = Math.cos(this.orbite), sa = Math.sin(this.orbite);
-    const recul = this.recul + oscRecul;
-    const late = this.lateral + oscLat;
+    const recul = (this.recul + oscRecul) * (1 - 0.26 * port);
+    const late = (this.lateral + oscLat) * (1 - 0.18 * port);
 
     const cible = this._tmp2.copy(ancre);
     cible.addScaledVector(this._tan, -recul * ca - late * sa);
     cible.addScaledVector(this._cote, late * ca - recul * sa);
-    cible.y += this.hauteur + oscHaut - this.descente;
+    cible.y += (this.hauteur + oscHaut) * (1 - 0.22 * port) - this.descente;
 
     // Main levee : un flottement continu, ample mais tres lent.
     const n1 = this.bruit(temps * 0.33, 0.0);
@@ -267,8 +274,11 @@ export class Drone {
       this._cibleVisee
     );
     avance.y = this.relief.hauteur(avance.x, avance.z) + 1.15;
-    // On melange avec le garrot pour que le cerf reste bien dans le cadre.
-    avance.lerp(ancre, 0.55);
+    /* On melange avec le garrot pour que le cerf reste bien dans le cadre. En
+       portrait on vise franchement plus pres de lui : viser loin devant le
+       repousse vers le haut de l'image et libere tout le bas, qui n'a alors
+       plus rien a montrer que le sol. */
+    avance.lerp(ancre, 0.55 + 0.30 * port);
 
     // Bascule vers le cadeau quand il y en a un.
     if (this._interet && this._forceInteret > 0.001) {

@@ -25,7 +25,6 @@ import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
 import { Cabanes } from './world/cabins.js';
 import { Fouillis } from './world/props.js';
-import { PremierPlan } from './world/foreground.js';
 import { Poudre } from './world/puffs.js';
 import { Clairieres } from './world/clearing.js';
 import { PostFX } from './core/postfx.js';
@@ -103,13 +102,25 @@ async function demarrer() {
   const fouillis = new Fouillis(chemin, relief, palier, clairieres);
   scene.add(fouillis.groupe);
 
-  /* Le premier plan : les futs clairs qui rayent l'image au passage et les
-     branches basses sous lesquelles on plonge. Sans eux, la camera glisse
-     sur un rail ; avec eux, elle vole. */
-  const avant = new PremierPlan(chemin, relief, palier, clairieres, uniformsVent, {
-    modele: foret.modele, matFeuillage: foret.matFeuillage, matNeige: foret.matNeige,
-  });
-  scene.add(avant.groupe);
+  /* LE PREMIER PLAN A ETE RETIRE.
+
+     J'avais ajoute des futs clairs pres du chemin et des branches basses,
+     pour donner au travelling des reperes de vitesse. Sur mon banc d'essai
+     ils passaient ; sur un vrai telephone ils se lisent comme des MATS
+     D'ANTENNE et des planches flottantes — des traits sombres rectilignes
+     posés sur la neige, sans base visible et sans rapport avec une foret.
+     Ils rendaient la scene plus fausse, pas plus vivante.
+
+     Le manque qu'ils devaient combler etait reel, mais je l'avais mal
+     diagnostique : ce n'est pas d'objets pres de l'objectif qu'il manquait,
+     c'est que la FORET ELLE-MEME se tenait a vingt metres. La marge du
+     couloir est desormais proportionnelle a la taille de l'arbre, si bien
+     que le sous-bois vient border le chemin. C'est la bonne reponse, et elle
+     n'ajoute aucun objet etranger.
+
+     Le fichier world/foreground.js reste dans le depot mais n'est plus
+     instancie : il documente une piste essayee, mesuree sur l'appareil
+     reel, et abandonnee pour cette raison. */
 
   const neige = new Neige(scene, palier);
   const brume = new Brume(scene, palier);
@@ -260,7 +271,14 @@ async function demarrer() {
 
     switch (p) {
       case PHASES.ROUTE:
-        cerf.vitesseCible = 6.2;
+        /* IL ALLAIT TROP VITE. Six virgule deux metres par seconde, c'est
+           vingt-deux kilometres a l'heure — un galop de fuite, pas la marche
+           d'un guide. Le sol defilait sous la camera au point qu'on n'avait
+           le temps de rien regarder, et l'ensemble se lisait comme une
+           course. On redescend a une allure ou l'on peut suivre des yeux ce
+           qui passe, et l'ecart entre les haltes a ete raccourci d'autant
+           pour que la duree d'un trajet ne change pas. */
+        cerf.vitesseCible = 4.2;
         cerf.regard = 0;
         drone.cadrer('route');
         drone.regarder(null, 0);
@@ -282,8 +300,19 @@ async function demarrer() {
         cerf.vitesseCible = 0;
         drone.cadrer('halte');
         const st = STATIONS[index];
-        const cote = index % 2 === 0 ? 1 : -1;
-        const pose = halte.preparer(st, chemin, chemin.haltes[index].s + 1.5, cote);
+        /* LE CADEAU SE POSE DU COTE DE LA CAMERA, TOUJOURS.
+
+           Il alternait de part et d'autre du chemin pour varier. Mais la
+           camera, elle, se tient d'un seul cote — celui du decalage lateral
+           du drone. Une halte sur deux placait donc le cerf pile entre
+           l'objectif et le paquet, et l'animal masquait exactement la chose
+           qu'on venait voir sortir de la neige.
+
+           La variete ne se perd pas pour autant : c'est desormais l'arc de
+           camera qui tourne autour de la halte, dans un sens different a
+           chaque fois. On compose avec le mouvement plutot qu'avec la
+           position, ce qui est de toute facon plus juste. */
+        const pose = halte.preparer(st, chemin, chemin.haltes[index].s + 1.5, 1);
         if (!pose) {
           // Rien d'enfoui ici : le cerf s'arrete, se retourne, et c'est tout.
           entrerPhase(PHASES.ATTENTE);
@@ -334,7 +363,7 @@ async function demarrer() {
       case PHASES.REPRISE:
         trace.marquer(index - 1);
         cerf.regard = 0;
-        cerf.vitesseCible = 6.2;
+        cerf.vitesseCible = 4.2;
         drone.cadrer('route');
         drone.arc(0, 0);
         panneau.attenuer(false);
@@ -567,7 +596,20 @@ async function demarrer() {
        minuterie : le sabot marque la neige exactement ou il se pose. */
     for (const p of cerf.posers) {
       sfx.sabot(voixSabots?.entree, p.force);
-      if (Math.random() < 0.42) sfx.grelots(voixCerf?.entree, 0.5 + p.force * 0.5);
+      /* PAS DE MUSIQUE — et les grelots en faisaient.
+
+         Un poser sur deux declenchait un grelot. Au trot, cela fait douze
+         posers par seconde, donc cinq carillons par seconde, chacun compose
+         de cinq partiels tenus dans l'aigu. Le resultat n'etait plus un
+         detail de collier : c'etait une nappe de clochettes continue,
+         c'est-a-dire exactement la musique qu'on ne voulait pas. Le defaut ne
+         s'entend pas en lisant le code — il nait du CROISEMENT entre une
+         probabilite raisonnable et une cadence de pas elevee.
+
+         Ils deviennent donc rares et discrets : environ un toutes les deux
+         secondes de marche, et deux fois moins fort. On doit pouvoir douter
+         de les avoir entendus. */
+      if (Math.random() < 0.045) sfx.grelots(voixCerf?.entree, 0.3 + p.force * 0.25);
       empreintes.ajouter(p.pos.x, p.pos.z, cerf.racine.rotation.y, p.force);
       /* La poudre part vers l'arriere de la marche. Le corps est modelise
          museau vers -Z, d'ou le signe : c'est la meme convention que dans
@@ -598,7 +640,6 @@ async function demarrer() {
     }
     relief.maj(camera, ciel.actuel);
     foret.maj(camera);
-    avant.maj(camera);
     neige.maj(dt, t, camera, renderer);
     brume.maj(dt, t, camera, relief, ciel.actuel);
     details.maj(dt, t, camera, relief);
@@ -668,7 +709,7 @@ async function demarrer() {
   window.__scene = {
     renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
     brume, details, cabanes, empreintes, fouillis, habitants, postfx, boucle, palier,
-    son, sfx, avant,
+    son, sfx,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
       demarree = true;

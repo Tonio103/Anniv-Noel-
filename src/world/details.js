@@ -18,6 +18,7 @@
 */
 
 import * as THREE from 'three';
+import { grainRond } from '../core/dot.js';
 import { rng } from '../core/noise.js';
 
 /* ==========================================================================
@@ -126,6 +127,7 @@ class PaquetsDeNeige {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this.mat = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02,
       color: 0xF2F8FF, size: 0.09, transparent: true, opacity: 0.85,
       depthWrite: false, sizeAttenuation: true,
     });
@@ -202,6 +204,7 @@ class Poudreuse {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.n * 3), 3));
     this.mat = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02,
       color: 0xEAF4FF, size: 0.055, transparent: true, opacity: 0.5,
       depthWrite: false, sizeAttenuation: true,
     });
