@@ -98,9 +98,21 @@ export function detecterPalier(gl) {
   const logiciel = /swiftshader|llvmpipe|software|microsoft basic/i.test(gpu);
   const costaud = /rtx|radeon rx|geforce (gtx|rtx)|apple m[1-9]|arc a/i.test(gpu);
 
+  /* Le palier haut reste reserve aux machines de bureau.
+
+     Je l'avais ouvert aux telephones a six coeurs en corrigeant l'exces
+     inverse. C'etait trop : mesure faite, ce palier envoie 1 070 000
+     triangles par image, plus une passe d'ombre en 2048 qui redessine la
+     foret une seconde fois, plus la profondeur de champ. Aucun telephone ne
+     tient ca a soixante images par seconde, et le budget ainsi gaspille est
+     exactement celui qu'il faut pour rendre en pleine definition — qui est,
+     lui, ce qui se voit.
+
+     Sur mobile, on prefere donc systematiquement DES PIXELS NETS A DES
+     TRIANGLES EN PLUS. C'est le meme arbitrage que partout ailleurs dans ce
+     fichier, et c'est celui que l'oeil recompense. */
   if (logiciel) nom = 'bas';
   else if (!mobile && (costaud || (coeurs >= 8 && mem >= 8))) nom = 'haut';
-  else if (mobile && !modeste && coeurs >= 6) nom = 'haut';
 
   const p = { ...PALIERS[nom] };
   /* On ne depasse jamais la densite reelle de l'ecran — inutile — mais on ne

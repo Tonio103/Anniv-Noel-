@@ -165,7 +165,7 @@ async function demarrer() {
   const postfx = new PostFX(renderer, palier);
   if (postfx.actif) renderer.toneMapping = THREE.NoToneMapping;
 
-  const ajusterTaille = brancherResize(renderer, camera, postfx, palier);
+  const ajusterTaille = brancherResize(renderer, camera, postfx, () => palier);
 
   /* --------------------------------------------------------- cerf, camera */
   // Abscisse de depart, partagee par le seuil et par le retour en fin de
@@ -658,7 +658,6 @@ async function demarrer() {
   }
 
   const vigie = new Vigie(palier, (p) => {
-    palier = p;
     renderer.setPixelRatio(p.dpr);
     renderer.shadowMap.enabled = p.ombres;
 
@@ -669,6 +668,9 @@ async function demarrer() {
     if (p.postfx === 'leger') postfx.desactiver(renderer);
     if (p.empreintes === false) empreintes.actif = false;
 
+    /* On remplace la variable elle-meme : c'est elle que `brancherResize` va
+       relire, et c'est ainsi que la densite de pixels baisse pour de bon. */
+    palier = p;
     postfx.palier = p;
     ajusterTaille();
     ajusterPoudre();

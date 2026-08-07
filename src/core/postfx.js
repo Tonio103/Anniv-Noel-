@@ -195,6 +195,30 @@ export class PostFX {
     this.rtScene = new THREE.WebGLRenderTarget(2, 2, {
       ...commun, type: THREE.HalfFloatType, depthBuffer: true,
     });
+
+    /* L'ANTIALIASING. C'est LE defaut d'image de tout le programme.
+
+       Le moteur est bien construit avec `antialias: true`. Mais ce drapeau ne
+       concerne QUE LE TAMPON PAR DEFAUT — celui qu'on n'utilise jamais, parce
+       que la scene est rendue dans cette cible-ci pour le post-traitement. La
+       cible, elle, etait mono-echantillonnee. Il n'y avait donc aucun
+       antialiasing nulle part : ni sur telephone, ni sur PC, quel que soit le
+       palier. D'ou l'escalier sur chaque branche, sur la silhouette du cerf et
+       sur la ligne d'horizon, et l'impression de basse definition qui ne
+       partait pas quand on montait la resolution.
+
+       Quatre echantillons suffisent : au-dela le gain devient invisible et le
+       cout de resolution, lui, continue de monter. Le palier bas se contente
+       de deux — il tourne sur les machines les plus modestes, ou la bande
+       passante memoire est la ressource rare.
+
+       Note technique : la profondeur est relue par la passe finale pour la
+       profondeur de champ. Le moteur resout donc AUSSI le tampon de
+       profondeur au moment du blit ; c'est pris en charge, mais c'est
+       exactement le genre de chose a verifier plutot qu'a supposer, d'ou le
+       controle dans build/audit.mjs. */
+    this.echantillons = palier.nom === 'bas' ? 2 : 4;
+    this.rtScene.samples = this.echantillons;
     /* La profondeur est relue par la passe finale : il faut donc une vraie
        texture, pas le simple tampon de rendu. */
     this.profondeur = new THREE.DepthTexture(2, 2);

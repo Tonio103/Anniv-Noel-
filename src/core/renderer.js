@@ -32,10 +32,23 @@ export function creerRendu(canvas, palier) {
 /* Redimensionnement. On passe par la taille CSS reelle plutot que par
    innerWidth : sur mobile la barre d'URL change la hauteur en continu, et
    le canvas doit suivre sans etirer l'image. */
-export function brancherResize(renderer, camera, composer, palier) {
+/* `lirePalier` est une FONCTION, pas un objet.
+
+   C'est la correction d'un bug franc : la version precedente capturait
+   l'objet `palier` dans la fermeture. Quand la vigie constatait que ca ramait
+   et retrogradait, elle fabriquait un NOUVEL objet palier et rappelait
+   `ajuster()` — qui relisait sagement l'ancien. La densite de pixels ne
+   bougeait donc jamais d'un iota.
+
+   Autrement dit, le seul levier qui compte vraiment pour la fluidite etait
+   precisement celui que la degradation automatique ne touchait pas. On passe
+   une fonction pour que la valeur soit relue a chaque fois, au lieu d'etre
+   figee au premier appel. */
+export function brancherResize(renderer, camera, composer, lirePalier) {
   let dernier = 0;
 
   function ajuster() {
+    const palier = typeof lirePalier === 'function' ? lirePalier() : lirePalier;
     const c = renderer.domElement;
     const l = c.clientWidth || window.innerWidth;
     const h = c.clientHeight || window.innerHeight;

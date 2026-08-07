@@ -119,8 +119,21 @@ export class Relief {
     const maille = this.palier.nom === 'bas' ? 2.9
                  : this.palier.nom === 'moyen' ? 2.1 : 1.7;
 
-    const tuilesX = Math.max(2, Math.round(largeur / 118));
-    const tuilesZ = Math.max(2, Math.round(profondeur / 118));
+    /* DES TUILES PLUS PETITES, POUR QUE LE CULLING SERVE A QUELQUE CHOSE.
+
+       Elles faisaient cent-dix-huit metres de cote. A cette taille, une tuile
+       dont le centre est a deux cents metres a son coin le plus proche a cent
+       dix-sept : on est donc oblige de garder un rayon large, et le culling
+       ne retire presque rien. En les ramenant a une soixantaine de metres, le
+       meme rayon ne conserve plus que le voisinage immediat — quatre fois
+       moins de triangles de terrain, sans changer d'un pixel ce qu'on voit,
+       puisque le rayon de securite, lui, n'a pas bouge.
+
+       Le cout est un nombre d'appels de dessin un peu plus eleve. C'est le
+       bon echange : un appel de dessin coute quelques microsecondes, cent
+       mille triangles de plus coutent bien davantage sur un telephone. */
+    const tuilesX = Math.max(2, Math.round(largeur / 62));
+    const tuilesZ = Math.max(2, Math.round(profondeur / 62));
     const tw = largeur / tuilesX;
     const th = profondeur / tuilesZ;
     const sx = Math.max(2, Math.round(tw / maille));
@@ -230,5 +243,29 @@ export class Relief {
     this.jupe.position.x = camera.position.x;
     this.jupe.position.z = camera.position.z;
     if (ambiance) this.jupe.material.color.set(ambiance.brouillard);
+
+    /* LES TUILES LOINTAINES NE SONT PLUS DESSINEES.
+
+       Le relief etait deja decoupe en tuiles de cent-dix-huit metres — mais
+       toutes etaient envoyees a chaque image, sur toute la longueur du
+       parcours. C'est le poste le plus lourd de la scene et personne ne le
+       regardait : a lui seul il pesait environ la moitie des triangles, dont
+       l'immense majorite derriere le brouillard.
+
+       Le rayon est genereux — une tuile fait cent-dix-huit metres de cote,
+       donc son centre peut etre loin alors qu'un de ses coins est sous nos
+       pieds. Deux cents metres garantissent qu'on ne coupe jamais une tuile
+       qu'on pourrait voir, tout en ecartant tout le reste du parcours.
+
+       Le disque de brouillard qui suit la camera bouche l'horizon de toute
+       facon : il n'y a aucun trou possible. */
+    const p = camera.position;
+    for (const t of this.groupe.children) {
+      if (!t.geometry || !t.geometry.boundingSphere) continue;
+      const c = t.geometry.boundingSphere.center;
+      const d = Math.hypot(c.x - p.x, c.z - p.z);
+      const vu = d < 200;
+      if (t.visible !== vu) t.visible = vu;
+    }
   }
 }

@@ -67,6 +67,37 @@ function pousserCone(pos, nor, col, { y0, y1, rayon, segments, rand, dechire, to
   }
 }
 
+/* Concatene des geometries indexees ou non en une seule, sans index. On ne
+   garde que position et normale : le materiau du tronc ne consomme rien
+   d'autre. */
+function fusionnerGeos(geos) {
+  let n = 0;
+  for (const g of geos) n += g.index ? g.index.count : g.attributes.position.count;
+  const pos = new Float32Array(n * 3);
+  const nor = new Float32Array(n * 3);
+  let o = 0;
+  for (const g of geos) {
+    const gp = g.attributes.position.array;
+    const gn = g.attributes.normal.array;
+    const idx = g.index ? g.index.array : null;
+    if (idx) {
+      for (let i = 0; i < idx.length; i++) {
+        const k = idx[i] * 3;
+        pos[o] = gp[k]; pos[o + 1] = gp[k + 1]; pos[o + 2] = gp[k + 2];
+        nor[o] = gn[k]; nor[o + 1] = gn[k + 1]; nor[o + 2] = gn[k + 2];
+        o += 3;
+      }
+    } else {
+      pos.set(gp, o); nor.set(gn, o); o += gp.length;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, o), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor.subarray(0, o), 3));
+  g.computeBoundingSphere();
+  return g;
+}
+
 function versGeometrie(pos, nor, col) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -137,9 +168,45 @@ export function genererSapin(rand, detail = 6) {
     }
   }
 
-  /* Tronc : un cone tres fin, visible seulement sous les branches basses. */
-  const tronc = new THREE.CylinderGeometry(0.011, 0.026, 1.0, Math.max(4, detail), 1, true);
-  tronc.translate(0, 0.5, 0);
+  /* LE TRONC, ET SON PIED.
+
+     Trois defauts d'un coup dans la version precedente.
+
+     1. SON DIAMETRE SUIVAIT LA HAUTEUR. Comme la matrice d'instance met la
+        meme echelle en x, y et z, un rayon de 0,026 donnait 0,65 m sur un
+        arbre de vingt-cinq metres — un tronc d'un metre trente de diametre,
+        soit un sequoia. Un epicea de cette taille fait quarante centimetres.
+        On ne peut pas corriger dans la geometrie, qui est partagee : c'est la
+        matrice d'instance qui doit cesser d'etre uniforme (voir forest.js).
+        Ici on se contente de dimensionner pour un arbre moyen.
+
+     2. IL N'AVAIT PAS DE PIED. Un cone qui sort de la neige, sans
+        empattement, se lit comme un poteau plante. Un vrai tronc S'EVASE au
+        contact du sol, et la neige s'accumule contre lui. On ajoute donc un
+        empattement dans le profil — le rayon augmente fortement sur les
+        derniers pourcents, ce qui suffit a poser l'arbre au lieu de le
+        planter.
+
+     3. IL N'AVAIT QU'UN SEGMENT EN HAUTEUR, donc le shader de vent le
+        courbait en ligne droite, comme une tige rigide qui pivote. Quatre
+        segments donnent une vraie flexion, ou le pied reste fixe. */
+  const seg = Math.max(5, detail);
+  const parties = [];
+  const profil = [
+    [0.000, 0.052],   // empattement, sous la neige et juste au-dessus
+    [0.030, 0.032],
+    [0.090, 0.026],
+    [0.400, 0.019],
+    [1.000, 0.009],
+  ];
+  for (let i = 0; i < profil.length - 1; i++) {
+    const [y0, r0] = profil[i];
+    const [y1, r1] = profil[i + 1];
+    const c = new THREE.CylinderGeometry(r1, r0, y1 - y0, seg, 2, true);
+    c.translate(0, (y0 + y1) / 2, 0);
+    parties.push(c);
+  }
+  const tronc = fusionnerGeos(parties);
 
   return {
     feuillage: versGeometrie(fPos, fNor, fCol),
@@ -248,9 +315,11 @@ export function appliquerVent(materiau, { amplitude = 1, uniforms }) {
           #ifdef USE_INSTANCING
             vec3 ancre = instanceMatrix[3].xyz;
             float taille = length(instanceMatrix[1].xyz);
+            float largeur = max(length(instanceMatrix[0].xyz), 0.001);
           #else
             vec3 ancre = vec3(0.0);
             float taille = 1.0;
+            float largeur = 1.0;
           #endif
 
           float phase = ancre.x * 0.13 + ancre.z * 0.11;
@@ -262,7 +331,31 @@ export function appliquerVent(materiau, { amplitude = 1, uniforms }) {
           float rafale = 0.55 + 0.45 * sin(uTemps * 0.21 - ancre.z * 0.012);
 
           float prise = pow(clamp(transformed.y, 0.0, 1.0), 1.7);
-          transformed.xz += uVent * souffle * rafale * prise * uAmpVent * taille * 0.035;
+
+          /* LE BALANCEMENT SE CALCULE EN METRES, PUIS SE CONVERTIT.
+
+             C'etait faux, et de facon spectaculaire. Le deplacement etait
+             ajoute a transformed.xz, donc dans le repere NORMALISE du
+             modele — puis multiplie par l'echelle horizontale de l'instance.
+             Pour un sapin de vingt-cinq metres, cela donnait un balancement
+             de pres de vingt metres. La foret entiere ondulait comme des
+             algues, et surtout :
+
+             LE FEUILLAGE GLISSAIT HORS DE SON TRONC. Feuillage et tronc
+             recevaient des amplitudes differentes (1,0 contre 0,25) et,
+             pire, des echelles horizontales differentes. Ils se separaient
+             donc de plusieurs metres — le tronc restait planté droit pendant
+             que le houppier partait de cote. C'est exactement ce qu'on voyait
+             sans le comprendre : des poteaux nus dressés au milieu des
+             arbres, que j'avais d'abord pris pour mes propres futs de premier
+             plan.
+
+             En divisant par la largeur de l'instance, le deplacement devient
+             une vraie distance en metres, identique pour toutes les pieces du
+             meme arbre quelle que soit leur epaisseur. L'arbre bouge d'un
+             seul tenant, et l'amplitude reglee est enfin celle qu'on obtient. */
+          transformed.xz += uVent * souffle * rafale * prise * uAmpVent
+                          * taille * 0.030 / largeur;
         }
       `);
   };

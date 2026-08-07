@@ -31,6 +31,25 @@ export class Foret {
     // Expose : la clairiere finale reutilise la meme silhouette d'arbre.
     this.modele = modele;
 
+    /* DEUX NIVEAUX DE DETAIL.
+
+       Le meme maillage servait a cinq metres et a cent-cinquante. Or au-dela
+       d'une cinquantaine de metres un sapin ne fait plus qu'une trentaine de
+       pixels de haut : ses quinze etages de branches et ses seize secteurs
+       par etage se resolvent en une silhouette, et rien de plus. On peut donc
+       le remplacer par une version a quatre secteurs et huit etages sans
+       qu'aucune difference ne soit visible.
+
+       Le gain est direct : c'est la majorite des arbres qui bascule, puisque
+       la majorite est loin. C'est aussi la mesure la plus rentable de tout
+       ce fichier, et elle etait absente.
+
+       La graine est reinitialisee a la meme valeur pour que la silhouette
+       grossiere reste celle du meme arbre : sinon la transition entre les
+       deux niveaux se verrait comme un changement de forme. */
+    const modeleLoin = genererSapin(rng(20261225), Math.max(3, palier.brancheDetail - 4));
+    this.modeleLoin = modeleLoin;
+
     /* --- materiaux --------------------------------------------------------- */
     /* vertexColors : la geometrie porte une modulation clair/sombre par
        sommet, que la couleur d'instance vient teinter. Les deux se
@@ -47,9 +66,18 @@ export class Foret {
       color: 0x2B2119, roughness: 0.96, metalness: 0,
     });
 
-    appliquerVent(this.matFeuillage, { amplitude: 1.0, uniforms: uniformsVent });
-    appliquerVent(this.matNeige, { amplitude: 0.9, uniforms: uniformsVent });
-    appliquerVent(this.matTronc, { amplitude: 0.25, uniforms: uniformsVent });
+    /* LES TROIS PIECES D'UN ARBRE BOUGENT ENSEMBLE.
+
+       Elles avaient des amplitudes differentes — 1,0 / 0,9 / 0,25 — ce qui
+       revient a demander au houppier de quitter son tronc. Un arbre plie d'un
+       seul tenant : c'est la meme amplitude pour tout le monde, et c'est la
+       raideur du bois, pas le reglage, qui fait que le tronc bouge moins que
+       la cime (le facteur `prise`, qui croit avec la hauteur, s'en charge
+       deja). */
+    const VENT = 0.85;
+    appliquerVent(this.matFeuillage, { amplitude: VENT, uniforms: uniformsVent });
+    appliquerVent(this.matNeige, { amplitude: VENT, uniforms: uniformsVent });
+    appliquerVent(this.matTronc, { amplitude: VENT, uniforms: uniformsVent });
 
     /* L'eclairage des aiguilles vient PAR-DESSUS celui du vent : les deux
        s'enchainent sur le meme onBeforeCompile, dans cet ordre. Le feuillage
@@ -87,6 +115,12 @@ export class Foret {
       const neige = new THREE.InstancedMesh(modele.neige, this.matNeige, liste.length);
       const tronc = new THREE.InstancedMesh(modele.tronc, this.matTronc, liste.length);
 
+      /* La version grossiere du meme tronçon. Les deux portent exactement les
+         memes matrices d'instance ; seule change la geometrie, et on n'en
+         affiche jamais qu'une des deux. */
+      const feuillageLoin = new THREE.InstancedMesh(modeleLoin.feuillage, this.matFeuillage, liste.length);
+      const neigeLoin = new THREE.InstancedMesh(modeleLoin.neige, this.matNeige, liste.length);
+
       for (let k = 0; k < liste.length; k++) {
         const a = liste[k];
         // Une inclinaison de quelques degres : aucun arbre n'est parfaitement droit.
@@ -97,15 +131,30 @@ export class Foret {
         m.compose(v, q, ech);
         feuillage.setMatrixAt(k, m);
         neige.setMatrixAt(k, m);
+        feuillageLoin.setMatrixAt(k, m);
+        neigeLoin.setMatrixAt(k, m);
+
+        /* LE TRONC A SA PROPRE ECHELLE HORIZONTALE.
+
+           Avec l'echelle uniforme du feuillage, son diametre suivait la
+           hauteur : un metre trente pour un arbre de vingt-cinq metres. Un
+           tronc ne grossit pas proportionnellement a la taille de l'arbre —
+           il grossit beaucoup plus lentement. On le dimensionne donc a part,
+           autour d'un arbre moyen, avec une variation faible : tous les
+           troncs restent alors entre trente et soixante centimetres de
+           diametre, ce qui est la fourchette d'un epicea adulte. */
+        const epTronc = (11 + a.h * 0.28) * (0.85 + a.large * 0.2);
+        m.compose(v, q, ech.set(epTronc, a.h, epTronc));
         tronc.setMatrixAt(k, m);
 
         // Variation de teinte : sans elle, la foret parait peinte au rouleau.
         // Releve pour compenser la modulation par sommet, de moyenne < 1.
         teinte.setHSL(0.34 + a.teinte * 0.06, 0.22 + a.teinte * 0.16, 0.40 + a.teinte * 0.18);
         feuillage.setColorAt(k, teinte);
+        feuillageLoin.setColorAt(k, teinte);
       }
 
-      for (const im of [feuillage, neige, tronc]) {
+      for (const im of [feuillage, neige, tronc, feuillageLoin, neigeLoin]) {
         im.instanceMatrix.needsUpdate = true;
         im.castShadow = palier.ombres;
         im.receiveShadow = palier.ombres && palier.nom === 'haut';
@@ -113,10 +162,19 @@ export class Foret {
         im.matrixAutoUpdate = false;
         this.groupe.add(im);
       }
-      if (feuillage.instanceColor) feuillage.instanceColor.needsUpdate = true;
+      for (const im of [feuillage, feuillageLoin]) {
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      }
+      // La version grossiere ne porte jamais d'ombre : elle n'est utilisee
+      // qu'au-dela de la portee de la carte d'ombre.
+      for (const im of [feuillageLoin, neigeLoin]) im.castShadow = false;
 
       const centre = chemin.point(((i + 0.5) / TRONCONS) * chemin.longueur, new THREE.Vector3());
-      this.troncons.push({ meshes: [feuillage, neige, tronc], centre, index: i });
+      this.troncons.push({
+        pres: [feuillage, neige, tronc],
+        loin: [feuillageLoin, neigeLoin],
+        centre, index: i,
+      });
     }
 
     this.nbArbres = arbres.length;
@@ -201,20 +259,50 @@ export class Foret {
   /* Un troncon n'est dessine que s'il est a portee de vue. Le brouillard
      masque tout au-dela : inutile de payer pour ce qu'on ne voit pas. */
   maj(camera) {
-    const portee = 250;
+    /* PORTEE RAMENEE DE 250 A 150 METRES.
+
+       Le brouillard est exponentiel, de densite ~0,011 : a cent-cinquante
+       metres il ne laisse plus passer que huit pour cent de l'objet, et a
+       deux-cent-cinquante, deux pour mille. On payait donc integralement des
+       arbres rigoureusement invisibles — sur un tiers des tronçons.
+
+       C'est le genre de reglage qui ne se voit pas a l'image et se voit
+       beaucoup sur le budget : c'est exactement ce qu'on veut sacrifier en
+       premier pour financer la definition. */
+    const portee = 135;
+    /* Bascule vers la version grossiere. Le seuil est genereux — les
+       tronçons font une soixantaine de metres, donc un arbre du bord d'un
+       tronçon « proche » peut deja etre a quatre-vingts metres. On prefere
+       basculer un peu tard qu'un peu tot : une transition qu'on remarque
+       coute plus cher, en credibilite, que les triangles qu'elle economise. */
+    const seuilLoin = 50;
     const p = camera.position;
     for (const tr of this.troncons) {
       if (!tr) continue;
       const d = Math.hypot(tr.centre.x - p.x, tr.centre.z - p.z);
       const visible = d < portee;
-      if (tr.meshes[0].visible !== visible) {
-        for (const m of tr.meshes) m.visible = visible;
+      const detaille = visible && d < seuilLoin;
+
+      if (tr.pres[0].visible !== detaille) {
+        for (const m of tr.pres) m.visible = detaille;
       }
-      // Seuls les troncons vraiment proches alimentent la carte d'ombre.
-      if (visible && this.palier.ombres) {
-        const ombre = d < 95;
-        if (tr.meshes[0].castShadow !== ombre) {
-          for (const m of tr.meshes) m.castShadow = ombre;
+      // Le tronc reste dessine dans les deux cas : il est deja minuscule, et
+      // sans lui les arbres lointains flottent au-dessus de la neige.
+      if (tr.pres[2].visible !== visible) tr.pres[2].visible = visible;
+
+      const grossier = visible && !detaille;
+      if (tr.loin[0].visible !== grossier) {
+        for (const m of tr.loin) m.visible = grossier;
+      }
+
+      /* Seuls les tronçons vraiment proches alimentent la carte d'ombre. Le
+         rayon tombe a soixante metres : au-dela l'ombre portee d'un sapin
+         couvre moins d'un pixel de la carte, et elle coute pourtant un
+         second passage complet de sa geometrie. */
+      if (detaille && this.palier.ombres) {
+        const ombre = d < 60;
+        if (tr.pres[0].castShadow !== ombre) {
+          for (const m of tr.pres) m.castShadow = ombre;
         }
       }
     }
