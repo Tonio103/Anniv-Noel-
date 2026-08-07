@@ -651,7 +651,27 @@ async function demarrer() {
          saturation, et les deux se reglent separement. La neige s'embrase
          donc autant qu'avant, mais elle reste de la neige. */
       if (g) {
-        teinteLueur.set(g.glow).lerp(BLANC_CHAUD, 0.62);
+        /* SOIXANTE-DEUX POUR CENT NE SUFFISAIENT PAS, ET LE RAISONNEMENT
+           ETAIT INCOMPLET.
+
+           J'avais melange la teinte du paquet a du blanc chaud, ce qui va
+           dans le bon sens mais part d'une premisse fausse : que la lumiere
+           qui sort d'un cadeau doive avoir la couleur de son papier. Elle n'a
+           aucune raison de l'avoir. Ce qui brille la-dedans, c'est ce que le
+           paquet contient et la petite lampe qu'on imagine avec — donc une
+           lumiere CHAUDE, quelle que soit la couleur de l'emballage.
+
+           Et la neige ne pardonne pas : avec un albedo de 0,85, elle restitue
+           fidelement la moindre dominante. A 62 %, la teinte rose du paquet
+           « deco » laissait encore une flaque franchement magenta sur le sol,
+           tandis que le rouge et l'ambre passaient inapercus — non parce
+           qu'ils etaient mieux regles, mais parce qu'ils ressemblent deja a
+           du feu.
+
+           On monte donc a 85 % : il reste juste ce qu'il faut de la couleur
+           du paquet pour que deux haltes ne s'eclairent pas pareil, et plus
+           assez pour teindre la neige. */
+        teinteLueur.set(g.glow).lerp(BLANC_CHAUD, 0.85);
         lumieres.poserLueur(ancre, teinteLueur, halte.eclat());
       } else {
         lumieres.poserLueur(ancre, 0xFFC98A, halte.eclat());

@@ -131,7 +131,14 @@ export class Drone {
        la correction ne s'applique donc pas, et c'est le format qui decide,
        pas un reglage fige. */
     const portrait = (this.camera?.aspect || 1) < 1;
-    if (nom === 'lecture' && portrait) c = { ...c, bas: -2.20, recul: 7.0 };
+    /* Camera PLUS BASSE et plus proche, pas seulement inclinee. Incliner
+       seule remonte bien le sujet, mais fait sortir l'horizon de la bande
+       visible : il ne reste alors au-dessus de la carte qu'une etendue de
+       neige nue. En descendant la camera on retrouve la ligne d'arbres dans
+       cette bande, et en se rapprochant le sujet y occupe une vraie place. */
+    if (nom === 'lecture' && portrait) {
+      c = { ...c, bas: -1.75, recul: 6.2, hauteur: 1.85, lateral: 3.4 };
+    }
 
     this.reculCible = c.recul;
     this.hauteurCible = c.hauteur;

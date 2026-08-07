@@ -102,7 +102,20 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
   couvercle.add(calotte);
 
   // Poussee au-dela du blanc pour franchir le seuil du halo.
-  matLueur.color.set(glow).multiplyScalar(3.2);
+  /* LE HALO EST ADDITIF : SA SATURATION COMPTE DOUBLE.
+
+     La lumiere du paquet a bien ete desaturee (voir main.js), mais ce halo-la
+     posait encore la couleur BRUTE du cadeau, multipliee par 3,2 et ajoutee
+     par-dessus la neige. C'est lui, et non l'eclairage, qui laissait une
+     flaque franchement magenta autour du paquet « deco » : un melange additif
+     ne peut que saturer davantage, alors qu'un eclairage se fait au moins
+     moderer par l'albedo de ce qu'il touche.
+
+     Meme regle que pour la lumiere, donc, et pour la meme raison : ce qui
+     brille dans un paquet est chaud, quelle que soit la couleur du papier. Il
+     reste un quart de la teinte d'origine — assez pour que deux haltes ne se
+     ressemblent pas, plus assez pour teindre le sol. */
+  matLueur.color.set(glow).lerp(new THREE.Color(0xFFE8C8), 0.75).multiplyScalar(3.2);
 
   /* --- la lumiere enfermee ------------------------------------------------
      Un panneau toujours face a la camera, avec un degre radial : c'est la
