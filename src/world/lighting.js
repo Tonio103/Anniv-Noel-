@@ -49,7 +49,10 @@ export class Lumieres {
         /* Portee resserree et decroissance plus franche : une lueur de cadeau
        qui porte a vingt-six metres eclaire la clairiere entiere et cesse
        d'etre une source pour devenir une ambiance. */
-    this.lueur = new THREE.PointLight(0xFFC98A, 0, 17, 2.1);
+    /* Portee elargie et decroissance ramenee au carre exact : c'est ce
+       couple qui etale la lumiere au lieu de la concentrer sur la boite.
+       Voir Halte.eclat() pour le raisonnement complet. */
+    this.lueur = new THREE.PointLight(0xFFC98A, 0, 24, 2.0);
     this.lueur.castShadow = false;
     scene.add(this.lueur);
 

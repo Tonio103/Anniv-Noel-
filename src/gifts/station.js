@@ -258,8 +258,22 @@ export class Halte {
      intensite, et on garde la portee resserree avec une decroissance plus
      franche (voir lighting.js) : la neige s'embrase au pied du paquet, et
      redevient bleue quelques metres plus loin. Fort ET local. */
+  /* UNE SOURCE PONCTUELLE N'EXISTE PAS.
+
+     La lueur du paquet est une PointLight de decroissance quadratique. A
+     intensite 7 — ce que donnait le gros paquet une fois ouvert — l'energie
+     recue a trente centimetres est cent fois celle recue a trois metres : le
+     couvercle, le ruban et la neige juste dessous partaient dans le blanc pur
+     pendant que la clairiere restait normale. Ce n'est pas un exces de force,
+     c'est un exces de CONCENTRATION : une vraie source a une taille, donc son
+     eclairement plafonne au lieu de diverger.
+
+     On garde donc la meme portee visible en baissant le pic et en elargissant
+     le rayon d'action. La clairiere recoit autant qu'avant ; ce qui disparait
+     est uniquement la zone saturee autour de la boite, qui ne montrait rien
+     puisqu'elle etait blanche. */
   eclat() {
     if (!this.cadeau) return 0;
-    return (0.20 + this.ouvert * 1.6) * this.cadeau.taille * 3.1;
+    return (0.20 + this.ouvert * 1.6) * this.cadeau.taille * 1.95;
   }
 }

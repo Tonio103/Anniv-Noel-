@@ -76,9 +76,15 @@ export const STATIONS = [
       price: { amount: '10 €', note: 'environ' },
       blocks: [
         { t: 'lead', h: 'À coller <strong>derrière le bureau</strong>, pour éclairer le mur en douceur. C’est tout bête, mais le soir ça change complètement la pièce.' },
-        { t: 'p', h: '<strong>Le modèle repéré&nbsp;:</strong> ShineBurky Ruban LED COB USB 2&nbsp;m, blanc chaud — autour de 9,99 € sur Amazon. Il se branche en USB (5&nbsp;V) et a un gradateur tactile pour régler la luminosité. Deux mètres couvrent la largeur du bureau.' },
-        { t: 'note', h: '<b>Petit truc&nbsp;:</b> l’adhésif d’origine tient rarement. Un rouleau de double-face en plus et c’est réglé.' },
-        { t: 'p', h: 'C’est l’idée la moins chère de toute la liste — et honnêtement <em>une de celles qui me feraient le plus sourire</em>.' },
+        { t: 'faits', items: [
+          { k: 'Modèle', v: 'ShineBurky ruban LED COB USB' },
+          { k: 'Longueur', v: '2&nbsp;m — <em>la largeur du bureau</em>' },
+          { k: 'Teinte', v: 'blanc chaud' },
+          { k: 'Branchement', v: 'USB 5&nbsp;V, gradateur tactile' },
+          { k: 'Prix', v: '<b>≈ 10 €</b> sur Amazon' },
+        ]},
+        { t: 'note', h: '<b>Prévoir du double-face.</b> L’adhésif d’origine tient rarement plus de quelques jours.' },
+        { t: 'p', h: 'C’est l’idée la moins chère de la liste, et <em>une de celles qui me feraient le plus sourire</em>.' },
         { t: 'links', items: [
           { href: 'https://www.amazon.fr/s?k=ruban+LED+COB+USB+2m+blanc+chaud',
             label: 'Chercher sur Amazon', sub: 'ruban LED COB USB 2&nbsp;m blanc chaud' },
@@ -102,8 +108,14 @@ export const STATIONS = [
       price: { amount: '20 €', note: 'et plus si envie' },
       blocks: [
         { t: 'lead', h: 'Deux choses pour habiller la chambre&nbsp;: un <strong>poster</strong> et une ou deux <strong>plantes</strong>.' },
-        { t: 'p', h: '<strong>Le poster&nbsp;:</strong> <em>Spider-Man&nbsp;: Brand New Day</em> — le film est sorti le 31&nbsp;juillet 2026, donc les affiches officielles existent. En A2 de préférence, l’effet est bien plus fort qu’en A3. Compter 15 à 25 € sur papier épais.' },
-        { t: 'p', h: '<strong>Les plantes&nbsp;:</strong> pothos, sansevieria ou zamioculcas — celles qui survivent quand on les oublie. Un pothos coûte environ 4 € en jardinerie, une sansevieria entre 8 et 30 € selon la taille.' },
+        { t: 'faits', items: [
+          { k: 'Poster', v: '<em>Spider-Man&nbsp;: Brand New Day</em>' },
+          { k: 'Format', v: 'A2 — <em>bien plus fort qu’en A3</em>' },
+          { k: 'Prix', v: '<b>15 à 25 €</b> sur papier épais' },
+          { k: 'Plantes', v: 'pothos · sansevieria · zamioculcas' },
+          { k: 'Prix', v: 'pothos <b>≈ 4 €</b> · sansevieria <b>8 à 30 €</b>' },
+        ]},
+        { t: 'p', h: 'Les trois plantes citées sont celles qui survivent quand on les oublie. Le film est sorti le 31 juillet 2026, donc les affiches officielles existent bien.' },
         { t: 'note', h: '<b>Pour accrocher le poster&nbsp;:</b> des pastilles repositionnables plutôt que du scotch — ça ne décolle pas la peinture au démontage.' },
         { t: 'links', items: [
           { href: 'https://www.allposters.fr/-search/spider-man', label: 'Posters Spider-Man', sub: 'AllPosters' },
@@ -129,8 +141,13 @@ export const STATIONS = [
       price: { amount: '40 €', note: 'environ' },
       blocks: [
         { t: 'lead', h: 'Une manette <strong>pour le PC</strong>. Beaucoup de jeux se jouent bien mieux à la manette qu’au clavier, et ça permet aussi de jouer à deux.' },
-        { t: 'p', h: '<strong>Le modèle repéré&nbsp;:</strong> GameSir Nova&nbsp;2 Lite — sous les 40 €, considérée comme l’une des meilleures manettes PC à petit prix en 2026. Sans fil 2,4&nbsp;GHz (à 1000&nbsp;Hz), mais aussi Bluetooth et filaire. Deux boutons arrière personnalisables.' },
-        { t: 'p', h: '<strong>Une alternative encore moins chère&nbsp;:</strong> la 8BitDo Ultimate&nbsp;2C, autour de 30 €, avec sticks et gâchettes à effet Hall — la technologie qui empêche la dérive des sticks avec le temps.' },
+        { t: 'faits', items: [
+          { k: 'Modèle', v: 'GameSir Nova&nbsp;2 Lite' },
+          { k: 'Prix', v: '<b>sous 40 €</b>' },
+          { k: 'Sans fil', v: '2,4&nbsp;GHz à 1000&nbsp;Hz · Bluetooth · filaire' },
+          { k: 'En plus', v: 'deux boutons arrière personnalisables' },
+        ]},
+        { t: 'p', h: '<strong>Moins chère encore&nbsp;:</strong> la 8BitDo Ultimate&nbsp;2C, autour de 30 €, avec sticks et gâchettes à <em>effet Hall</em> — la technologie qui empêche la dérive des sticks avec le temps.' },
         { t: 'note', tone: 'good', h: '<b>Une des meilleures cibles du Black Friday.</b> Les manettes font partie des produits les plus régulièrement remisés fin novembre. Attendre le 27&nbsp;novembre peut faire économiser 10 à 15 €.' },
         { t: 'links', items: [
           { href: 'https://www.amazon.fr/s?k=GameSir+Nova+2+Lite', label: 'GameSir Nova&nbsp;2 Lite', sub: 'sur Amazon' },
@@ -157,7 +174,13 @@ export const STATIONS = [
       blocks: [
         { t: 'lead', h: 'Le seul jeu que je demande. <strong>Sur PC</strong> — c’est là que je joue. Mais il y a une vraie complication de calendrier, et autant la connaître.' },
         { t: 'note', tone: 'warn', h: 'Le 19&nbsp;novembre 2026, il ne sort que sur <b>PS5 et Xbox Series</b>. Rockstar n’a annoncé <b>ni version PC, ni date PC, ni configuration requise</b>.' },
-        { t: 'p', h: 'La version PC arrivera sûrement — Rockstar l’a toujours fait — mais plus tard. Une fuite parle de février 2027&nbsp;; <em>rien d’officiel, à ne pas prendre pour argent comptant</em>. Donc à Noël 2026, le jeu PC n’existera pas encore.' },
+        { t: 'faits', items: [
+          { k: 'Sortie', v: '19 novembre 2026 — <b>consoles seulement</b>' },
+          { k: 'Version PC', v: 'ni date, ni configuration annoncée' },
+          { k: 'Rumeur', v: 'février 2027 — <em>rien d’officiel</em>' },
+          { k: 'À Noël', v: 'le jeu PC <b>n’existera pas encore</b>' },
+        ]},
+        { t: 'p', h: 'Elle arrivera sûrement — Rockstar l’a toujours fait — mais plus tard.' },
         { t: 'note', tone: 'good', h: '<b>La solution&nbsp;:</b> une carte cadeau Steam ou Rockstar mise de côté, que j’utiliserai le jour de la sortie PC.' },
         { t: 'note', tone: 'warn', h: '<b>N’achetez surtout pas une «&nbsp;clé PC GTA&nbsp;6&nbsp;» en ligne.</b> Il n’en existe aucune d’officielle aujourd’hui — tout ce qui se vend sous ce nom est une arnaque.' },
       ],
@@ -179,11 +202,20 @@ export const STATIONS = [
       price: { amount: '150 €', note: 'en occasion' },
       blocks: [
         { t: 'lead', h: 'Le gros morceau&nbsp;: de la <strong>4K en 120&nbsp;Hz minimum</strong>, branchée sur le PC. Et j’ai trouvé comment y arriver pour 150 €.' },
-        { t: 'p', h: '<strong>La solution&nbsp;: l’occasion ou le reconditionné.</strong> En neuf, la 4K haute fréquence commence vers 280 €. Mais d’occasion, on trouve des écrans 4K 144&nbsp;Hz autour de 150 à 175 €.' },
-        { t: 'p', h: '<strong>Où chercher&nbsp;:</strong> leboncoin pour l’occasion entre particuliers, ou Back Market et Rakuten pour du reconditionné — <em>avec 12&nbsp;mois de garantie</em>, ce qui rassure davantage.' },
-        { t: 'p', h: '<strong>Les modèles à guetter&nbsp;:</strong> ASUS ROG Strix XG27UQR (27&nbsp;″, 4K 144&nbsp;Hz), Gigabyte M28U (28&nbsp;″, 4K 144&nbsp;Hz) ou Samsung Odyssey G7 S28AG700 (28&nbsp;″, 4K 144&nbsp;Hz). Tous ont le DisplayPort qu’il faut pour le PC.' },
-        { t: 'p', h: '<strong>Si vous préférez du neuf&nbsp;:</strong> l’AOC U27G4R (4K 160&nbsp;Hz) tourne autour de 280 € — une belle cible pour le Black Friday si plusieurs personnes se regroupent.' },
-        { t: 'note', h: '<b>Avant d’acheter d’occasion&nbsp;:</b> demander une photo de l’écran allumé <b>sur fond blanc</b> et <b>sur fond noir</b> — c’est ce qui révèle les pixels morts et les fuites de lumière.' },
+        { t: 'faits', items: [
+          { k: 'Cible', v: '4K · 120&nbsp;Hz minimum · DisplayPort' },
+          { k: 'Occasion', v: '<b>150 à 175 €</b> en 4K 144&nbsp;Hz' },
+          { k: 'Neuf', v: 'à partir de <b>≈ 280 €</b>' },
+          { k: 'Où', v: 'leboncoin · Back&nbsp;Market · Rakuten' },
+          { k: 'Garantie', v: 'reconditionné = <em>12 mois</em>' },
+        ]},
+        { t: 'faits', items: [
+          { k: 'À guetter', v: 'ASUS ROG Strix XG27UQR — 27&nbsp;″' },
+          { k: '', v: 'Gigabyte M28U — 28&nbsp;″' },
+          { k: '', v: 'Samsung Odyssey G7 S28AG700 — 28&nbsp;″' },
+          { k: 'En neuf', v: 'AOC U27G4R — 4K 160&nbsp;Hz' },
+        ]},
+        { t: 'note', h: '<b>Avant d’acheter d’occasion&nbsp;:</b> demander une photo de l’écran allumé <b>sur fond blanc</b> puis <b>sur fond noir</b>. C’est ce qui révèle les pixels morts et les fuites de lumière.' },
         { t: 'note', tone: 'good', h: '<b>La plus grosse économie possible du Black Friday.</b>' },
         { t: 'links', items: [
           { href: 'https://www.leboncoin.fr/recherche?text=ecran%204K%20144Hz', label: 'Écrans d’occasion', sub: 'leboncoin' },

@@ -336,10 +336,18 @@ body{
 
 /* L'INDICE DE SUITE. Un voile seul se lit comme une ombre ; il faut dire le
    mot. Il disparait des qu'on a atteint le bas. */
-/* L'indice flotte au-dessus du texte : il faut donc lui RESERVER sa place,
-   sinon il recouvre la derniere ligne visible — ce qui remplace un contenu
-   coupe par un contenu masque, soit exactement le defaut qu'on corrige. */
-.card-in.deborde .card-scroll{padding-bottom:50px}
+/* L'indice flotte au-dessus du texte : il faut donc lui RESERVER sa place.
+
+   Une premiere version ajoutait du `padding-bottom` a la zone de defilement.
+   C'etait insuffisant, et pour une raison qui vaut d'etre notee : un padding
+   interieur allonge le CONTENU, donc il ne libere de la place qu'une fois
+   qu'on a defile jusqu'en bas — c'est-a-dire precisement quand l'indice a
+   disparu. Tant qu'on est au milieu, la pastille reste posee sur du texte
+   vivant.
+
+   C'est une MARGE qu'il faut : elle raccourcit la fenetre elle-meme, donc
+   elle degage une bande vide en permanence, quel que soit le defilement. */
+.card-in.deborde .card-scroll{margin-bottom:36px}
 
 .c-suite{
   position:absolute;left:0;right:0;bottom:84px;z-index:3;
@@ -724,3 +732,32 @@ body{
 }
 .fps b{font-size:16px;font-weight:700;margin-right:3px}
 .fps i{display:block;font-style:normal;opacity:.72}
+
+/* --------------------------------------------------------------------------
+   Les faits d'une carte cadeau.
+
+   Deux colonnes : le libelle en petit, gris et en capitales — il se lit en
+   peripherie et sert de repere, pas de contenu — et la valeur en pleine
+   lisibilite. Un filet tres fin entre les lignes suffit a les separer ; une
+   boite par ligne ferait un tableau administratif.
+
+   Sur un ecran vraiment etroit les deux colonnes s'empilent : mieux vaut deux
+   lignes courtes qu'une valeur cassee en trois par une colonne de 90 points.
+   -------------------------------------------------------------------------- */
+.c-faits{margin:14px 0 4px}
+.c-faits > div{
+  display:grid;grid-template-columns:88px 1fr;gap:4px 14px;
+  padding:9px 0;
+  border-top:1px solid rgba(190,220,240,.12);
+}
+.c-faits > div:last-child{border-bottom:1px solid rgba(190,220,240,.12)}
+.c-faits dt{
+  font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);line-height:1.55;padding-top:2px;
+}
+.c-faits dd{font-size:14.5px;line-height:1.5;color:var(--ink)}
+.c-faits dd b{font-weight:600;color:var(--gold-lt)}
+.c-faits dd em{font-style:normal;color:var(--ink-3)}
+@media (max-width:360px){
+  .c-faits > div{grid-template-columns:1fr;gap:1px}
+}

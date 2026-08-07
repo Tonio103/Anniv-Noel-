@@ -46,6 +46,23 @@ function bloc(b) {
     case 'note': return `<div class="c-note ${b.tone || ''}">${b.h}</div>`;
     case 'sources': return `<div class="c-sub">${b.h}</div>`;
 
+    /* LES FAITS, SORTIS DE LA PROSE.
+
+       Un cadeau se decrit avec des donnees : un nom de modele, un prix, une
+       longueur, une frequence, un connecteur. Elles etaient noyees dans des
+       paragraphes — « ShineBurky Ruban LED COB USB 2 m, blanc chaud — autour
+       de 9,99 € sur Amazon. Il se branche en USB (5 V) et a un gradateur
+       tactile » — ou personne ne les cherche ni ne les retient. C'est le pave
+       de texte qu'Antoine ne veut plus : non pas parce qu'il est long, mais
+       parce qu'il faut le LIRE EN ENTIER pour en extraire trois chiffres.
+
+       En tableau libelle/valeur, l'oeil saute directement a ce qu'il cherche,
+       et l'ecart entre deux modeles se lit par comparaison de lignes au lieu
+       de demander qu'on retienne le premier paragraphe en lisant le second. */
+    case 'faits':
+      return `<dl class="c-faits">${b.items.map((i) => `
+        <div><dt>${i.k}</dt><dd>${i.v}</dd></div>`).join('')}</dl>`;
+
     case 'links':
       return `<div class="c-links">${b.items.map((i) => `
         <a class="c-link" href="${i.href}" target="_blank" rel="noopener noreferrer">
