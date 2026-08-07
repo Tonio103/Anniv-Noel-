@@ -140,6 +140,25 @@ export class PanneauSon {
     this.bouton.addEventListener('click', () => {
       this.panneau.hidden = !this.panneau.hidden;
     });
+
+    /* COUPER LE SON EN UN GESTE.
+
+       Le seul moyen de faire taire la page etait d'ouvrir un panneau et de
+       tirer un curseur jusqu'a zero. C'est trop demander : quelqu'un qui
+       ouvre ce lien dans un lieu public a besoin de couper MAINTENANT, pas
+       de trouver un reglage. Le volume precedent est memorise, si bien que
+       reactiver rend exactement ce qu'on avait. */
+    this.muet = document.getElementById('muteBtn');
+    this._volAvant = son.volume;
+    this.muet.addEventListener('click', () => {
+      const coupe = !this.muet.classList.contains('muted');
+      if (coupe) { this._volAvant = son.volume || 0.62; son.reglerVolume(0); }
+      else son.reglerVolume(this._volAvant);
+      this.muet.classList.toggle('muted', coupe);
+      this.muet.setAttribute('aria-label', coupe ? 'Remettre le son' : 'Couper le son');
+      const vol = document.getElementById('vol');
+      if (vol) vol.value = String(Math.round((coupe ? 0 : this._volAvant) * 100));
+    });
     document.getElementById('panelClose').addEventListener('click', () => {
       this.panneau.hidden = true;
     });
@@ -148,7 +167,9 @@ export class PanneauSon {
     vol.addEventListener('input', () => {
       const v = Number(vol.value) / 100;
       son.reglerVolume(v);
-      this.bouton.classList.toggle('muted', v < 0.02);
+      // C'est le bouton de coupure qui porte l'etat, pas celui des reglages.
+      this.muet.classList.toggle('muted', v < 0.02);
+      if (v >= 0.02) this._volAvant = v;
     });
 
     for (const [id, nom] of [['swWind', 'vent'], ['swBells', 'grelots'], ['swSnow', 'neige']]) {

@@ -18,6 +18,72 @@ import * as THREE from 'three';
 import { rng } from '../core/noise.js';
 import { genererSapin, appliquerVent, eclairerAiguilles } from './treeGeometry.js';
 
+/* Un bouleau nu : un fut cintre et quelques branches montantes. Il ne cherche
+   pas le detail — a quinze metres et dans la brume, c'est sa SILHOUETTE
+   claire et sa ramure fine qui le distinguent d'un conifere, rien d'autre. */
+function geoBouleau(rand) {
+  const parties = [];
+  const pencheX = (rand() - 0.5) * 0.10;
+  const pencheZ = (rand() - 0.5) * 0.10;
+  const cintrer = (g) => {
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i);
+      const k = Math.max(0, y) ** 2;
+      p.setX(i, p.getX(i) + pencheX * k);
+      p.setZ(i, p.getZ(i) + pencheZ * k);
+    }
+    return g;
+  };
+
+  const fut = new THREE.CylinderGeometry(0.012, 0.034, 1.0, 7, 5, true);
+  fut.translate(0, 0.5, 0);
+  parties.push(cintrer(fut));
+
+  /* Les branches partent haut et remontent : c'est le port en balai du
+     bouleau. Des branches horizontales donneraient un chene. */
+  const nb = 5 + ((rand() * 4) | 0);
+  for (let i = 0; i < nb; i++) {
+    const y = 0.52 + rand() * 0.42;
+    const a = rand() * Math.PI * 2;
+    const L = 0.16 + rand() * 0.24;
+    const b = new THREE.CylinderGeometry(0.003, 0.011, L, 4, 1, true);
+    b.translate(0, L / 2, 0);
+    b.rotateX(0.55 + rand() * 0.5);
+    b.rotateY(a);
+    b.translate(pencheX * y * y, y, pencheZ * y * y);
+    parties.push(b);
+  }
+  return fusionner(parties);
+}
+
+/* Concatene des geometries en une seule, sans index. */
+function fusionner(geos) {
+  let n = 0;
+  for (const g of geos) n += g.index ? g.index.count : g.attributes.position.count;
+  const pos = new Float32Array(n * 3);
+  const nor = new Float32Array(n * 3);
+  let o = 0;
+  for (const g of geos) {
+    const gp = g.attributes.position.array;
+    const gn = g.attributes.normal.array;
+    const idx = g.index ? g.index.array : null;
+    if (idx) {
+      for (let i = 0; i < idx.length; i++) {
+        const k = idx[i] * 3;
+        pos[o] = gp[k]; pos[o + 1] = gp[k + 1]; pos[o + 2] = gp[k + 2];
+        nor[o] = gn[k]; nor[o + 1] = gn[k + 1]; nor[o + 2] = gn[k + 2];
+        o += 3;
+      }
+    } else { pos.set(gp, o); nor.set(gn, o); o += gp.length; }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, o), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor.subarray(0, o), 3));
+  g.computeBoundingSphere();
+  return g;
+}
+
 const TRONCONS = 14;
 
 export class Foret {
@@ -178,6 +244,82 @@ export class Foret {
     }
 
     this.nbArbres = arbres.length;
+
+    this._semerBouleaux(rng(4242), relief, clairieres, palier, uniformsVent);
+  }
+
+  /* LES BOULEAUX — et pourquoi il en fallait.
+
+     Des feuilles mortes tombent dans cette foret depuis le debut. C'etait
+     demande, et c'est joli. Mais il n'y avait pas un seul feuillu : elles
+     tombaient donc de nulle part. Un detail qui contredit le decor coute plus
+     cher qu'un detail absent, parce qu'il attire l'oeil sur ce qui manque.
+
+     Ils sont nus — en decembre c'est ce qu'ils sont — donc bon marche, et
+     leur ecorce claire tranche sur la masse sombre des coniferes. Ils
+     poussent en BOUQUETS, comme les vrais, et jamais seuls : un bouleau isole
+     au milieu de la neige se lit comme un poteau. C'est exactement l'erreur
+     que j'avais faite en les mettant au premier plan ; ici ils sont dans la
+     foret, a la meme distance que les sapins, ou ils appartiennent au decor
+     au lieu de le rayer. */
+  _semerBouleaux(rand, relief, clairieres, palier, uniformsVent) {
+    const L = this.chemin.longueur;
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xBFBCB2, roughness: 0.88, metalness: 0,
+    });
+    appliquerVent(mat, { amplitude: 0.85, uniforms: uniformsVent });
+
+    const p = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const liste = [];
+    let s = 30;
+    while (s < L - 20) {
+      s += 26 + rand() * 46;
+      this.chemin.point(s, p);
+      this.chemin.cote(s, c);
+      const signe = rand() < 0.5 ? 1 : -1;
+      const d0 = signe * (13 + rand() * 22);
+      const nb = 2 + ((rand() * 4) | 0);
+      for (let k = 0; k < nb; k++) {
+        const d = d0 + (rand() - 0.5) * 7;
+        const le = (rand() - 0.5) * 9;
+        const x = p.x + c.x * d + (-c.z) * le;
+        const z = p.z + c.z * d + c.x * le;
+        let dansClairiere = false;
+        for (const cl of clairieres) {
+          if (Math.hypot(x - cl.x, z - cl.z) < cl.r * 1.05) { dansClairiere = true; break; }
+        }
+        if (dansClairiere) continue;
+        liste.push({ x, y: relief.hauteur(x, z) - 0.12, z, h: 8 + rand() * 8, rot: rand() * 6.28 });
+      }
+    }
+    if (!liste.length) return;
+
+    const geo = geoBouleau(rand);
+    const mesh = new THREE.InstancedMesh(geo, mat, liste.length);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    const v = new THREE.Vector3();
+    const ech = new THREE.Vector3();
+    for (let i = 0; i < liste.length; i++) {
+      const a = liste[i];
+      e.set((rand() - 0.5) * 0.07, a.rot, (rand() - 0.5) * 0.07);
+      q.setFromEuler(e);
+      v.set(a.x, a.y, a.z);
+      // Comme pour l'epicea : l'epaisseur ne suit pas la hauteur.
+      const ep = 5.5 + a.h * 0.16;
+      ech.set(ep, a.h, ep);
+      m.compose(v, q, ech);
+      mesh.setMatrixAt(i, m);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.frustumCulled = false;
+    this.groupe.add(mesh);
+    this.bouleaux = mesh;
+    this.nbBouleaux = liste.length;
   }
 
   _semer(rand, clairieres) {

@@ -250,9 +250,21 @@ body{
   pointer-events:none;
 }
 .card[hidden]{display:none}
+/* LA CARTE NE DOIT JAMAIS MANGER TOUT L'ECRAN.
+
+   A 74 % de la hauteur, plus le bandeau du navigateur et la barre d'onglets,
+   il ne restait sur un telephone qu'un bandeau de decor tout en haut. On
+   basculait donc, de fait, sur un ecran de texte — precisement ce que ce
+   programme passe son temps a eviter, et la seule chose qui transformerait
+   la balade en diaporama.
+
+   Elle descend a 62 %, ce qui laisse toujours plus d'un tiers de l'image
+   vivante au-dessus : le paquet ouvert, sa lueur sur la neige, le cerf qui
+   attend, la neige qui tombe. La caméra continue son arc derriere. C'est ce
+   tiers-la qui fait qu'on lit DANS la foret et non par-dessus. */
 .card-in{
   pointer-events:auto;
-  max-height:min(74vh,640px);
+  max-height:min(62vh,640px);
   display:flex;flex-direction:column;
   border-radius:22px;
   background:linear-gradient(168deg, rgba(22,38,50,.78), rgba(9,18,26,.86));
@@ -433,7 +445,16 @@ body{
 .ico:hover{background:rgba(18,34,46,.72);transform:scale(1.05)}
 .ico svg{width:19px;height:19px;fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .ico svg path:first-child{fill:var(--ink)}
+.ico[hidden]{display:none}
+/* La roue des reglages et la fleche de rappel sont des traits, pas des
+   pleins : sans cette exception, la premiere forme de leur trace serait
+   remplie et donnerait une tache. */
+#soundBtn svg path:first-child,#recallBtn svg path:first-child{fill:none}
 .ico.muted svg .w1,.ico.muted svg .w2{opacity:.2}
+/* La barre du muet n'apparait que coupe. */
+.ico svg .barre{opacity:0;stroke:var(--gold-lt);stroke-width:2}
+.ico.muted svg .barre{opacity:1}
+.ico.muted{background:rgba(40,18,18,.55);border-color:rgba(242,193,78,.35)}
 
 /* trace : une empreinte par halte franchie, c'est toute la "progression" */
 /* --- la trace ------------------------------------------------------------

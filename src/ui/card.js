@@ -86,13 +86,20 @@ export class Carte {
     this.visible = false;
     this._cd = null;
 
+    this.revue = false;
     this.bouton.addEventListener('click', () => {
+      const etaitRevue = this.revue;
       this.fermer();
-      surFermeture?.();
+      // Une relecture ne fait pas avancer la balade : on referme, c'est tout.
+      surFermeture?.(etaitRevue);
     });
   }
 
-  ouvrir(card) {
+  /* `revue` : on relit une carte deja vue, a la demande. Le bouton change
+     alors de libelle — proposer « Suivre le cerf » alors qu'on est deja plus
+     loin sur le chemin serait un mensonge sur ce qui va se passer. */
+  ouvrir(card, revue = false) {
+    this.revue = revue;
     const prix = card.price
       ? `<div class="c-price"><b>${card.price.amount}</b><span>${card.price.note || ''}</span></div>`
       : '';
@@ -103,7 +110,7 @@ export class Carte {
        ${prix}
        ${card.blocks.map(bloc).join('')}`;
 
-    this.bouton.textContent = card.next || 'Continuer';
+    this.bouton.textContent = revue ? 'Fermer' : (card.next || 'Continuer');
     this.el.hidden = false;
     // Un cycle d'affichage avant d'animer, sinon la transition est sautee.
     requestAnimationFrame(() => this.el.classList.add('in'));

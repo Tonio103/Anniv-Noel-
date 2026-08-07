@@ -243,7 +243,16 @@ async function demarrer() {
   const invite = new Invite();
   const trace = new Trace(STATIONS.length - 1);
   const panneau = new PanneauSon(son);
-  const carte = new Carte(() => fermerCarte());
+  const carte = new Carte((revue) => fermerCarte(revue));
+
+  /* Derniere carte lue, pour pouvoir la rouvrir. Sans cela, une carte
+     refermee d'un doigt distrait est perdue jusqu'a ce qu'on refasse toute
+     la balade — et c'est justement le contenu que la famille est venue lire. */
+  let derniereCarte = null;
+  const boutonRevoir = document.getElementById('recallBtn');
+  boutonRevoir.addEventListener('click', () => {
+    if (derniereCarte && !carte.visible) carte.ouvrir(derniereCarte, true);
+  });
   const fin = new Fin(() => recommencer());
   /* Les evenements de la fin ne doivent se produire qu'une fois : la phase
      dure et son horloge repasse en boucle par les memes seuils. */
@@ -357,7 +366,9 @@ async function demarrer() {
            donc de ressembler a une diapositive. */
         drone.arc(sensArc() * 0.022, 0);
         panneau.attenuer(true);
-        carte.ouvrir(STATIONS[index].card);
+        derniereCarte = STATIONS[index].card;
+        boutonRevoir.hidden = false;
+        carte.ouvrir(derniereCarte);
         break;
 
       case PHASES.REPRISE:
@@ -371,7 +382,9 @@ async function demarrer() {
     }
   }
 
-  function fermerCarte() {
+  function fermerCarte(revue) {
+    // Une relecture ne fait pas avancer la balade.
+    if (revue) return;
     if (phase !== PHASES.LECTURE) return;
     entrerPhase(PHASES.REPRISE);
   }
@@ -383,6 +396,8 @@ async function demarrer() {
   function recommencer() {
     finBruits.grelots = false;
     finBruits.texte = false;
+    derniereCarte = null;
+    boutonRevoir.hidden = true;
     halte.nettoyer();
     trace.effacer();
     cerf.s = DEPART;
