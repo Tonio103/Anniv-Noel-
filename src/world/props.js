@@ -142,7 +142,14 @@ export class Fouillis {
 
     /* Budget : le fouillis doit rester un assaisonnement. Trop d'objets et
        on ne voit plus la neige, qui est pourtant le sujet. */
-    const budget = palier.nom === 'bas' ? 130 : palier.nom === 'moyen' ? 280 : 460;
+    /* LE SOL ETAIT VIDE. Deux cent quatre-vingts objets repartis sur plus de
+       sept cents metres de couloir, c'est un objet tous les deux metres et
+       demi de parcours — donc rien du tout dans un cadre donne. Le fouillis
+       etait pense comme un assaisonnement ; il faut qu'il devienne un
+       sous-bois. On triple, et on autorise ces objets bien plus pres du
+       passage : ce sont eux qui donnent au sol son echelle et qui empechent
+       la neige d'etre une nappe. */
+    const budget = palier.nom === 'bas' ? 320 : palier.nom === 'moyen' ? 620 : 1000;
 
     const semis = this._semer(rand, chemin, relief, clairieres, budget);
 
@@ -211,10 +218,13 @@ export class Fouillis {
 
       const pr = chemin.proximite(x, z);
       // On ne peuple que ce qui sera reellement vu.
-      if (pr.d > 90) continue;
+      if (pr.d > 70) continue;
       // Le couloir reste degage, mais moins large que pour les arbres : un
       // rocher au bord du passage est justement ce qu'on veut voir defiler.
-      if (pr.d < 3.5) continue;
+      /* On les laisse venir jusqu'au bord du passage. Un caillou ou une
+         touffe a un metre du chemin ne gene personne — le cerf marche au
+         milieu — et c'est precisement la, au premier plan, qu'ils comptent. */
+      if (pr.d < 1.6) continue;
 
       let dansClairiere = false;
       for (const c of clairieres) {

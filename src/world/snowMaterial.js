@@ -138,8 +138,15 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
                    pas accroche la lumiere et ressort en bosse blanche — ce
                    qui s'etait produit a 26. L'essentiel de la lecture vient
                    de l'assombrissement, la normale ne fait qu'appuyer. */
-                normal = normalize(normal - vec3(dx, 0.0, dz) * 5.0);
-                diffuseColor.rgb *= mix(1.0, 0.55, clamp(d * 1.3, 0.0, 1.0));
+                /* La normale n'appuie que TRES legerement. A 5,0 elle
+                   basculait assez pour que le bord du pas accroche la
+                   lumiere et ressorte en bourrelet blanc : la piste se
+                   lisait en relief au lieu de se lire en creux. C'est
+                   l'assombrissement qui doit tout porter — un creux dans la
+                   neige est sombre parce qu'il voit moins de ciel, et c'est
+                   la seule chose que l'oeil demande. */
+                normal = normalize(normal - vec3(dx, 0.0, dz) * 1.6);
+                diffuseColor.rgb *= mix(1.0, 0.42, clamp(d * 1.5, 0.0, 1.0));
               }
             }
           }

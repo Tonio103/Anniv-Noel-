@@ -113,7 +113,7 @@ export class Foret {
        La graine est reinitialisee a la meme valeur pour que la silhouette
        grossiere reste celle du meme arbre : sinon la transition entre les
        deux niveaux se verrait comme un changement de forme. */
-    const modeleLoin = genererSapin(rng(20261225), Math.max(3, palier.brancheDetail - 4));
+    const modeleLoin = genererSapin(rng(20261225), Math.max(3, palier.brancheDetail - 3), true);
     this.modeleLoin = modeleLoin;
 
     /* --- materiaux --------------------------------------------------------- */
@@ -326,7 +326,7 @@ export class Foret {
     const { chemin, relief, palier } = this;
     const em = relief.emprise;
     const arbres = [];
-    const vise = Math.round(palier.arbres * 1.35);
+    const vise = Math.round(palier.arbres * 1.15);
 
     let essais = 0;
     const maxEssais = vise * 26;
@@ -423,13 +423,13 @@ export class Foret {
        C'est le genre de reglage qui ne se voit pas a l'image et se voit
        beaucoup sur le budget : c'est exactement ce qu'on veut sacrifier en
        premier pour financer la definition. */
-    const portee = 135;
+    const portee = 118;
     /* Bascule vers la version grossiere. Le seuil est genereux — les
        tronçons font une soixantaine de metres, donc un arbre du bord d'un
        tronçon « proche » peut deja etre a quatre-vingts metres. On prefere
        basculer un peu tard qu'un peu tot : une transition qu'on remarque
        coute plus cher, en credibilite, que les triangles qu'elle economise. */
-    const seuilLoin = 50;
+    const seuilLoin = 40;
     const p = camera.position;
     for (const tr of this.troncons) {
       if (!tr) continue;

@@ -17,53 +17,125 @@ import * as THREE from 'three';
 
 /* Ajoute un etage de branches dans les tableaux fournis.
 
-   Deux ajouts par rapport a un simple cone, et ce sont eux qui font toute la
-   difference entre un conifere et un cornet de carton :
+   Une PHASE propre a chaque etage evite que les creux et les bosses du bord
+   se superposent verticalement : sans elle, l'arbre se couvre de cannelures
+   regulieres tres visibles de loin. Une MODULATION PAR SOMMET, sombre pres du
+   tronc et claire a la pointe, lui rend son epaisseur sans rien couter.
+/* POURQUOI L'ARBRE SEMBLAIT PLAT — et pourquoi des plans croises n'y
+   auraient rien change.
 
-   · une PHASE propre a chaque etage. Sans elle, les creux et les bosses du
-     bord se superposent verticalement d'un etage a l'autre et l'arbre se
-     couvre de cannelures regulieres, tres visibles de loin ;
-   · une MODULATION PAR SOMMET, sombre au bord tombant et claire vers la
-     pointe. Un etage eclaire d'un seul tenant se lit comme un panneau plat ;
-     ce dégradé lui rend son epaisseur sans rien couter au rendu. */
-function pousserCone(pos, nor, col, { y0, y1, rayon, segments, rand, dechire, tombant, phase = 0, sombre = 0.58, clair = 1.14 }) {
+   Ce n'etait pas une geometrie en 2D : chaque etage etait deja un cone
+   complet, ferme sur trois cent soixante degres. Le probleme est ailleurs, et
+   il est plus interessant.
+
+   Un etage etait une JUPE CONTINUE : les triangles se touchaient tous, du
+   premier au dernier, sans le moindre interstice. Une telle surface, meme
+   parfaitement tridimensionnelle, n'offre a l'oeil aucun indice de
+   profondeur — on ne voit jamais a travers, on ne voit jamais une branche
+   passer DEVANT une autre, et rien ne se detache sur le fond. Le cerveau
+   conclut a une decoupe, et il a raison de le faire : il n'a recu aucune
+   information contraire.
+
+   Ce qui fait qu'un conifere se lit en volume, ce sont les TROUS. Entre ses
+   branches on apercoit le ciel, la neige, le tronc, les branches du cote
+   oppose. Ce sont ces occlusions successives, et elles seules, qui
+   construisent la profondeur.
+
+   Chaque etage devient donc un ANNEAU DE BRANCHES SEPAREES : chacune part du
+   tronc, s'effile, retombe de son propre angle, et laisse un vide avant la
+   suivante. Le nombre de triangles ne change quasiment pas — on ne remplit
+   plus l'espace entre elles, ce qu'on gagne finance le fait que chaque
+   branche soit un quadrilatere plutot qu'un triangle. */
+function pousserCone(pos, nor, col, { y0, y1, rayon, segments, rand, dechire, tombant, phase = 0, sombre = 0.58, clair = 1.14, simple = false }) {
   const anglePas = (Math.PI * 2) / segments;
-  const rayons = [];
-  for (let i = 0; i < segments; i++) {
-    // Deux frequences : une grosse irregularite et un decoupage plus fin.
-    const g = Math.sin(i * 1.7 + phase) * 0.5 + 0.5;
-    rayons.push(rayon * (1 - dechire * 0.5 + (rand() * 0.6 + g * 0.4) * dechire));
-  }
 
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const c = new THREE.Vector3(0, y1, 0);   // pointe de l'etage
-  const ab = new THREE.Vector3();
-  const ac = new THREE.Vector3();
+  const p0 = new THREE.Vector3();
+  const p1 = new THREE.Vector3();
+  const p2 = new THREE.Vector3();
+  const p3 = new THREE.Vector3();
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
   const n = new THREE.Vector3();
 
-  for (let i = 0; i < segments; i++) {
-    const j = (i + 1) % segments;
-    const a1 = i * anglePas;
-    const a2 = j * anglePas;
-
-    // Les branches retombent : le bord exterieur descend un peu.
-    a.set(Math.cos(a1) * rayons[i], y0 - rayons[i] * tombant, Math.sin(a1) * rayons[i]);
-    b.set(Math.cos(a2) * rayons[j], y0 - rayons[j] * tombant, Math.sin(a2) * rayons[j]);
-
-    ab.subVectors(b, a);
-    ac.subVectors(c, a);
-    n.crossVectors(ab, ac).normalize();
-
-    pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  const tri = (A, B, C, cA, cB, cC) => {
+    e1.subVectors(B, A);
+    e2.subVectors(C, A);
+    n.crossVectors(e1, e2).normalize();
+    pos.push(A.x, A.y, A.z, B.x, B.y, B.z, C.x, C.y, C.z);
     for (let k = 0; k < 3; k++) nor.push(n.x, n.y, n.z);
+    col.push(cA, cA, cA, cB, cB, cB, cC, cC, cC);
+  };
 
-    /* Le bord retombant est dans l'ombre de l'etage du dessus, la pointe
-       recoit le ciel. On module donc la teinte de l'instance plutot que de
-       poser une couleur absolue : la variation par arbre est preservee. */
-    const jitter = 0.94 + rand() * 0.12;
-    const kb = sombre * jitter, kc = clair * jitter;
-    col.push(kb, kb, kb, kb, kb, kb, kc, kc, kc);
+  for (let i = 0; i < segments; i++) {
+    const a = i * anglePas + (rand() - 0.5) * anglePas * 0.35;
+
+    // Longueur propre a chaque branche : c'est elle qui dechire la silhouette.
+    const g = Math.sin(i * 1.7 + phase) * 0.5 + 0.5;
+    const L = rayon * (1 - dechire * 0.5 + (rand() * 0.6 + g * 0.4) * dechire);
+
+    /* LE VIDE ENTRE DEUX BRANCHES — le reglage central, et celui que j'ai
+       rate du premier coup.
+
+       A 0,30 de demi-largeur avec un pincement de 0,34, chaque branche ne
+       couvrait qu'un cinquieme de son secteur : l'arbre s'est retrouve reduit
+       a son tronc entoure de confettis. Il faut viser environ DEUX TIERS de
+       couverture — assez de vide pour voir a travers et lire la profondeur,
+       assez de matiere pour que la masse existe. */
+    const demiLarge = anglePas * 0.46;
+    const pincee = 0.82;
+
+    /* LA RETOMBEE DOIT RATTRAPER L'ETAGE DU DESSOUS. Les etages sont espaces
+       verticalement ; si la branche ne descend pas au moins jusqu'au suivant,
+       il reste une fente horizontale entre chaque rang et on voit le tronc
+       par tranches. La chute se calcule donc a partir de l'ESPACEMENT, pas
+       seulement de la longueur de la branche. */
+    const espace = Math.max(1e-4, (y1 - y0) * 0.42);
+    const chute = espace * (1.15 + rand() * 0.75) + L * tombant * 0.5;
+    // Chacune est portee un peu plus haut ou plus bas que sa voisine : c'est
+    // ce desordre vertical qui fait lire un etage epais et non un disque.
+    const dy = (rand() - 0.5) * espace * 0.55;
+
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const cg = Math.cos(a - demiLarge), sg = Math.sin(a - demiLarge);
+    const cd = Math.cos(a + demiLarge), sd = Math.sin(a + demiLarge);
+
+    // Base : deux points au ras du tronc, largeur pleine.
+    const rBase = rayon * 0.14;
+    p0.set(cg * rBase, y0 + dy, sg * rBase);
+    p1.set(cd * rBase, y0 + dy, sd * rBase);
+    // Pointe : la branche s'effile un peu, sans se refermer.
+    p2.set(
+      (ca + (cd - ca) * pincee) * L,
+      y0 + dy - chute,
+      (sa + (sd - sa) * pincee) * L
+    );
+    p3.set(
+      (ca + (cg - ca) * pincee) * L,
+      y0 + dy - chute,
+      (sa + (sg - sa) * pincee) * L
+    );
+
+    /* Le bord retombant est dans l'ombre de l'etage du dessus, la base recoit
+       moins de ciel que la pointe. On module donc la teinte de l'instance
+       plutot que de poser une couleur absolue : la variation par arbre est
+       preservee. */
+    const jitter = 0.90 + rand() * 0.20;
+    const kb = sombre * jitter;      // pres du tronc, enfoui
+    const kc = clair * jitter;       // la pointe, exposee
+
+    tri(p0, p1, p2, kb, kb, kc);
+    tri(p0, p2, p3, kb, kc, kc);
+
+    /* LA POINTE SE REDRESSE. Le bout d'une branche d'epicea remonte, et ce
+       petit crochet est ce qui empeche l'etage de se lire comme un disque
+       pose a plat : il fait accrocher la lumiere a une orientation
+       differente du reste de la branche. Un triangle par branche. */
+    if (!simple) {
+      const bout = new THREE.Vector3(
+        ca * L * 1.10, y0 + dy - chute + chute * 0.50, sa * L * 1.10
+      );
+      tri(p2, bout, p3, kc, clair * jitter * 1.10, kc);
+    }
   }
 }
 
@@ -107,9 +179,23 @@ function versGeometrie(pos, nor, col) {
   return g;
 }
 
-export function genererSapin(rand, detail = 6) {
-  const segments = Math.max(6, detail * 2);
-  const couches = detail >= 6 ? 15 : 10;
+/* `simple` : version pour le lointain. Les branches separees coutent trois
+   triangles chacune au lieu d'un — c'est ce qui leur donne leur volume, et
+   c'est aussi ce qui a fait passer la scene de 395 000 a 875 000 triangles
+   quand je les ai introduites. Or ce volume ne sert a rien au-dela de
+   cinquante metres : a cette distance un arbre fait trente pixels, on ne
+   distingue plus une branche d'une autre, et seule la silhouette compte.
+
+   La version simple retire donc le relevement de pointe (un triangle sur
+   trois) et divise le nombre d'etages. Elle garde exactement la meme
+   enveloppe, donc la bascule reste invisible. */
+export function genererSapin(rand, detail = 6, simple = false) {
+  /* Chaque branche coute maintenant trois triangles au lieu d'un, mais on
+     ne remplit plus les vides : a nombre de secteurs egal, l'etage est un peu
+     plus lourd. On en retire donc quelques-uns — l'irregularite fait
+     desormais le travail que faisait le nombre. */
+  const segments = Math.max(4, Math.round(detail * (simple ? 1.1 : 1.4)));
+  const couches = simple ? 6 : (detail >= 6 ? 14 : 10);
 
   const fPos = [], fNor = [], fCol = [];
   const nPos = [], nNor = [], nCol = [];
@@ -138,6 +224,7 @@ export function genererSapin(rand, detail = 6) {
       rand,
       dechire: 0.50,          // c'est ce chiffre qui casse l'aspect "cone"
       tombant: 0.22,
+      simple,
       phase: i * 2.39,        // decale chaque etage : pas de cannelures
       // Les etages du bas sont enfouis sous ceux du dessus, donc plus sombres.
       sombre: 0.42 + t * 0.22,
@@ -155,11 +242,21 @@ export function genererSapin(rand, detail = 6) {
       pousserCone(nPos, nNor, nCol, {
         y0: y0 + hauteurEtage * montee + 0.004,
         y1: y0 + hauteurEtage * 0.80,
-        rayon: rayonFeuillageIci * (1.06 + rand() * 0.12),
+        /* LA NEIGE SE POSE SUR LA BRANCHE, PAS AUTOUR.
+
+           Elle etait dessinee 6 a 18 % PLUS LARGE que le feuillage — ce qui
+           marchait tant que les etages etaient des jupes pleines, puisqu'elle
+           n'affleurait qu'en lisere. Maintenant que ce sont des branches
+           separees, la meme marge la fait deborder de chaque branche et
+           recouvrir tout l'arbre : les sapins viraient au blanc et le vert
+           disparaissait. Elle rentre donc a l'interieur, et ce sont les
+           POINTES qui restent vertes — comme sur un vrai conifere charge. */
+        rayon: rayonFeuillageIci * (0.80 + rand() * 0.10),
         segments,
         rand,
         dechire: 0.56,
         tombant: 0.13,
+        simple,
         phase: i * 2.39 + 0.8,
         // La neige aussi s'assombrit au bord, ou elle retombe dans l'ombre.
         sombre: 0.66 + t * 0.14,

@@ -31,10 +31,23 @@ function tamponSabot() {
   const c = cv.getContext('2d');
   c.clearRect(0, 0, n, n);
 
+  /* UNE EMPREINTE EST UN TROU, PAS UN TAMPON.
+
+     La version precedente ajoutait autour des onglons un « halo de neige
+     repoussee » a 22 % : combiné a la perturbation de normale, il rattrapait
+     la lumiere et chaque pas ressortait en COUSSIN CLAIR pose sur la neige.
+     On voyait une file de bosses molles, exactement l'inverse de ce qu'un
+     sabot laisse.
+
+     Il n'y a donc plus de halo du tout. Ne restent que les deux onglons,
+     nets, plus une amorce de bourrelet TRES faible, uniquement a l'arriere de
+     la trace — la ou la neige est reellement chassee par le pied qui pousse.
+     Tout le reste de la lecture vient de l'assombrissement, qui est ce que
+     produit un creux : il recoit moins de ciel. */
   const onglon = (cx, cy, rx, ry) => {
     const g = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
     g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.55, 'rgba(255,255,255,0.78)');
+    g.addColorStop(0.62, 'rgba(255,255,255,0.86)');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     c.save();
     c.translate(cx, cy);
@@ -46,15 +59,11 @@ function tamponSabot() {
     c.restore();
   };
 
-  // Deux onglons, pointe vers le haut de l'image (soit l'avant du pas).
-  onglon(n * 0.37, n * 0.47, n * 0.15, n * 0.27);
-  onglon(n * 0.63, n * 0.47, n * 0.15, n * 0.27);
-  // Un leger halo de neige repoussee autour.
-  const h = c.createRadialGradient(n / 2, n / 2, n * 0.18, n / 2, n / 2, n * 0.5);
-  h.addColorStop(0, 'rgba(255,255,255,0.22)');
-  h.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = h;
-  c.fillRect(0, 0, n, n);
+  /* Deux onglons, pointe vers le haut de l'image (soit l'avant du pas), et
+     ECARTES EN POINTE : un sabot de cervide s'ouvre vers l'avant. C'est cet
+     ecartement en V qui le distingue d'une trace de sanglier ou de chien. */
+  onglon(n * 0.395, n * 0.44, n * 0.115, n * 0.235);
+  onglon(n * 0.605, n * 0.44, n * 0.115, n * 0.235);
 
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -232,12 +241,17 @@ export class Empreintes {
            cap et l'appui varient d'un pas a l'autre. Sans ce desordre, la
            piste devient une frise de tampons identiques — l'oeil repere le
            motif immediatement et toute la credibilite du sol s'effondre. */
-        const taille = (0.30 + e.force * 0.10) * (0.88 + e.alea * 0.24);
+        /* PLUS PETITES. Un sabot de cerf mesure sept a neuf centimetres de
+           long ; le tampon faisait trente-cinq a quarante centimetres, soit
+           quatre fois trop. Sur la neige, la piste se lisait comme une
+           succession de dalles et non comme des pas. */
+        const taille = (0.115 + e.force * 0.045) * (0.88 + e.alea * 0.24);
         m.visible = true;
         m.position.set(e.x, 0, e.z);
-        m.scale.set(taille, taille * (1.16 + e.alea * 0.18), 1);
+        m.scale.set(taille, taille * (1.30 + e.alea * 0.18), 1);
         m.rotation.z = -e.angle + (e.alea - 0.5) * 0.34;
-        m.material.opacity = (0.55 + e.force * 0.35) * (0.84 + e.alea * 0.2);
+        // Franche : c'est l'assombrissement qui porte toute la lecture.
+        m.material.opacity = (0.78 + e.force * 0.22) * (0.88 + e.alea * 0.14);
       }
       renderer.autoClear = false;
       renderer.setRenderTarget(this.rtA);
