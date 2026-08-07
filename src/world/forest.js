@@ -145,6 +145,29 @@ export class Foret {
     const modeleLoin = genererSapin(rng(20261225), Math.max(3, palier.brancheDetail - 3), true);
     this.modeleLoin = modeleLoin;
 
+    /* --- ET UN TROISIEME NIVEAU, POUR L'ARRIERE-PLAN LOINTAIN --------------
+
+       Antoine : « les decors se generent mais pas de loin, donc les arbres
+       apparaissent a deux metres ». La mesure donne 114 a 151 metres, pas
+       deux — mais le probleme qu'il decrit est reel, et le chiffre explique
+       pourquoi il saute aux yeux : avec le brouillard eclairci, un arbre qui
+       apparait a 130 m n'est masque qu'a moitie. On le VOIT donc arriver. Et
+       comme le tri se fait par troncon de cinquante metres, ce n'est pas un
+       arbre qui apparait, c'est un bloc entier de foret d'un seul coup.
+
+       Reculer la portee de dessin suffirait a le cacher — il faut atteindre
+       environ 230 m pour que le brouillard couvre l'apparition — mais au prix
+       de deux fois plus d'arbres dessines, ce qu'un telephone ne peut pas
+       payer.
+
+       D'ou ce troisieme niveau : au-dela de cent metres un sapin fait moins
+       de vingt pixels de haut et il est deja aux trois quarts noye. Cinq
+       etages de six branches suffisent a poser sa silhouette. Il coute a peu
+       pres un sixieme du niveau intermediaire, ce qui permet justement de
+       reculer la portee jusqu'a la ou le brouillard fait le travail. */
+    const modeleFond = genererSapin(rng(20261225), 3, true, true);
+    this.modeleFond = modeleFond;
+
     /* --- materiaux --------------------------------------------------------- */
     /* vertexColors : la geometrie porte une modulation clair/sombre par
        sommet, que la couleur d'instance vient teinter. Les deux se
@@ -228,6 +251,8 @@ export class Foret {
          affiche jamais qu'une des deux. */
       const feuillageLoin = new THREE.InstancedMesh(modeleLoin.feuillage, this.matFeuillage, liste.length);
       const neigeLoin = new THREE.InstancedMesh(modeleLoin.neige, this.matNeige, liste.length);
+      // Arriere-plan : silhouette seule, ni neige ni lame croisee.
+      const feuillageFond = new THREE.InstancedMesh(modeleFond.feuillage, this.matFeuillage, liste.length);
 
       for (let k = 0; k < liste.length; k++) {
         const a = liste[k];
@@ -241,6 +266,7 @@ export class Foret {
         neige.setMatrixAt(k, m);
         feuillageLoin.setMatrixAt(k, m);
         neigeLoin.setMatrixAt(k, m);
+        feuillageFond.setMatrixAt(k, m);
 
         /* LE TRONC A SA PROPRE ECHELLE HORIZONTALE.
 
@@ -269,9 +295,10 @@ export class Foret {
         teinte.setHSL(0.34 + a.teinte * 0.06, 0.22 + a.teinte * 0.16, 0.40 + a.teinte * 0.18);
         feuillage.setColorAt(k, teinte);
         feuillageLoin.setColorAt(k, teinte);
+        feuillageFond.setColorAt(k, teinte);
       }
 
-      for (const im of [feuillage, neige, tronc, feuillageLoin, neigeLoin]) {
+      for (const im of [feuillage, neige, tronc, feuillageLoin, neigeLoin, feuillageFond]) {
         im.instanceMatrix.needsUpdate = true;
         im.castShadow = palier.ombres;
         im.receiveShadow = palier.ombres && palier.nom === 'haut';
@@ -279,17 +306,18 @@ export class Foret {
         im.matrixAutoUpdate = false;
         this.groupe.add(im);
       }
-      for (const im of [feuillage, feuillageLoin]) {
+      for (const im of [feuillage, feuillageLoin, feuillageFond]) {
         if (im.instanceColor) im.instanceColor.needsUpdate = true;
       }
       // La version grossiere ne porte jamais d'ombre : elle n'est utilisee
       // qu'au-dela de la portee de la carte d'ombre.
-      for (const im of [feuillageLoin, neigeLoin]) im.castShadow = false;
+      for (const im of [feuillageLoin, neigeLoin, feuillageFond]) im.castShadow = false;
 
       const centre = chemin.point(((i + 0.5) / TRONCONS) * chemin.longueur, new THREE.Vector3());
       this.troncons.push({
         pres: [feuillage, neige, tronc],
         loin: [feuillageLoin, neigeLoin],
+        fond: [feuillageFond],
         centre, index: i,
       });
     }
@@ -474,7 +502,17 @@ export class Foret {
        C'est le genre de reglage qui ne se voit pas a l'image et se voit
        beaucoup sur le budget : c'est exactement ce qu'on veut sacrifier en
        premier pour financer la definition. */
-    const portee = 132;
+    /* PORTEE PORTEE A 250 M — mais avec un troisieme niveau pour la payer.
+
+       Ce qui gache l'illusion n'est pas la distance de dessin en soi, c'est
+       que l'APPARITION SE VOIE. Un arbre qui surgit la ou le brouillard ne
+       masque qu'a moitie est un evenement ; le meme arbre surgissant la ou le
+       brouillard couvre neuf dixiemes ne se remarque pas. Avec une densite de
+       0,0064 il faut environ 230 m pour atteindre ce seuil — c'est ce nombre,
+       et pas un gout, qui fixe la portee. */
+    const portee = 250;
+    // Au-dela : la silhouette seule (voir modeleFond).
+    const seuilFond = 105;
     /* Bascule vers la version grossiere. Le seuil est genereux — les
        tronçons font une soixantaine de metres, donc un arbre du bord d'un
        tronçon « proche » peut deja etre a quatre-vingts metres. On prefere
@@ -498,17 +536,22 @@ export class Foret {
       const d = Math.hypot(tr.centre.x - p.x, tr.centre.z - p.z);
       const visible = d < portee;
       const detaille = visible && d < seuilLoin;
+      const grossier = visible && !detaille && d < seuilFond;
+      const silhouette = visible && d >= seuilFond;
 
       if (tr.pres[0].visible !== detaille) {
         for (const m of tr.pres) m.visible = detaille;
       }
-      // Le tronc reste dessine dans les deux cas : il est deja minuscule, et
-      // sans lui les arbres lointains flottent au-dessus de la neige.
-      if (tr.pres[2].visible !== visible) tr.pres[2].visible = visible;
+      /* Le tronc n'est plus dessine au fond : a cent metres il fait moins
+         d'un pixel de large et il coute un appel de dessin par tronçon. */
+      const troncVisible = visible && !silhouette;
+      if (tr.pres[2].visible !== troncVisible) tr.pres[2].visible = troncVisible;
 
-      const grossier = visible && !detaille;
       if (tr.loin[0].visible !== grossier) {
         for (const m of tr.loin) m.visible = grossier;
+      }
+      if (tr.fond[0].visible !== silhouette) {
+        for (const m of tr.fond) m.visible = silhouette;
       }
 
       /* Seuls les tronçons vraiment proches alimentent la carte d'ombre. Le

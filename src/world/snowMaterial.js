@@ -70,8 +70,28 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
         uniform vec2 uEmpMin, uEmpTaille;
         ${GLSL_NOISE}
 
+        /* L'AXE V DE LA CARTE EST L'OPPOSE DE L'AXE Z DU MONDE.
+
+           La carte des traces est dessinee par une camera orthographique qui
+           regarde vers le bas (rotation.x = -90°). Son « haut » local (0,1,0)
+           devient alors (0,0,-1) dans le monde : ce qui est en haut de la
+           texture est au NORD, vers les Z decroissants. Le V d'une cible de
+           rendu croit vers le haut de l'image, donc V croit vers -Z.
+
+           Or cette fonction lisait v = (z - zmin) / taille, qui croit vers
+           +Z. Les deux axes etaient opposes : toute la piste etait MIROITEE
+           en Z autour du centre de la fenetre. Mesure : sur soixante-douze
+           poses de sabot, la carte etait allumee au point symetrique
+           soixante-douze fois, et a la bonne place une seule.
+
+           C'est exactement ce qu'Antoine decrit — des empreintes « sur le
+           cote, en diagonale ». Comme la fenetre se recentre sur l'animal
+           tous les trois metres, le miroir se deplace avec lui : la piste ne
+           part pas franchement a l'envers, elle derive de travers, ce qui est
+           beaucoup plus difficile a reconnaitre qu'une inversion franche. */
         vec2 uvEmpreinte(vec3 p){
-          return (p.xz - uEmpMin) / uEmpTaille;
+          vec2 f = (p.xz - uEmpMin) / uEmpTaille;
+          return vec2(f.x, 1.0 - f.y);
         }
       `)
 
@@ -136,7 +156,9 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
                 // des traces devient illisible.
                 vec2 px = vec2(uEmpPas);
                 float dx = texture2D(uEmpreintes, fu + vec2(px.x, 0.0)).r - d;
-                float dz = texture2D(uEmpreintes, fu + vec2(0.0, px.y)).r - d;
+                // Le pas en V va vers -Z (voir uvEmpreinte) : on renverse la
+                // derivee pour retrouver une pente exprimee dans le monde.
+                float dz = -(texture2D(uEmpreintes, fu + vec2(0.0, px.y)).r - d);
                 /* Signe NEGATIF et amplitude modeste : une trace est un creux.
                    Avec un facteur eleve, la normale bascule si fort que le
                    pas accroche la lumiere et ressort en bosse blanche — ce

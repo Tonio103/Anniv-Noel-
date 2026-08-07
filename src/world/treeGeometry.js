@@ -236,7 +236,7 @@ function versGeometrie(pos, nor, col) {
    La version simple retire donc le relevement de pointe (un triangle sur
    trois) et divise le nombre d'etages. Elle garde exactement la meme
    enveloppe, donc la bascule reste invisible. */
-export function genererSapin(rand, detail = 6, simple = false) {
+export function genererSapin(rand, detail = 6, simple = false, fond = false) {
   /* BEAUCOUP DE BRANCHES ETROITES, PAS QUELQUES-UNES LARGES.
 
      Avec sept branches par etage et une demi-largeur du quart de leur
@@ -265,8 +265,8 @@ export function genererSapin(rand, detail = 6, simple = false) {
      par nervure. Un sapin lointain coute alors trois fois plus qu'avant, mais
      il ressemble encore a un sapin, et on peut reculer la bascule assez loin
      pour que personne ne la voie. */
-  const parEtage = simple ? 10 : Math.max(7, Math.round(detail * 1.45));
-  const couches = simple ? 8 : (detail >= 6 ? 12 : 10);
+  const parEtage = fond ? 6 : simple ? 10 : Math.max(7, Math.round(detail * 1.45));
+  const couches = fond ? 5 : simple ? 8 : (detail >= 6 ? 12 : 10);
   // Segments le long de la nervure : c'est eux qui donnent sa courbure a la
   // branche. Au loin, une branche droite suffit largement.
   const segments = simple ? 1 : 2;
@@ -319,17 +319,18 @@ export function genererSapin(rand, detail = 6, simple = false) {
            elargissant chaque lame jusqu'a ce que l'anneau se referme, la
            silhouette redevient pleine pour trois cents triangles, et la
            bascule a quarante metres cesse de se voir. */
-        demiLarge: L * (simple ? 0.19 + rand() * 0.09 : 0.12 + rand() * 0.08),
-        plein: false,
+        demiLarge: L * (fond ? 0.42 + rand() * 0.14
+                      : simple ? 0.19 + rand() * 0.09 : 0.12 + rand() * 0.08),
+        plein: fond,
         segments,
-        croisee: true,
+        croisee: !fond,
         // Les etages du bas sont enfouis sous ceux du dessus, donc plus sombres.
         sombre: (0.38 + t * 0.20) * (0.9 + rand() * 0.2),
         clair: (0.98 + t * 0.32) * (0.9 + rand() * 0.2),
         /* La neige est POSEE PAR PLAQUES et non partout : un conifere charge
            garde des branches nues, et c'est ce contraste qui fait lire la
            charge. Uniforme, elle repeignait l'arbre en blanc. */
-        neige: (t < 0.94 && rand() < (simple ? 0.30 : 0.62)) ? bacNeige : null,
+        neige: (t < 0.94 && !fond && rand() < (simple ? 0.30 : 0.62)) ? bacNeige : null,
         rand,
       });
     }

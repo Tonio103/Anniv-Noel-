@@ -438,7 +438,19 @@ export class Cerf {
       const nx = n.x * cy - n.z * sy;
       const nz = n.x * sy + n.z * cy;
       this.ombre.rotation.set(-Math.PI / 2 + Math.atan2(nz, n.y), 0, -Math.atan2(nx, n.y));
-      this.ombre.position.y = 0.045;
+      /* QUATRE CENTIMETRES ET DEMI, C'ETAIT TROP PEU.
+
+         Le plan mesure deux metres sur trois ; la neige, elle, ondule de
+         plusieurs centimetres sur cette distance, et le shader y ajoute
+         encore du relief. Un plan pose a 4,5 cm TRAVERSE donc le sol au
+         moindre creux, et la ou il passe dessous il est coupe net : on voit
+         apparaitre sous l'animal une arete droite qui n'a rien a faire la.
+         C'est ce qu'Antoine appelle l'ombre qui bugge.
+
+         On le monte a quinze centimetres — invisible sous un cerf d'un metre
+         quarante au garrot, vu d'un drone — et le decalage de polygone lui
+         donne la priorite sur le sol partout ou les deux se frolent encore. */
+      this.ombre.position.y = 0.15;
       const contact = this.membres.reduce((c, mb) => c + (this._auSol[mb.nom] ? 1 : 0), 0);
       this.ombre.material.opacity = 0.16 + (contact / 4) * 0.26;
     }

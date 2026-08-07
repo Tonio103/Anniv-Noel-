@@ -768,6 +768,9 @@ export function creerCerf(palier) {
     new THREE.MeshBasicMaterial({
       map: tacheDouce(), transparent: true, opacity: 0.36,
       depthWrite: false, color: 0x0A1622, fog: true,
+      // Elle affleure un sol bossele : sans priorite de profondeur, elle s'y
+      // decoupe en ligne droite des qu'elle passe dessous.
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -14,
     })
   );
   ombre.rotation.x = -Math.PI / 2;
