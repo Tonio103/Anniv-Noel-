@@ -16,7 +16,7 @@
 
 import * as THREE from 'three';
 import { rng } from '../core/noise.js';
-import { genererSapin, appliquerVent } from './treeGeometry.js';
+import { genererSapin, appliquerVent, eclairerAiguilles } from './treeGeometry.js';
 
 const TRONCONS = 14;
 
@@ -50,6 +50,13 @@ export class Foret {
     appliquerVent(this.matFeuillage, { amplitude: 1.0, uniforms: uniformsVent });
     appliquerVent(this.matNeige, { amplitude: 0.9, uniforms: uniformsVent });
     appliquerVent(this.matTronc, { amplitude: 0.25, uniforms: uniformsVent });
+
+    /* L'eclairage des aiguilles vient PAR-DESSUS celui du vent : les deux
+       s'enchainent sur le meme onBeforeCompile, dans cet ordre. Le feuillage
+       transmet pleinement ; la neige posee dessus est opaque, elle ne recoit
+       donc que la part de ciel. */
+    eclairerAiguilles(this.matFeuillage, { uniforms: uniformsVent, transmission: 1 });
+    eclairerAiguilles(this.matNeige, { uniforms: uniformsVent, transmission: 0.15 });
 
     /* --- semis ------------------------------------------------------------- */
     const arbres = this._semer(rand, clairieres);

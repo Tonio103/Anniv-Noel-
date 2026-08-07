@@ -116,7 +116,20 @@ const FRAG_FINAL = /* glsl */ `
 
     /* Aberration chromatique : les canaux se decalent radialement, et
        seulement loin du centre. Toute autre repartition se lit comme un
-       defaut d'image plutot que comme un objectif. */
+       defaut d'image plutot que comme un objectif.
+
+       ATTENTION A L'ECHELLE. Le decalage est exprime en UV, donc en
+       FRACTION D'ECRAN. Le reglage precedent valait 0,9, ce qui deplace le
+       canal rouge de vingt-deux pour cent de l'image dans les coins et de
+       pres de trois pour cent a mi-rayon — mille fois trop. Chaque arete,
+       chaque etoile, chaque flocon trainait une frange rouge et bleue, et
+       l'horizon portait un liseré rouge franc.
+
+       Un objectif reel decale d'un a trois PIXELS en bord de champ. On vise
+       donc un decalage maximal de l'ordre du quart de pour cent, ce qui reste
+       sous le pixel au centre et se sent a peine dans les angles — c'est-a-
+       dire exactement ce qu'on veut d'une aberration : la deviner, jamais la
+       voir. */
     vec3 col;
     if(uAberr > 0.0001){
       vec2 d = depuisCentre * r2 * uAberr;
@@ -217,8 +230,12 @@ export class PostFX {
         uExpo: { value: 0.92 },
         uHaloForce: { value: 0.34 },
         uVignette: { value: 0.34 },
-        uGrain: { value: 0.028 },
-        uAberr: { value: complet ? 0.9 : 0.0 },
+        /* Le grain casse les degrades de ciel, il ne doit pas les texturer.
+           A 0,028 releve de moitie dans les ombres, il montait a huit niveaux
+           sur deux cent cinquante-cinq dans la nuit — un sable visible sur
+           toute la voute. */
+        uGrain: { value: 0.017 },
+        uAberr: { value: complet ? 0.007 : 0.0 },
         uTemps: { value: 0 },
         uFlou: { value: null }, uProfondeur: { value: null },
         uNear: { value: 0.35 }, uFar: { value: 620 },

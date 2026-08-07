@@ -148,6 +148,82 @@ export function genererSapin(rand, detail = 6) {
   };
 }
 
+/* LE FEUILLAGE, ECLAIRE COMME DES AIGUILLES ET NON COMME UNE TOLE.
+
+   Un conifere de nuit occupe le deuxieme plus grand nombre de pixels apres la
+   neige, et il etait rendu comme une surface opaque en facettes plates : sur
+   une face detournee de la lune, N·L tombe a zero et l'etage entier devient
+   un aplat noir. D'ou l'aspect de decoupe en carton, surtout au loin ou les
+   facettes se lisent une a une.
+
+   Or une masse d'aiguilles n'est pas une tole. Trois choses la distinguent, et
+   toutes les trois sont bon marche :
+
+   · ELLE TRANSMET. La lumiere passe entre les aiguilles et ressort de l'autre
+     cote. On ajoute donc un terme qui vit LA OU N·L EST NEGATIF, c'est-a-dire
+     precisement la ou le rendu classique donne du noir. C'est ce terme qui
+     redonne du volume aux etages a contre-jour.
+
+   · ELLE VOIT LE CIEL PAR LE HAUT. Les branches hautes recoivent le bleu du
+     ciel, les basses sont enfouies. Un simple gradient vertical, indexe sur la
+     hauteur dans l'arbre, remplace une occlusion ambiante qu'on ne peut pas se
+     payer ici.
+
+   · SON BORD S'ALLUME. Sur une silhouette, les aiguilles du contour sont
+     traversees par la lumiere et brillent. Comme pour le cerf, le terme
+     n'existe que la ou la normale regarde a la fois de cote ET vers la lune :
+     sans ce second facteur, tout l'arbre s'allumerait uniformement.
+
+   Le resultat vise n'est pas un arbre plus clair — c'est un arbre dont on lit
+   encore la forme quand il n'est pas eclaire de face. */
+export function eclairerAiguilles(materiau, { uniforms, transmission = 1 } = {}) {
+  const precedent = materiau.onBeforeCompile;
+  materiau.onBeforeCompile = (shader) => {
+    if (precedent) precedent(shader);
+    shader.uniforms.uTransm = { value: transmission };
+    shader.uniforms.uLuneCol = uniforms.uLuneCol;
+    shader.uniforms.uCielCol = uniforms.uCielCol;
+
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\n varying float vHaut;')
+      // `transformed.y` est la hauteur dans l'arbre normalise : zero au pied,
+      // un a la cime, quelle que soit la taille de l'instance.
+      .replace('#include <project_vertex>', '#include <project_vertex>\n vHaut = clamp(transformed.y, 0.0, 1.0);');
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `
+        #include <common>
+        varying float vHaut;
+        uniform float uTransm;
+        uniform vec3 uLuneCol, uCielCol;
+      `)
+      .replace('#include <opaque_fragment>', `
+        #if NUM_DIR_LIGHTS > 0
+        {
+          vec3 N = normalize(normal);
+          vec3 V = normalize(vViewPosition);
+          vec3 L = normalize(directionalLights[0].direction);
+          float nl = dot(N, L);
+
+          // 1. Transmission : elle ne vit que du cote non eclaire.
+          float dos = clamp(-nl, 0.0, 1.0);
+          outgoingLight += diffuseColor.rgb * uLuneCol * pow(dos, 1.6) * 0.34 * uTransm;
+
+          // 2. Le ciel arrive par le haut ; le pied de l'arbre est enfoui.
+          outgoingLight += diffuseColor.rgb * uCielCol * (0.10 + vHaut * 0.30) * 0.42;
+
+          // 3. Le bord des aiguilles s'allume, mais seulement face a la lune.
+          float tranche = pow(1.0 - abs(dot(N, V)), 3.0);
+          outgoingLight += uLuneCol * tranche * clamp(nl, 0.0, 1.0) * 0.30 * uTransm;
+        }
+        #endif
+        #include <opaque_fragment>
+      `);
+  };
+  const clefPrec = materiau.customProgramCacheKey ? materiau.customProgramCacheKey() : '';
+  materiau.customProgramCacheKey = () => clefPrec + '-aiguilles' + transmission;
+}
+
 /* Le vent, injecte dans n'importe quel materiau instancie.
 
    Le balancement doit dependre de la position de l'arbre dans le monde,

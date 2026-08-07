@@ -99,6 +99,27 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
 
           normal = normalize(normal + ondul * pres);
 
+          /* LA NEIGE N'EST PAS UNE FEUILLE DE PAPIER.
+
+             Le relief fin s'attenue avec la distance — a juste titre, sinon il
+             scintille — mais du coup les grandes etendues, qui sont justement
+             ce qu'on voit le plus, redevenaient un aplat parfaitement uniforme.
+             Une plaine de neige reelle ne l'est jamais : le vent la tasse par
+             plaques, il reste des zones poudreuses et des zones croutees, et
+             c'est cette variation LENTE qui donne l'echelle du paysage.
+
+             Elle agit sur l'albedo ET sur la rugosite, avec la meme carte : la
+             ou la neige est tassee elle est un peu plus sombre et plus lisse,
+             donc plus satinee au soleil rasant. Deux octaves suffisent, et
+             l'effet est volontairement faible — au-dela on lit des nuages
+             peints sur le sol. Elle NE s'attenue PAS avec la distance : c'est
+             tout son interet. */
+          float plaque = fbm3(vMonde * vec3(0.026, 0.10, 0.026)) * 0.5 + 0.5;
+          float souffle = fbm3(vMonde * vec3(0.085, 0.20, 0.085) + 31.7) * 0.5 + 0.5;
+          float tasse = clamp(plaque * 0.72 + souffle * 0.28, 0.0, 1.0);
+          diffuseColor.rgb *= 0.93 + tasse * 0.11;
+          roughnessFactor = clamp(roughnessFactor - (tasse - 0.5) * 0.16, 0.30, 1.0);
+
           // Empreintes : la neige est tassee, donc plus sombre et inclinee
           // vers l'interieur du creux.
           if(uAEmpreintes > 0.5){

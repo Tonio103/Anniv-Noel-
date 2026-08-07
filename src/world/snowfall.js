@@ -55,14 +55,24 @@ const VERT = /* glsl */ `
     float d = -mv.z;
 
     gl_Position = projectionMatrix * mv;
-    // Plafond indispensable : sans lui, un flocon qui frole l'objectif
-    // couvre la moitie de l'ecran d'un disque blanc.
-    gl_PointSize = min((0.035 + graine.w * uTaille) * uPixels / max(d, 0.7),
-                       uPixels * 0.055);
+    /* Plafond indispensable : sans lui, un flocon qui frole l'objectif couvre
+       la moitie de l'ecran d'un disque blanc.
 
-    // Fondu aux deux bouts : trop pres l'image se bouche, trop loin les
-    // flocons scintillent d'un pixel a l'autre.
-    vAlpha = smoothstep(0.35, 2.2, d) * (1.0 - smoothstep(S * 0.30, S * 0.48, d));
+       Mais un plafond trop HAUT a son propre defaut, et c'est celui qu'on
+       observait : la couche proche saturait, si bien que tous ses flocons
+       sortaient a la meme taille maximale. L'image se couvrait alors d'une
+       trentaine de disques blancs identiques, tous de trente pixels — on ne
+       lisait plus de la neige mais des bulles. Abaisser le plafond ET la
+       taille de base remet la couche proche a sa place : quelques passages
+       flous devant l'objectif, pas un rideau. */
+    gl_PointSize = min((0.030 + graine.w * uTaille) * uPixels / max(d, 0.7),
+                       uPixels * 0.030);
+
+    /* Fondu aux deux bouts : trop pres l'image se bouche, trop loin les
+       flocons scintillent d'un pixel a l'autre. La borne proche est reculee —
+       un flocon a quarante centimetres de la lentille n'a aucune raison
+       d'etre net ni opaque. */
+    vAlpha = smoothstep(0.60, 3.2, d) * (1.0 - smoothstep(S * 0.30, S * 0.48, d));
     // Les flocons proches sont hors de la profondeur de champ, donc flous.
     vFlou = 1.0 - smoothstep(1.5, 9.0, d);
   }
@@ -126,9 +136,16 @@ export class Neige {
   constructor(scene, palier) {
     const N = palier.flocons;
 
-    /* Le lointain remplit l'air ; le proche passe devant l'objectif. */
-    this.loin = couche(Math.round(N * 0.80), 110, 0.115, 0.85, 2.6);
-    this.pres = couche(Math.round(N * 0.20), 30, 0.30, 0.42, 1.5);
+    /* Le lointain remplit l'air ; le proche passe devant l'objectif.
+
+       La couche proche est la plus delicate a doser : elle porte tout le
+       sentiment de neige, et c'est aussi elle qui bouche l'image si on la
+       laisse filer. Sa part tombe a un huitieme, sa taille de base de moitie,
+       et son biais monte a 2,4 — donc beaucoup de petits, tres peu de gros.
+       Ce qu'on veut, c'est qu'un flocon passe de temps en temps, pas qu'il y
+       en ait toujours un devant l'oeil. */
+    this.loin = couche(Math.round(N * 0.88), 110, 0.115, 0.85, 2.6);
+    this.pres = couche(Math.round(N * 0.12), 30, 0.16, 0.30, 2.4);
 
     scene.add(this.loin.pts);
     scene.add(this.pres.pts);

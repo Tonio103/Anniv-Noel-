@@ -321,6 +321,22 @@ function matierePelage() {
           outgoingLight = mix(outgoingLight, vec3(lum) * vec3(1.30, 0.98, 0.70), 0.42);
           outgoingLight += vec3(0.055, 0.030, 0.014) * lum;
 
+          /* UN PLANCHER, pour qu'il ne tombe pas dans le noir absolu.
+
+             Le terme ci-dessus est proportionnel a la luminance : il rechauffe
+             ce qui est deja eclaire et ne peut, par construction, rien faire
+             la ou il n'y a pas de lumiere. Or c'est precisement le cas du cerf
+             sur la plus grande partie de la balade — lune devant, camera
+             derriere. Il finissait en decoupe noire sur la neige, et l'animal
+             qu'on est cense suivre n'etait plus qu'une silhouette.
+
+             On ajoute donc un rebond ambiant CONSTANT, mais module par
+             l'albedo : le ventre creme se releve, les membres presque noirs
+             restent presque noirs. C'est ce qui distingue un plancher
+             physique d'un simple eclaircissement — la robe garde tous ses
+             contrastes internes, elle cesse seulement d'etre un trou. */
+          outgoingLight += diffuseColor.rgb * vec3(0.34, 0.28, 0.21) * 0.19;
+
           /* LE LISERE DE LUNE.
 
              La lune est devant l'animal, la camera derriere : le cerf est en
@@ -359,7 +375,7 @@ function matierePelage() {
         #include <opaque_fragment>
       `);
   };
-  mat.customProgramCacheKey = () => 'pelage4';
+  mat.customProgramCacheKey = () => 'pelage6';
   return mat;
 }
 

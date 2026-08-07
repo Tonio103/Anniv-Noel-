@@ -68,9 +68,15 @@ async function demarrer() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(58, 1, 0.35, 620);
 
+  /* Uniformes partages par tous les vegetaux : le temps et le vent, plus les
+     deux couleurs de l'ambiance courante. Les mettre en commun garantit que la
+     foret, le premier plan et les sapins des clairieres virent ENSEMBLE quand
+     le ciel change — trois jeux separes finiraient par diverger. */
   const uniformsVent = {
     uTemps: { value: 0 },
     uVent: { value: new THREE.Vector2(0.85, 0.34) },
+    uLuneCol: { value: new THREE.Color(0xFFD2A0) },
+    uCielCol: { value: new THREE.Color(0x7A9CBC) },
   };
 
   /* ---------------------------------------------------------------- monde */
@@ -581,6 +587,9 @@ async function demarrer() {
     ciel.maj(dt, t, camera);
     poudre.accorder(scene.fog);
     lumieres.accorder(ciel.actuel);
+    // Le feuillage suit la meme ambiance que la lumiere et la neige.
+    uniformsVent.uLuneCol.value.set(ciel.actuel.soleil);
+    uniformsVent.uCielCol.value.set(ciel.actuel.ciel);
     lumieres.maj(camera, cerf.racine.position);
     accorderNeige(relief.materiau, ciel.actuel, lumieres.dir);
     if (cerf.materiau.userData.uniforms) {
