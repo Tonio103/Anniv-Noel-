@@ -46,7 +46,10 @@ export class Lumieres {
     scene.add(this.hemi);
 
     /* --- la lueur du cadeau --- */
-    this.lueur = new THREE.PointLight(0xFFC98A, 0, 26, 1.8);
+        /* Portee resserree et decroissance plus franche : une lueur de cadeau
+       qui porte a vingt-six metres eclaire la clairiere entiere et cesse
+       d'etre une source pour devenir une ambiance. */
+    this.lueur = new THREE.PointLight(0xFFC98A, 0, 11, 2.2);
     this.lueur.castShadow = false;
     scene.add(this.lueur);
 

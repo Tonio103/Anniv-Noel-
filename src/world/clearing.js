@@ -149,38 +149,139 @@ function bougies(texHalo, rand, nombre) {
 
 /* Le sapin de la derniere clairiere : la meme silhouette que la foret, mais
    constellee de points chauds. */
+/* LE SAPIN DE LA DERNIERE CLAIRIERE.
+
+   C'est la derniere image de toute la balade, et il n'y avait dessus que des
+   points lumineux vissés en helice sur une silhouette de foret ordinaire. Un
+   sapin de Noel, ce n'est pas un conifere avec des lampes : c'est un arbre
+   qu'on a DECORE, et ce qui le dit tient en quatre choses.
+
+   · LA GUIRLANDE SUIT UNE VRAIE SPIRALE, en cordon continu, et non des
+     points isoles. Un cordon se lit comme quelque chose qu'une main a
+     enroulé ; des points epars se lisent comme un effet.
+   · DES BOULES, plus grosses que les lumieres et non emissives : elles
+     RENVOIENT la lumiere au lieu d'en produire. C'est ce contraste entre ce
+     qui brille et ce qui reflete qui donne le relief d'un vrai sapin decore.
+   · UNE ETOILE AU SOMMET. Aucun sapin de Noel n'en est depourvu, et c'est le
+     seul element qui se detache sur le ciel.
+   · DES PAQUETS AU PIED. Ils disent que l'arbre est le but du chemin.
+
+   L'arbre lui-meme est aussi plus large et plus fourni que ceux de la foret :
+   un sapin de fete est choisi trapu, pas elance.
+*/
 function sapinDeFete(modele, matFeuillage, matNeige, texHalo, rand, palier) {
   const g = new THREE.Group();
-  const H = 7.5;
+  const H = 7.2;
 
   const f = new THREE.Mesh(modele.feuillage, matFeuillage);
-  f.scale.set(H * 0.95, H, H * 0.95);
+  f.scale.set(H * 1.18, H, H * 1.18);      // trapu, comme un vrai sapin de Noel
   f.castShadow = palier.ombres;
   g.add(f);
   const n = new THREE.Mesh(modele.neige, matNeige);
   n.scale.copy(f.scale);
   g.add(n);
 
-  /* Les lumieres suivent une helice, du bas vers la cime : c'est ainsi
-     qu'on les accroche vraiment, et ca evite l'anneau regulier. */
   const matHalo = new THREE.SpriteMaterial({
-    map: texHalo, transparent: true, opacity: 0.8,
+    map: texHalo, transparent: true, opacity: 0.85,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
   });
-  const teintes = [[4.5, 2.2, 0.8], [4.0, 1.0, 0.9], [1.6, 3.6, 1.6], [4.4, 3.6, 1.2]];
-  const nb = palier.nom === 'bas' ? 26 : 52;
+  const teintes = [[4.6, 2.2, 0.8], [4.2, 1.0, 0.9], [1.5, 3.8, 1.6], [4.4, 3.6, 1.2], [1.4, 2.2, 4.4]];
+
+  /* --- la guirlande, en cordon continu ----------------------------------- */
+  const nb = palier.nom === 'bas' ? 46 : 92;
+  const tours = 5.5;
   for (let i = 0; i < nb; i++) {
-    const t = i / nb;
-    const y = 0.14 + t * 0.80;
-    const r = (1 - t) * 0.29 * H + 0.05;
-    const a = t * Math.PI * 9 + rand() * 0.5;
+    const t = i / (nb - 1);
+    const y = 0.10 + t * 0.82;
+    // Le rayon suit le profil du feuillage : la guirlande EPOUSE l'arbre au
+    // lieu de flotter autour, ce qui est toute la difference.
+    const r = (1 - t) * 0.33 * H * 1.18 + 0.06;
+    const a = t * Math.PI * 2 * tours;
     const m = matHalo.clone();
-    const c = teintes[(rand() * teintes.length) | 0];
+    const c = teintes[(i + ((rand() * 1.4) | 0)) % teintes.length];
     m.color.setRGB(c[0], c[1], c[2]);
     const s = new THREE.Sprite(m);
-    s.scale.setScalar(0.5 + rand() * 0.25);
+    // Alternance de grosses et de petites : une guirlande n'est pas reguliere.
+    const gros = i % 4 === 0;
+    s.scale.setScalar((gros ? 0.52 : 0.30) + rand() * 0.10);
     s.position.set(Math.cos(a) * r, y * H, Math.sin(a) * r);
     g.add(s);
+  }
+
+  /* --- les boules : elles refletent, elles n'emettent pas ---------------- */
+  const geoBoule = new THREE.SphereGeometry(1, 10, 8);
+  const couleursBoule = [0xB4232B, 0xC9A227, 0xB8C6D4, 0x2E6E4A, 0x8E3B6B];
+  const nbB = palier.nom === 'bas' ? 12 : 26;
+  for (let i = 0; i < nbB; i++) {
+    const t = 0.10 + rand() * 0.78;
+    const r = (1 - t) * 0.33 * H * 1.18 + 0.05;
+    const a = rand() * Math.PI * 2;
+    const mat = new THREE.MeshStandardMaterial({
+      color: couleursBoule[(rand() * couleursBoule.length) | 0],
+      roughness: 0.16, metalness: 0.65,
+      emissive: 0x140A04, emissiveIntensity: 1,
+    });
+    const b = new THREE.Mesh(geoBoule, mat);
+    const taille = 0.11 + rand() * 0.07;
+    b.scale.setScalar(taille);
+    // Legerement pendantes : une boule accrochee tombe sous sa branche.
+    b.position.set(Math.cos(a) * r, t * H - taille * 0.9, Math.sin(a) * r);
+    g.add(b);
+  }
+
+  /* --- l'etoile ----------------------------------------------------------- */
+  const etoile = new THREE.Group();
+  const matEtoile = new THREE.MeshBasicMaterial({ fog: true });
+  matEtoile.color.setRGB(3.8, 3.1, 1.3);
+  // Deux tetraedres croises : de loin, une etoile a branches franches.
+  for (const rot of [0, Math.PI / 4]) {
+    const e = new THREE.Mesh(new THREE.OctahedronGeometry(0.34, 0), matEtoile);
+    e.rotation.y = rot;
+    e.scale.set(1, 1.45, 0.35);
+    etoile.add(e);
+  }
+  const halo2 = new THREE.SpriteMaterial({
+    map: texHalo, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
+  });
+  /* Le halo de l'etoile doit RESTER UNE ETOILE. A 3,2 il formait une boule
+     lumineuse plus large que la cime et le sapin disparaissait derriere son
+     propre sommet — on lisait un soleil pose sur un arbre. Il descend a 1,3,
+     ce qui laisse voir les branches de l'etoile au lieu de les noyer. */
+  halo2.color.setRGB(2.2, 1.8, 0.85);
+  const hs = new THREE.Sprite(halo2);
+  hs.scale.setScalar(1.3);
+  etoile.add(hs);
+  etoile.position.y = H * 1.02;
+  g.add(etoile);
+  g.userData.etoile = etoile;
+
+  /* --- les paquets au pied ------------------------------------------------ */
+  const couleursPaquet = [0x8E2E36, 0x2F5E43, 0x9A7B2E, 0x394C6B];
+  const nbP = palier.nom === 'bas' ? 4 : 8;
+  for (let i = 0; i < nbP; i++) {
+    const a = rand() * Math.PI * 2;
+    const r = 1.5 + rand() * 1.5;
+    const c = 0.26 + rand() * 0.22;
+    const boite = new THREE.Mesh(
+      new THREE.BoxGeometry(c, c * (0.6 + rand() * 0.5), c * (0.8 + rand() * 0.4)),
+      new THREE.MeshStandardMaterial({
+        color: couleursPaquet[(rand() * couleursPaquet.length) | 0], roughness: 0.62,
+      })
+    );
+    boite.position.set(Math.cos(a) * r, c * 0.32, Math.sin(a) * r);
+    boite.rotation.y = rand() * 3;
+    boite.castShadow = palier.ombres;
+    g.add(boite);
+
+    // Un ruban clair en croix : sans lui c'est un carton, pas un cadeau.
+    const ruban = new THREE.Mesh(
+      new THREE.BoxGeometry(c * 1.02, c * (0.6 + rand() * 0.5) * 1.02, c * 0.12),
+      new THREE.MeshStandardMaterial({ color: 0xE8DCC4, roughness: 0.5 })
+    );
+    ruban.position.copy(boite.position);
+    ruban.rotation.copy(boite.rotation);
+    g.add(ruban);
   }
 
   return g;
@@ -239,6 +340,7 @@ export class Clairieres {
         const arbre = sapinDeFete(modeleSapin, matFeuillage, matNeige, texHalo, rand, palier);
         arbre.position.set(x, relief.hauteur(x, z) - 0.2, z);
         this.groupe.add(arbre);
+        this.sapin = arbre;
       }
     }
 
@@ -250,6 +352,12 @@ export class Clairieres {
      phase propre a chaque bougie : sans ca, les seize battent ensemble et
      l'effet tombe a plat. */
   maj(temps) {
+    /* L'etoile tourne tres lentement sur elle-meme. C'est le dernier objet du
+       dernier plan : un mouvement infime suffit a le garder vivant pendant
+       les dizaines de secondes ou l'image ne change plus. */
+    if (this.sapin?.userData.etoile) {
+      this.sapin.userData.etoile.rotation.y = temps * 0.14;
+    }
     const f = this.bougies?.userData.flammes;
     if (!f) return;
     for (let i = 0; i < f.length; i++) {

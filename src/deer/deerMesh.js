@@ -90,6 +90,51 @@ const ROBE = {
   museau: C(0xB29A74), cuisse: C(0x7C6142),
 };
 
+/* --------------------------------------------------------------------------
+   LE GRAIN DU POIL.
+
+   La robe etait faite de grandes plages qui se fondent l'une dans l'autre.
+   C'est juste, mais c'est LISSE — et une fourrure n'est jamais lisse. Ce qui
+   manque n'est pas une couleur de plus, c'est de la MATIERE : des variations
+   a plusieurs echelles, qui font qu'aucun centimetre carre n'a exactement la
+   teinte de son voisin.
+
+   Trois echelles, et il faut les trois :
+
+   · les MECHES — le poil d'hiver d'un cerf s'agglomere en touffes de quelques
+     centimetres, tres visibles sur l'encolure et le flanc. C'est l'echelle qui
+     se lit de pres ;
+   · les PLAQUES — de larges zones un peu plus claires ou plus foncees, qui
+     brisent l'uniformite du flanc a distance. C'est l'echelle qui se lit de
+     loin, et c'est la plus importante puisque c'est celle qu'on voit ;
+   · le GRAIN FIN, presque du bruit, qui empeche les deux precedentes de
+     paraitre peintes.
+
+   Tout se fait par sommet, a la generation : cela ne coute donc rien au rendu,
+   et le maillage compte assez de sommets pour porter les meches.
+   -------------------------------------------------------------------------- */
+function bruit3(x, y, z) {
+  const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/* Bruit continu par interpolation trilineaire : le bruit brut par sommet
+   donnerait un mouchetis, pas des meches. */
+function ondule(x, y, z, e) {
+  const X = Math.floor(x * e), Y = Math.floor(y * e), Z = Math.floor(z * e);
+  const fx = x * e - X, fy = y * e - Y, fz = z * e - Z;
+  const l = (a, b, t) => a + (b - a) * t * t * (3 - 2 * t);
+  const c000 = bruit3(X, Y, Z), c100 = bruit3(X + 1, Y, Z);
+  const c010 = bruit3(X, Y + 1, Z), c110 = bruit3(X + 1, Y + 1, Z);
+  const c001 = bruit3(X, Y, Z + 1), c101 = bruit3(X + 1, Y, Z + 1);
+  const c011 = bruit3(X, Y + 1, Z + 1), c111 = bruit3(X + 1, Y + 1, Z + 1);
+  return l(
+    l(l(c000, c100, fx), l(c010, c110, fx), fy),
+    l(l(c001, c101, fx), l(c011, c111, fx), fy),
+    fz
+  );
+}
+
 function robeAu(x, y, z, c) {
   c.copy(ROBE.flanc);
 
@@ -157,6 +202,38 @@ function robeAu(x, y, z, c) {
     const k = THREE.MathUtils.clamp((-1.02 - z) / 0.16, 0, 1);
     c.lerp(ROBE.museau, k * 0.7);
   }
+
+  /* --- LA MATIERE, par-dessus les plages -------------------------------- */
+
+  /* Les plaques, grande echelle. Elles ne s'appliquent pas au visage ni aux
+     membres : la ou le poil est ras, il est aussi uni, et l'y moucheter
+     donnerait des taches de peinture. */
+  const surTronc = z > -0.72 && y > 0.72;
+  if (surTronc) {
+    const plaque = ondule(x, y, z, 2.6) - 0.5;
+    c.offsetHSL(plaque * 0.012, plaque * 0.05, plaque * 0.075);
+  }
+
+  /* Les meches. Elles sont ETIREES SELON LE POIL — allongees le long du
+     corps et serrees en hauteur — parce que c'est ainsi que le poil se
+     couche. Un bruit isotrope donnerait une eponge, pas une fourrure. */
+  const meche = ondule(x * 2.2, y * 5.5, z * 1.5, 7.0) - 0.5;
+  const forceMeche = surTronc ? 0.085 : 0.05;
+  c.offsetHSL(0, meche * 0.03, meche * forceMeche);
+
+  /* La bourre d'hiver de l'encolure : plus longue, donc plus contrastee. */
+  if (z < -0.50 && z > -1.00) {
+    const criniere = ondule(x * 1.6, y * 4.0, z * 1.6, 9.0) - 0.5;
+    const k = THREE.MathUtils.clamp((-0.50 - z) / 0.30, 0, 1);
+    c.offsetHSL(0, 0, criniere * 0.10 * k);
+  }
+
+  /* Le grain fin, qui casse les deux precedents. Tres faible : au-dela, on
+     retombe sur le mouchetis blanc qu'on avait deja combattu dans le shader. */
+  c.offsetHSL(0, 0, (bruit3(x * 61, y * 61, z * 61) - 0.5) * 0.028);
+
+  // Le noir reste du noir : sans plancher, les membres se piquettent.
+  c.r = Math.max(0, c.r); c.g = Math.max(0, c.g); c.b = Math.max(0, c.b);
   return c;
 }
 

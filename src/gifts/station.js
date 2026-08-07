@@ -185,8 +185,20 @@ export class Halte {
   }
 
   /* Intensite de la lumiere chaude que le paquet projette sur la neige. */
+  /* LA LUEUR DU PAQUET DOIT ETRE UNE FLAQUE, PAS UN FILTRE.
+
+     Reglee a 3,4 sur une portee de vingt-six metres, elle teintait toute la
+     neige visible de la couleur du cadeau : l'image entiere virait au rose ou
+     au vert selon la halte, et on ne lisait plus une lumiere posee sur le sol
+     mais un calque de couleur par-dessus la photo. Un objet qui eclaire doit
+     se trahir par un HALO LOCAL et un degrade rapide — c'est le degrade qui
+     dit d'ou vient la lumiere.
+
+     On divise donc l'intensite par deux et on resserre la portee (voir
+     lighting.js) : la neige s'allume franchement au pied du paquet et
+     redevient bleue a quelques metres. */
   eclat() {
     if (!this.cadeau) return 0;
-    return (0.18 + this.ouvert * 1.5) * this.cadeau.taille * 3.4;
+    return (0.14 + this.ouvert * 1.1) * this.cadeau.taille * 1.7;
   }
 }

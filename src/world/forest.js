@@ -326,7 +326,7 @@ export class Foret {
     const { chemin, relief, palier } = this;
     const em = relief.emprise;
     const arbres = [];
-    const vise = palier.arbres;
+    const vise = Math.round(palier.arbres * 1.35);
 
     let essais = 0;
     const maxEssais = vise * 26;
@@ -355,8 +355,20 @@ export class Foret {
          grand reste au large, un jeune de huit metres vient a sept metres du
          bord du chemin. La lisiere se remplit de sous-bois et le couloir
          cesse d'etre une autoroute. */
-      const hauteurVoulue = (11.5 + rand() * 13.5) * (0.86 + (pr.s / chemin.longueur) * 0.28);
-      const bord = 5.0 + hauteurVoulue * 0.42 + rand() * 2.5;
+      /* LA MARGE SUIT LA TAILLE DE L'ARBRE — et un tirage sur trois vise
+         volontairement un SUJET JEUNE, qui peut donc venir tres pres.
+
+         Reduire la marge des grands ne suffisait pas : ils restent au large
+         par construction, et le bord du chemin restait clairsemé. Ce qui
+         remplit vraiment une lisiere, ce sont les petits — les semis de deux
+         a six metres, qui poussent justement la ou la lumiere passe, c'est-a-
+         dire en bordure. On en seme donc une bonne proportion, et eux
+         viennent a trois ou quatre metres du passage. */
+      const jeune = rand() < 0.42;
+      const hauteurVoulue = jeune
+        ? 2.4 + rand() * 4.6
+        : (11.5 + rand() * 13.5) * (0.86 + (pr.s / chemin.longueur) * 0.28);
+      const bord = 2.6 + hauteurVoulue * 0.40 + rand() * 2.0;
       if (pr.d < bord) continue;
 
       // Clairieres : on n'y plante rien, et on adoucit la lisiere.

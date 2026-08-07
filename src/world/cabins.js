@@ -40,75 +40,174 @@ function halo() {
 function construireCabane(rand, palier, texHalo) {
   const g = new THREE.Group();
 
-  const L = 3.6 + rand() * 1.4;          // largeur
-  const P = 3.0 + rand() * 1.0;          // profondeur
-  const H = 2.3 + rand() * 0.5;          // hauteur des murs
+  const L = 3.8 + rand() * 1.3;          // largeur de facade
+  const P = 3.2 + rand() * 0.9;          // profondeur
+  const H = 2.2 + rand() * 0.4;          // hauteur des murs
 
-  const bois = new THREE.MeshStandardMaterial({ color: 0x2E2018, roughness: 0.95 });
-  const boisClair = new THREE.MeshStandardMaterial({ color: 0x3C2A1E, roughness: 0.92 });
+  /* Le bois d'un chalet n'est pas noir : c'est un brun chaud, use, qui
+     accroche la moindre lumiere. Un bois trop sombre transforme le chalet
+     en cube d'ombre et annule tout l'interet — la cabane doit se lire comme
+     un abri, donc comme quelque chose de chaud. */
+  const bois = new THREE.MeshStandardMaterial({ color: 0x5A3D28, roughness: 0.93 });
+  const boisSombre = new THREE.MeshStandardMaterial({ color: 0x3A2718, roughness: 0.95 });
   const neige = new THREE.MeshStandardMaterial({ color: 0xE8F0F8, roughness: 0.80 });
 
-  const murs = new THREE.Mesh(new THREE.BoxGeometry(L, H, P), bois);
-  murs.position.y = H / 2;
-  murs.castShadow = palier.ombres;
-  murs.receiveShadow = palier.ombres;
-  g.add(murs);
+  /* --- LES MURS EN RONDINS ------------------------------------------------
+     C'est ce qui fait un chalet plutot qu'une remise. Une facade lisse peut
+     etre n'importe quel batiment ; des rondins empiles horizontalement, avec
+     leurs BOUTS QUI SE CROISENT AUX ANGLES, ne peuvent etre qu'un chalet de
+     montagne. Ce croisement aux angles est le detail le plus reconnaissable
+     de tous, et il se voit encore a trente metres parce qu'il decoupe la
+     silhouette au lieu de la texturer. */
+  const rRondin = 0.13;
+  const nRangs = Math.max(5, Math.round(H / (rRondin * 1.85)));
+  for (let i = 0; i < nRangs; i++) {
+    const y = rRondin + i * (H - rRondin * 2) / (nRangs - 1);
+    // Rangs avant/arriere, puis gauche/droite : ils alternent, comme empiles.
+    const paire = i % 2 === 0;
+    const dep = paire ? rRondin * 1.7 : 0;
 
-  /* Toit a deux pentes : un prisme couche. Le meme volume, legerement
-     agrandi et remonte, porte la neige. */
-  const pente = new THREE.CylinderGeometry(P * 0.72, P * 0.72, L * 1.12, 3, 1);
-  const toit = new THREE.Mesh(pente, boisClair);
-  toit.rotation.z = Math.PI / 2;
-  toit.rotation.y = Math.PI / 2;
-  toit.position.y = H + P * 0.30;
-  toit.castShadow = palier.ombres;
-  g.add(toit);
+    for (const sgn of [1, -1]) {
+      const av = new THREE.Mesh(
+        new THREE.CylinderGeometry(rRondin, rRondin, L + (paire ? rRondin * 3.4 : 0), 6),
+        i % 3 === 0 ? boisSombre : bois
+      );
+      av.rotation.z = Math.PI / 2;
+      av.position.set(0, y, sgn * P / 2);
+      av.castShadow = palier.ombres;
+      g.add(av);
 
-  const capot = new THREE.Mesh(
-    new THREE.CylinderGeometry(P * 0.745, P * 0.745, L * 1.16, 3, 1), neige
+      const cot = new THREE.Mesh(
+        new THREE.CylinderGeometry(rRondin, rRondin, P + (paire ? 0 : rRondin * 3.4), 6),
+        i % 3 === 1 ? boisSombre : bois
+      );
+      cot.rotation.x = Math.PI / 2;
+      cot.position.set(sgn * L / 2, y + rRondin * 0.9, 0);
+      cot.castShadow = palier.ombres;
+      g.add(cot);
+    }
+    void dep;
+  }
+
+  // Le pignon plein au-dessus des rondins, sous les rampants du toit.
+  for (const sgn of [1, -1]) {
+    const pignon = new THREE.Mesh(new THREE.BufferGeometry(), bois);
+    const hp = P * 0.42;
+    const v = new Float32Array([
+      -L / 2, 0, 0, L / 2, 0, 0, 0, hp, 0,
+    ]);
+    pignon.geometry.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    pignon.geometry.computeVertexNormals();
+    pignon.geometry.computeBoundingSphere();
+    pignon.material = new THREE.MeshStandardMaterial({
+      color: 0x4A3122, roughness: 0.94, side: THREE.DoubleSide,
+    });
+    pignon.rotation.y = sgn > 0 ? 0 : Math.PI;
+    pignon.position.set(0, H, sgn * P / 2);
+    g.add(pignon);
+  }
+
+  /* --- LE TOIT ------------------------------------------------------------
+     Un toit de chalet DEBORDE largement — c'est ce qui protege les rondins de
+     la pluie, et c'est aussi ce qui lui donne sa silhouette basse et
+     accueillante. Un toit affleurant donnerait un cabanon de jardin.
+     L'avancee vaut ici presque un metre de chaque cote. */
+  const debord = 0.75;
+  const hp = P * 0.42;
+  const pan = Math.hypot(P / 2 + debord, hp);
+  for (const sgn of [1, -1]) {
+    const t = new THREE.Mesh(new THREE.BoxGeometry(L + debord * 1.6, 0.10, pan * 2 * 0.5), boisSombre);
+    t.position.set(0, H + hp / 2, sgn * (P / 2 + debord) / 2);
+    t.rotation.x = sgn * Math.atan2(hp, P / 2 + debord) * -1;
+    t.castShadow = palier.ombres;
+    g.add(t);
+
+    // La neige posee dessus, un peu plus large et decalee vers le haut.
+    const n = new THREE.Mesh(
+      new THREE.BoxGeometry(L + debord * 1.7, 0.13, pan * 2 * 0.5 * 0.96), neige
+    );
+    n.position.copy(t.position);
+    n.position.y += 0.10;
+    n.rotation.copy(t.rotation);
+    n.castShadow = palier.ombres;
+    g.add(n);
+  }
+
+  // Faitiere : elle cache la jointure des deux pans.
+  const faite = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.11, L + debord * 1.7, 6), boisSombre
   );
-  capot.rotation.z = Math.PI / 2;
-  capot.rotation.y = Math.PI / 2;
-  capot.position.y = H + P * 0.31;
-  capot.castShadow = palier.ombres;
-  g.add(capot);
+  faite.rotation.z = Math.PI / 2;
+  faite.position.set(0, H + hp + 0.06, 0);
+  g.add(faite);
+
+  /* --- LE BALCON ----------------------------------------------------------
+     Une galerie sur la facade, avec sa balustrade a barreaux. C'est le second
+     signe qui dit "chalet" au premier coup d'oeil, et il coute trois boites. */
+  const dalle = new THREE.Mesh(new THREE.BoxGeometry(L * 0.92, 0.09, 0.85), bois);
+  dalle.position.set(0, H * 0.62, P / 2 + 0.42);
+  g.add(dalle);
+
+  const rampe = new THREE.Mesh(new THREE.BoxGeometry(L * 0.92, 0.08, 0.09), bois);
+  rampe.position.set(0, H * 0.62 + 0.52, P / 2 + 0.82);
+  g.add(rampe);
+  const nb = 7;
+  for (let i = 0; i < nb; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.52, 0.05), bois);
+    b.position.set((i / (nb - 1) - 0.5) * L * 0.86, H * 0.62 + 0.26, P / 2 + 0.82);
+    g.add(b);
+  }
+  // Deux poteaux qui portent la galerie : sans eux elle flotte.
+  for (const sgn of [1, -1]) {
+    const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.10, H * 0.62, 0.10), bois);
+    p2.position.set(sgn * L * 0.42, H * 0.31, P / 2 + 0.80);
+    g.add(p2);
+  }
 
   /* Fenetres : deux carreaux emissifs sur la facade, plus un halo qui deborde
-     sur la nuit. C'est le halo qui porte l'effet a distance, pas le carreau. */
-  /* Bien au-dela du blanc : c'est ce qui fait passer la fenetre au-dessus du
-     seuil du halo. La cible flottante du post-traitement l'accepte sans
-     ecretage, et la courbe ACES la ramene ensuite dans les clous. */
+     sur la nuit. C'est le halo qui porte l'effet a distance, pas le carreau.
+     Bien au-dela du blanc : c'est ce qui fait passer la fenetre au-dessus du
+     seuil du halo du post-traitement. */
   const chaud = new THREE.MeshBasicMaterial({ fog: true });
   chaud.color.setRGB(4.2, 2.4, 0.9);
   const matHalo = new THREE.SpriteMaterial({
     map: texHalo, transparent: true, opacity: 0.55,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
   });
-
   matHalo.color.setRGB(2.6, 1.5, 0.6);
 
-  for (const cx of [-L * 0.24, L * 0.24]) {
-    const f = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.72), chaud);
-    f.position.set(cx, H * 0.56, P / 2 + 0.012);
+  for (const cx of [-L * 0.26, L * 0.26]) {
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 0.76), chaud);
+    f.position.set(cx, H * 0.60, P / 2 + 0.02);
     g.add(f);
+
+    // Croisillon : une fenetre de chalet a des petits bois.
+    for (const [w, h2] of [[0.70, 0.05], [0.05, 0.80]]) {
+      const cr = new THREE.Mesh(new THREE.PlaneGeometry(w, h2), boisSombre);
+      cr.position.set(cx, H * 0.60, P / 2 + 0.03);
+      g.add(cr);
+    }
 
     const h = new THREE.Sprite(matHalo);
     h.scale.setScalar(2.6);
-    h.position.set(cx, H * 0.56, P / 2 + 0.30);
+    h.position.set(cx, H * 0.60, P / 2 + 0.30);
     g.add(h);
   }
 
   /* Porte, purement pour la silhouette. */
   const porte = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.72, 1.5),
-    new THREE.MeshStandardMaterial({ color: 0x1C1310, roughness: 0.95 })
+    new THREE.PlaneGeometry(0.76, 1.6),
+    new THREE.MeshStandardMaterial({ color: 0x2A1C13, roughness: 0.95 })
   );
-  porte.position.set(0, 0.75, P / 2 + 0.014);
+  porte.position.set(0, 0.80, P / 2 + 0.02);
   g.add(porte);
 
-  /* Cheminee et son filet de fumee. */
-  const chem = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.9, 0.34), bois);
-  chem.position.set(L * 0.28, H + P * 0.62, -P * 0.18);
+  /* Cheminee en pierre et son filet de fumee. */
+  const chem = new THREE.Mesh(
+    new THREE.BoxGeometry(0.40, 1.1, 0.40),
+    new THREE.MeshStandardMaterial({ color: 0x4A4640, roughness: 0.96, flatShading: true })
+  );
+  chem.position.set(L * 0.28, H + hp * 0.75, -P * 0.16);
   chem.castShadow = palier.ombres;
   g.add(chem);
 
@@ -125,7 +224,7 @@ function construireCabane(rand, palier, texHalo) {
   fumee.userData = {
     vie: Float32Array.from({ length: N }, () => rand()),
     N,
-    base: new THREE.Vector3(L * 0.28, H + P * 0.62 + 0.5, -P * 0.18),
+    base: new THREE.Vector3(L * 0.28, H + hp * 0.75 + 0.6, -P * 0.16),
   };
   g.add(fumee);
 
