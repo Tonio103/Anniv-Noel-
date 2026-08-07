@@ -84,10 +84,25 @@ function distSegment(px, py, pz, a, b) {
    l'eclairement de la scene est calibre pour la neige (albedo ~0,8), et un
    pelage trop clair se fait pousser dans les blancs par la courbe ACES.
    -------------------------------------------------------------------------- */
+/* L'ECART ENTRE CES TEINTES S'EST FAIT MANGER EN CHEMIN.
+
+   Elles avaient ete choisies pour une scene beaucoup plus contrastee. Depuis,
+   deux choses les ont rapprochees les unes des autres sans que je le voie :
+   le rebond de la neige a ete fortement remonte — a juste titre, sinon tout
+   ce qui ne voyait pas la lune tombait au noir — et la courbe ACES compresse
+   d'autant plus qu'on approche du blanc. Un pelage clair eclaire par en
+   dessous ET par le ciel finit dans la portion la plus plate de la courbe :
+   les zones existent encore dans les donnees, elles ne se voient plus a
+   l'image. En gros plan, le cerf est un modele lisse d'un seul ton.
+
+   On ecarte donc les valeurs : dos, membres et encolure nettement assombris,
+   flanc a peine. Ce n'est pas un choix esthetique mais une compensation — il
+   faut que l'ECART SURVIVE a la compression, et pour cela il doit partir plus
+   grand qu'il ne devrait l'etre. */
 const ROBE = {
-  flanc: C(0x9A7A52), dorsal: C(0x56402A), ventre: C(0xC9B189),
-  croupe: C(0xDCCBA8), membre: C(0x5E4830), encolure: C(0x685039),
-  museau: C(0xB29A74), cuisse: C(0x7C6142),
+  flanc: C(0x8E6E48), dorsal: C(0x3A2917), ventre: C(0xC9B189),
+  croupe: C(0xDCCBA8), membre: C(0x40301F), encolure: C(0x4C3826),
+  museau: C(0xB29A74), cuisse: C(0x6A5238),
 };
 
 /* --------------------------------------------------------------------------
@@ -140,7 +155,7 @@ function robeAu(x, y, z, c) {
 
   // Ligne dorsale : d'autant plus sombre qu'on est haut sur le dos.
   const hautDos = THREE.MathUtils.clamp((y - AXE) / 0.26, 0, 1);
-  c.lerp(ROBE.dorsal, Math.pow(hautDos, 1.4) * 0.85);
+  c.lerp(ROBE.dorsal, Math.pow(hautDos, 1.25) * 0.95);
 
   // Ventre creme, sous l'axe du corps et seulement sur le tronc. La borne
   // arriere s'arrete avant le bassin : au-dela, le creme bavait sur la
