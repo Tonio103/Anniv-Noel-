@@ -544,32 +544,91 @@ export function creerCerf(palier) {
      le mouvement d'oreille qui, plus que tout autre detail, distingue un
      animal vivant d'une figurine. Un cervide balaie en permanence — il
      entend derriere lui pendant qu'il regarde devant. */
+  /* Une oreille de cerf est un CORNET, pas une pastille. C'est sa cavite qui
+     la designe : de trois quarts, on voit l'interieur clair et rose-gris,
+     franchement plus pale que le poil du dos, et c'est ce contraste qui
+     donne son epaisseur a la tete. Une demi-sphere pleine, elle, ne peut
+     produire qu'une bosse.
+
+     Deux coques : la coque exterieure, sombre comme la nuque, et un pavillon
+     interieur legerement plus petit, plus clair, tourne vers l'avant. Il
+     depasse a peine — juste assez pour qu'un lisere clair apparaisse quand
+     l'oreille pivote. */
+  const matPavillon = new THREE.MeshStandardMaterial({
+    color: 0x6E5641, roughness: 0.93, metalness: 0, side: THREE.DoubleSide,
+  });
   const oreilles = [];
   for (const cote of [-1, 1]) {
-    const o = new THREE.Mesh(teinter(new THREE.SphereGeometry(0.092, 10, 8), 0x33251A), mat);
-    o.scale.set(0.28, 0.98, 0.58);
+    const o = new THREE.Group();
     o.position.copy(rel(cote * 0.138, 1.462, -0.895));
     o.rotation.z = cote * 0.88;
     o.rotation.x = -0.34;
     o.userData = { cote, reposZ: cote * 0.88, reposX: -0.34 };
+
+    const coque = new THREE.Mesh(teinter(new THREE.SphereGeometry(0.092, 12, 9), 0x33251A), mat);
+    coque.scale.set(0.30, 1.02, 0.60);
+    o.add(coque);
+
+    /* Le pavillon : une demi-sphere ouverte vers l'avant, donc une vraie
+       cavite et non un aplat. Elle est legerement enfoncee dans la coque
+       pour qu'aucun bord ne flotte. */
+    const dedans = new THREE.Mesh(
+      new THREE.SphereGeometry(0.086, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.62),
+      matPavillon
+    );
+    dedans.scale.set(0.22, 0.98, 0.50);
+    dedans.position.set(cote * -0.012, 0, -0.006);
+    dedans.rotation.x = Math.PI;   // ouverte vers le bas du repere, donc vers l'avant
+    o.add(dedans);
+
     tete.add(o);
     oreilles.push(o);
   }
 
+  /* LES YEUX — ils existaient, et on ne les voyait pas.
+
+     Une sphere presque noire posee sur une tete brun fonce, de nuit, ne peut
+     rien produire d'autre qu'un trou invisible. Ce n'est pas un oubli de
+     geometrie mais un probleme de CONTRASTE : un oeil ne se lit jamais par sa
+     couleur, il se lit par son REFLET. Sur toutes les photos d'animaux, ce
+     qu'on voit d'un oeil c'est le petit point blanc dedans.
+
+     Trois pieces, donc :
+
+     · le globe, tres sombre et tres lisse — la matiere est juste, elle ne
+       suffisait simplement pas ;
+     · un REFLET, minuscule et franchement lumineux, decale vers le haut et
+       vers l'avant comme le serait la lune. C'est lui, et lui seul, qui fait
+       exister le regard. Il est en materiau non eclaire : il brille donc
+       meme quand toute la tete est dans l'ombre, ce qui est precisement le
+       cas pendant les trois quarts de la balade ;
+     · une LUEUR DE TAPETUM, tres faible, qui donne cette braise que les yeux
+       des cervides renvoient la nuit. Elle reste sous le seuil du halo : on
+       veut une etincelle, pas deux phares. */
   const matOeil = new THREE.MeshStandardMaterial({
-    color: 0x0C0805, roughness: 0.10, metalness: 0.25,
-    emissive: 0x3A2A16, emissiveIntensity: 0.8,
+    color: 0x08060B, roughness: 0.06, metalness: 0.15,
+    emissive: 0x2A1E10, emissiveIntensity: 1.1,
   });
-  /* Les yeux sont gardes eux aussi : le rig les ecrase brievement pour
-     figurer un clignement. On ne modelise pas de paupiere — a la distance ou
-     l'animal est vu, un aplatissement vertical de l'oeil se lit exactement
-     comme un clin, pour trois lignes au lieu d'une geometrie de plus. */
+  const matReflet = new THREE.MeshBasicMaterial({ color: 0xFFF6E2, fog: true });
+
+  /* Le rig ecrase l'oeil verticalement pour figurer un clignement. On ne
+     modelise pas de paupiere : a la distance ou l'animal est vu, cet
+     aplatissement se lit exactement comme un clin. */
   const yeux = [];
   for (const cote of [-1, 1]) {
-    const y = new THREE.Mesh(new THREE.SphereGeometry(0.026, 9, 8), matOeil);
-    y.position.copy(rel(cote * 0.116, 1.412, -1.042));
+    const y = new THREE.Mesh(new THREE.SphereGeometry(0.033, 12, 10), matOeil);
+    y.position.copy(rel(cote * 0.118, 1.414, -1.038));
     tete.add(y);
     yeux.push(y);
+
+    /* Le reflet est enfant de l'oeil : il suit donc le clignement, et
+       disparait avec lui. Un point brillant qui resterait pendant que
+       l'oeil se ferme trahirait tout le procede. */
+    const r = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 7, 6), matReflet);
+    r.position.set(cote * 0.011, 0.012, -0.028);
+    // L'ecrasement du clin ne doit pas deformer le reflet lui-meme.
+    r.userData.compenser = true;
+    y.add(r);
   }
 
   const ramure = new THREE.Mesh(boisGeo(rand), mat);

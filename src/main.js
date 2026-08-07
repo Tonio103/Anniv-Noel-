@@ -26,6 +26,7 @@ import { Details } from './world/details.js';
 import { Cabanes } from './world/cabins.js';
 import { Fouillis } from './world/props.js';
 import { Poudre } from './world/puffs.js';
+import { Ruisseau } from './world/stream.js';
 import { Clairieres } from './world/clearing.js';
 import { PostFX } from './core/postfx.js';
 import { Chemin } from './camera/path.js';
@@ -121,6 +122,10 @@ async function demarrer() {
      Le fichier world/foreground.js reste dans le depot mais n'est plus
      instancie : il documente une piste essayee, mesuree sur l'appareil
      reel, et abandonnee pour cette raison. */
+
+  /* Le ruisseau gele : le seul endroit ou la matiere du sol change. On le
+     construit avant la neige qui tombe, pour qu'il soit dessine dessous. */
+  const ruisseau = new Ruisseau(scene, chemin, relief, palier, clairieres);
 
   const neige = new Neige(scene, palier);
   const brume = new Brume(scene, palier);
@@ -609,8 +614,14 @@ async function demarrer() {
 
     /* Le son ET les traces se calent sur les posers reels, jamais sur une
        minuterie : le sabot marque la neige exactement ou il se pose. */
+    /* Sur la glace, un sabot ne crisse pas : il CLAQUE. Sans cette bascule
+       le ruisseau n'existerait que pour l'oeil, et on l'entendrait comme de
+       la neige alors qu'on le voit comme de la glace — le genre de
+       contradiction qui defait un decor sans qu'on sache pourquoi. */
+    const surGlace = ruisseau.surGlace(cerf.s);
     for (const p of cerf.posers) {
-      sfx.sabot(voixSabots?.entree, p.force);
+      if (surGlace) sfx.sabotGlace(voixSabots?.entree, p.force);
+      else sfx.sabot(voixSabots?.entree, p.force);
       /* PAS DE MUSIQUE — et les grelots en faisaient.
 
          Un poser sur deux declenchait un grelot. Au trot, cela fait douze
@@ -726,7 +737,7 @@ async function demarrer() {
   window.__scene = {
     renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
     brume, details, cabanes, empreintes, fouillis, habitants, postfx, boucle, palier,
-    son, sfx,
+    son, sfx, ruisseau,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
       demarree = true;

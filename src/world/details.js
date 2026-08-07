@@ -239,17 +239,139 @@ class Poudreuse {
   }
 }
 
+
+/* ==========================================================================
+   LES OISEAUX.
+
+   Toute cette foret ne contenait qu'un seul etre vivant. Rien ne bougeait
+   d'autre que le cerf, le vent et la neige — et c'est justement ce qui donne
+   a un decor l'air d'un decor : la vie ne s'y produit qu'au centre du cadre,
+   la ou on regarde.
+
+   Le remede tient en peu de chose, mais il doit obeir a une regle stricte :
+   ON NE DOIT JAMAIS LES VOIR ARRIVER. Un vol qui commence dans le champ se
+   lit comme une apparition ; un vol qu'on decouvre deja commence, de loin, se
+   lit comme quelque chose qui vivait la avant nous. Ils partent donc toujours
+   hors du cadre, traversent, et sortent.
+
+   Ce sont des silhouettes noires a deux triangles, sans aucun eclairage : de
+   nuit, contre un ciel bleu, un oiseau lointain n'est rien d'autre. Le
+   battement d'ailes est un simple pivot, mais irregulier — un battement
+   metronomique se remarque immediatement, alors qu'un oiseau alterne
+   battements et glissades.
+   ========================================================================== */
+class Oiseaux {
+  constructor(scene, palier) {
+    this.N = palier.nom === 'bas' ? 3 : 5;
+    this.groupe = new THREE.Group();
+    this.groupe.name = 'oiseaux';
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x0B131B, side: THREE.DoubleSide, fog: true,
+      transparent: true, opacity: 0.92,
+    });
+
+    this.vols = [];
+    for (let i = 0; i < this.N; i++) {
+      const o = new THREE.Group();
+      // Deux ailes, chacune un triangle, articulees sur l'axe du corps.
+      for (const cote of [-1, 1]) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute([
+          0, 0, 0.10,
+          0, 0, -0.10,
+          cote * 0.46, 0, -0.02,
+        ], 3));
+        g.computeVertexNormals();
+        const aile = new THREE.Mesh(g, mat);
+        o.add(aile);
+      }
+      o.visible = false;
+      this.groupe.add(o);
+      this.vols.push({
+        obj: o, actif: false, t: 0, duree: 1,
+        depart: new THREE.Vector3(), arrivee: new THREE.Vector3(),
+        phase: Math.random() * 6.28, cadence: 5 + Math.random() * 4,
+      });
+    }
+    scene.add(this.groupe);
+
+    // Le premier passage ne doit pas tomber des la premiere seconde.
+    this.prochain = 14 + Math.random() * 26;
+    this._v = new THREE.Vector3();
+  }
+
+  maj(dt, temps, camera, relief) {
+    this.prochain -= dt;
+    if (this.prochain <= 0) {
+      this.prochain = 22 + Math.random() * 44;
+      const libre = this.vols.find((v) => !v.actif);
+      if (libre) this._lancer(libre, camera, relief);
+    }
+
+    for (const v of this.vols) {
+      if (!v.actif) continue;
+      v.t += dt / v.duree;
+      if (v.t >= 1) { v.actif = false; v.obj.visible = false; continue; }
+
+      const u = v.t;
+      this._v.lerpVectors(v.depart, v.arrivee, u);
+      // Une trajectoire d'oiseau monte et redescend un peu ; elle n'est
+      // jamais une droite.
+      this._v.y += Math.sin(u * Math.PI) * 5.5 + Math.sin(u * 9.3 + v.phase) * 0.7;
+      v.obj.position.copy(this._v);
+
+      // Il regarde ou il va.
+      const dx = v.arrivee.x - v.depart.x, dz = v.arrivee.z - v.depart.z;
+      v.obj.rotation.y = Math.atan2(dx, dz);
+
+      /* Battement : des salves, puis une glissade ailes tendues. C'est
+         l'alternance, pas le battement, qui fait l'oiseau. */
+      const salve = Math.sin(temps * 0.9 + v.phase) > -0.25 ? 1 : 0.06;
+      const bat = Math.sin(temps * v.cadence + v.phase) * 0.85 * salve;
+      v.obj.children[0].rotation.z = bat;
+      v.obj.children[1].rotation.z = -bat;
+    }
+  }
+
+  _lancer(v, camera, relief) {
+    /* Depart et arrivee hors du champ, de part et d'autre de la camera. On
+       tire un axe de traversee au hasard et on place les deux bouts loin
+       devant : l'oiseau est deja en vol quand il entre dans l'image. */
+    const a = Math.random() * Math.PI * 2;
+    const R = 95 + Math.random() * 45;
+    const cx = camera.position.x, cz = camera.position.z;
+    const sol = relief ? relief.hauteur(cx, cz) : 0;
+    const h = sol + 16 + Math.random() * 20;
+
+    v.depart.set(cx + Math.cos(a) * R, h, cz + Math.sin(a) * R);
+    // Traversee non diametrale : un vol qui passe pile sur la camera est rare
+    // et se remarque comme un effet.
+    const b = a + Math.PI + (Math.random() - 0.5) * 1.5;
+    v.arrivee.set(cx + Math.cos(b) * R, h - 2 + Math.random() * 4, cz + Math.sin(b) * R);
+
+    v.duree = 9 + Math.random() * 7;
+    v.t = 0;
+    v.actif = true;
+    v.obj.visible = true;
+    const taille = 0.8 + Math.random() * 0.9;
+    v.obj.scale.setScalar(taille);
+  }
+}
+
 /* ========================================================================== */
 export class Details {
   constructor(scene, palier) {
     this.feuilles = new Feuilles(scene, palier);
     this.paquets = new PaquetsDeNeige(scene, palier);
     this.poudreuse = new Poudreuse(scene, palier);
+    this.oiseaux = new Oiseaux(scene, palier);
   }
 
   maj(dt, temps, camera, relief) {
     this.feuilles.maj(dt, temps, camera, relief);
     this.paquets.maj(dt, camera, relief);
     this.poudreuse.maj(dt, temps, camera, relief);
+    this.oiseaux.maj(dt, temps, camera, relief);
   }
 }

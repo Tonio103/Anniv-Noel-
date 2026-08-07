@@ -77,6 +77,43 @@ export class Bruitages {
     s2.connect(f2); f2.connect(g2); g2.connect(sortie);
   }
 
+  /* --- SABOT SUR LA GLACE -------------------------------------------------
+     Tout l'inverse du crissement : la glace ne broie pas, elle RESONNE. Un
+     transitoire tres bref, une resonance haute et courte, et pas la moindre
+     trainee de bruit — c'est la brievete qui fait le dur. */
+  sabotGlace(sortie, force = 1) {
+    if (!this.son.pret || !this.son.couches.neige || !sortie) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (t - this._dernierSabot < 0.045) return;
+    this._dernierSabot = t;
+
+    // Le choc : une bouffee tres courte, filtree haut.
+    const s = this._bruit(0.2);
+    const f = ctx.createBiquadFilter();
+    f.type = 'highpass'; f.frequency.value = 2400;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.26 * force, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.045);
+    s.connect(f); f.connect(g); g.connect(sortie);
+
+    /* La resonance de la plaque. Deux partiels inharmoniques suffisent, et
+       ils doivent mourir vite : une glace qui sonne longtemps devient un
+       carillon, donc de la musique. */
+    for (const [mult, amp] of [[1, 0.09], [2.37, 0.045]]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = (1150 + Math.random() * 700) * mult;
+      const og = ctx.createGain();
+      const d = 0.09 + Math.random() * 0.07;
+      og.gain.setValueAtTime(0, t);
+      og.gain.linearRampToValueAtTime(amp * force, t + 0.003);
+      og.gain.exponentialRampToValueAtTime(0.0004, t + d);
+      o.connect(og); og.connect(sortie);
+      o.start(t); o.stop(t + d + 0.03);
+    }
+  }
+
   /* --- GRELOTS AU COLLIER -------------------------------------------------
      De vrais grelots sont inharmoniques : plusieurs partiels sans rapport
      simple, qui s'eteignent a des vitesses differentes. Des sinusoides

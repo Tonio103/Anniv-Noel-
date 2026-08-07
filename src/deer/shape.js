@@ -98,13 +98,35 @@ export function anatomie() {
 
      La ligne du dos n'est pas droite non plus : garrot haut, rein legerement
      creuse, croupe pleine et arrondie. */
+  /* LA LIGNE DE DOS SE CALCULE, ELLE NE SE TATONNE PAS.
+
+     En reglant l'axe et le rayon de chaque capsule separement, j'avais fait
+     monter le thorax de dix centimetres au-dessus de ses voisins : le garrot
+     ressortait en BOSSE, et l'animal prenait un profil de bison. Le defaut
+     n'est visible dans les chiffres qu'a condition de calculer ce qu'ils
+     produisent, ce que je n'avais pas fait.
+
+     On raisonne donc a l'endroit : on decide la ligne du DOS et celle du
+     VENTRE, puis on en deduit l'axe et le rayon. Avec l'etirement vertical
+     de 1,30 :
+         axe = (dos + ventre) / 2       rayon = (dos - ventre) / 2,6
+
+     Ligne du dos visee, de la queue au poitrail :
+         1,28 · 1,31 · 1,30 · 1,315 · 1,335 · 1,30 · 1,20
+     Le garrot reste le point haut, mais de deux centimetres et demi
+     seulement, et la transition s'etale sur toute la longueur du tronc.
+     C'est ce que montre une photo : une ligne presque droite, pas un dos
+     d'ours.
+
+     Ligne du ventre : elle plonge sous le coude au poitrail (0,70) et
+     remonte au flanc (0,80) — c'est le "creux du flanc" d'un cervide. */
   const tronc = { sy: 1.30, groupe: 'tronc' };
-  C(0, 0.97, 0.74, 0, 1.00, 0.54, 0.150, 0.206, tronc);   // bassin -> croupe
-  C(0, 1.00, 0.54, 0, 0.99, 0.26, 0.206, 0.198, tronc);   // croupe -> rein
-  C(0, 0.99, 0.26, 0, 1.00, -0.02, 0.198, 0.216, tronc);  // rein, un peu creuse
-  C(0, 1.00, -0.02, 0, 1.04, -0.30, 0.216, 0.250, tronc); // le thorax s'ouvre
-  C(0, 1.04, -0.30, 0, 0.99, -0.56, 0.250, 0.232, tronc); // poitrail profond
-  C(0, 0.99, -0.56, 0, 0.92, -0.78, 0.232, 0.140, tronc); // avant-poitrail
+  C(0, 1.090, 0.74, 0, 1.055, 0.54, 0.146, 0.196, tronc);   // bassin -> croupe
+  C(0, 1.055, 0.54, 0, 1.040, 0.26, 0.196, 0.200, tronc);   // croupe -> rein
+  C(0, 1.040, 0.26, 0, 1.028, -0.02, 0.200, 0.221, tronc);  // rein
+  C(0, 1.028, -0.02, 0, 1.018, -0.30, 0.221, 0.244, tronc); // garrot / thorax
+  C(0, 1.018, -0.30, 0, 1.005, -0.56, 0.244, 0.227, tronc); // poitrail profond
+  C(0, 1.005, -0.56, 0, 1.030, -0.78, 0.227, 0.131, tronc); // avant-poitrail
 
   /* Les masses musculaires : ce sont elles qui donnent le galbe. Sans la
      cuisse et l'epaule, le tronc est un cylindre et les membres y sont

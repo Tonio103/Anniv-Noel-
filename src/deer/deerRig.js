@@ -251,7 +251,19 @@ export class Cerf {
     if (this._clin > 0) {
       this._clin = Math.max(0, this._clin - dt / 0.11);
       const ouvert = 1 - Math.sin(Math.min(1, 1 - this._clin) * Math.PI);
-      if (this.yeux) for (const y of this.yeux) y.scale.y = 0.06 + ouvert * 0.94;
+      const k = 0.06 + ouvert * 0.94;
+      if (this.yeux) {
+        for (const y of this.yeux) {
+          y.scale.y = k;
+          /* Le reflet est enfant de l'oeil : sans compensation, il s'ecrase
+             avec lui et devient un trait. On lui rend sa forme en divisant
+             par le meme facteur — il reste rond, et c'est l'oeil qui se
+             ferme dessus, ce qui est exactement ce qu'on veut voir. */
+          for (const r of y.children) {
+            if (r.userData.compenser) r.scale.set(1, 1 / k, 1);
+          }
+        }
+      }
     }
 
     /* --- coup de queue ----------------------------------------------------
@@ -406,6 +418,30 @@ export class Cerf {
       + Math.sin(this.cycle * Math.PI * 2) * 0.05 * bat;
     this.queue.rotation.z = coup * 0.30 * (this._flick > 0.5 ? 1 : -1)
       + Math.sin(this.cycle * Math.PI * 4 + 0.7) * 0.04 * bat;
+
+    /* L'OMBRE DE CONTACT SUIT LE SOL.
+
+       Je l'avais listee comme manquante au palier bas : c'etait faux, elle a
+       toujours ete la, a tous les paliers. Le vrai defaut est ailleurs —
+       c'etait un plan rigoureusement horizontal, alors que le terrain est
+       bossele. Sur une pente elle traversait la neige d'un cote et flottait
+       de l'autre, ce qui decolle l'animal du sol au lieu de l'y poser.
+
+       On l'incline donc sur la normale du terrain, et on la retrecit quand il
+       leve les pattes : une ombre de contact qui garde la meme densite alors
+       que l'animal saute est aussi fausse qu'une ombre absente. */
+    if (this.ombre) {
+      const n = this.relief.normale(this.racine.position.x, this.racine.position.z, this._c);
+      // La normale est exprimee dans le monde ; le plan est enfant de la
+      // racine, qui tourne autour de Y. On annule donc ce cap.
+      const cy = Math.cos(-this.racine.rotation.y), sy = Math.sin(-this.racine.rotation.y);
+      const nx = n.x * cy - n.z * sy;
+      const nz = n.x * sy + n.z * cy;
+      this.ombre.rotation.set(-Math.PI / 2 + Math.atan2(nz, n.y), 0, -Math.atan2(nx, n.y));
+      this.ombre.position.y = 0.045;
+      const contact = this.membres.reduce((c, mb) => c + (this._auSol[mb.nom] ? 1 : 0), 0);
+      this.ombre.material.opacity = 0.16 + (contact / 4) * 0.26;
+    }
 
     this._majSouffle(dt, temps);
   }
