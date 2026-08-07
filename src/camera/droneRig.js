@@ -77,7 +77,7 @@ export class Drone {
 
   /* Cadrages memorises, choisis selon le moment de la balade. */
   cadrer(nom) {
-    const c = {
+    let c = {
       // En route : assez loin pour voir le cerf en entier et les troncs defiler.
       route:   { recul: 7.8, hauteur: 3.0, lateral: 1.7, fov: 58, biais: 0, bas: 0 },
       // A l'approche d'une halte : on se rapproche et on descend.
@@ -105,6 +105,34 @@ export class Drone {
       large:   { recul: 12.5, hauteur: 3.4, lateral: 3.0, fov: 62, biais: 3.6, bas: 0.75 },
     }[nom];
     if (!c) return;
+
+    /* PENDANT LA LECTURE, EN PORTRAIT, ON REMONTE LE SUJET.
+
+       La carte occupe les trois quarts bas d'un ecran debout. Le paquet et le
+       cerf restaient composes au centre, donc DERRIERE elle : on voyait leur
+       silhouette sombre transparaitre a travers le verre depoli, comme une
+       tache. Toute l'idee de la carte — laisser la scene respirer derriere —
+       se retournait contre elle, puisque ce qu'on apercevait n'etait pas la
+       foret mais le sujet a moitie masque.
+
+       Le mecanisme existe deja : `bas` decale le point vise vers le haut, ce
+       qui fait DESCENDRE le sujet dans le cadre (on s'en sert au seuil). Il
+       suffit de l'inverser.
+
+       La valeur se CALCULE plutot qu'elle ne se devine. La carte commence a
+       222 points du haut sur un ecran de 844 ; on veut le paquet vers 110,
+       c'est-a-dire au milieu de la bande restee libre. A sept metres de recul
+       et 29° de demi-ouverture verticale, cela fait 2,2 m de decalage de
+       visee. Un premier essai a 1,30 m l'avait pose a 215 points — soit
+       exactement sur le bord de la carte, ce qui ne vaut guere mieux que
+       derriere.
+
+       En paysage la carte se range sur le cote et la bande basse est libre :
+       la correction ne s'applique donc pas, et c'est le format qui decide,
+       pas un reglage fige. */
+    const portrait = (this.camera?.aspect || 1) < 1;
+    if (nom === 'lecture' && portrait) c = { ...c, bas: -2.20, recul: 7.0 };
+
     this.reculCible = c.recul;
     this.hauteurCible = c.hauteur;
     this.lateralCible = c.lateral;
