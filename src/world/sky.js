@@ -31,16 +31,29 @@ import { GLSL_NOISE } from '../core/noise.js';
    touchent presque pas la neige elle-meme — sa normale pointe vers le haut,
    donc elle recoit `ciel` — et servent uniquement ce qu'elles doivent
    servir : les dessous. */
+/* UNE LUMIERE TRES SATUREE REPEINT TOUT CE QU'ELLE TOUCHE.
+
+   `soleil` valait 0xFFD2A0, ce qui parait juste une teinte chaude agreable.
+   En lineaire — le seul espace ou l'eclairage se calcule — c'est
+   (1,00 · 0,41 · 0,17) : le bleu est six fois plus faible que le rouge. Une
+   telle lumiere ne rechauffe pas une couleur, elle l'ecrase. Le vert des
+   aiguilles, qui ne vaut lui-meme que 0,13 en vert et 0,08 en bleu, en
+   ressortait a (0,10 · 0,09 · 0,02) : du kaki. C'est de la, et pas de la
+   geometrie, que venait la moitie de l'aspect « carton » des sapins.
+
+   Les teintes ci-dessous gardent la chaleur mais rendent au bleu de quoi
+   exister — rapport 1 : 0,72 : 0,45 au crepuscule. La neige reste doree, les
+   sapins redeviennent verts. */
 export const AMBIANCES = {
   crepuscule: {
     zenith: 0x14304C, horizon: 0x4A6E88, lueur: 0xE8A75C,
     brouillard: 0x40607A, densite: 0.0092, etoiles: 0.12,
-    soleil: 0xFFD2A0, force: 1.75, ciel: 0x7A9CBC, sol: 0xD2DCE6, ambiant: 0.82,
+    soleil: 0xFFDCB4, force: 1.75, ciel: 0x7A9CBC, sol: 0xD2DCE6, ambiant: 0.82,
   },
   soir: {
     zenith: 0x0C1F38, horizon: 0x2E4C6E, lueur: 0xD08A54,
     brouillard: 0x2A4460, densite: 0.0108, etoiles: 0.45,
-    soleil: 0xFFC79A, force: 1.25, ciel: 0x5C7FA4, sol: 0xC8D4E0, ambiant: 0.70,
+    soleil: 0xFFD4AE, force: 1.25, ciel: 0x5C7FA4, sol: 0xC8D4E0, ambiant: 0.70,
   },
   nuit: {
     zenith: 0x050E1E, horizon: 0x16304C, lueur: 0x2E5A7E,
@@ -57,7 +70,7 @@ export const AMBIANCES = {
     /* Derniere clairiere : une maison eclairee au loin rechauffe tout. */
     zenith: 0x061224, horizon: 0x2A3E52, lueur: 0xE8B26A,
     brouillard: 0x22354A, densite: 0.0098, etoiles: 0.86,
-    soleil: 0xFFD9A8, force: 1.15, ciel: 0x577FA6, sol: 0xD6D0C2, ambiant: 0.88,
+    soleil: 0xFFE2BE, force: 1.15, ciel: 0x577FA6, sol: 0xD6D0C2, ambiant: 0.88,
   },
 };
 

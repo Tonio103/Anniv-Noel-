@@ -159,7 +159,7 @@ export class Ruisseau {
          faisant onduler et varier de largeur. */
       const N = 26;
       const pos = [], uv = [], idx = [];
-      const demi = 46;
+      const demi = 27;   // une traversee, pas un mur en travers du paysage
       let plusBas = Infinity;
       const sol = [];
       for (let i = 0; i <= N; i++) {
@@ -199,15 +199,27 @@ export class Ruisseau {
          suit la pente generale. Le maximum avec le terrain garantit qu'elle
          n'est jamais engloutie, et le decalage de polygone evite qu'elle
          clignote contre le sol la ou les deux se touchent. */
+      /* LISSER, MAIS A PEINE.
+
+         Huit passes de lissage sur vingt-sept points, c'est une moyenne sur
+         presque toute la longueur : le ruban redevenait une droite, et la ou
+         cette droite passait au-dessus du terrain il en sortait une DALLE
+         posee en travers du paysage, avec une arete franche a un demi-metre
+         au-dessus de la neige. J'avais remplace un ruisseau enterre par un
+         quai de beton.
+
+         Deux passes suffisent a effacer les bosses de detail sans quitter le
+         sol. Le ruban colle alors au relief, comme une bande de glace prise
+         dans la neige — ce qu'il est. */
       const lisse = sol.slice();
-      for (let passe = 0; passe < 8; passe++) {
+      for (let passe = 0; passe < 2; passe++) {
         const c = lisse.slice();
         for (let i = 1; i < lisse.length - 1; i++) {
           lisse[i] = (c[i - 1] + c[i] * 2 + c[i + 1]) * 0.25;
         }
       }
       for (let i = 0; i <= N; i++) {
-        const y = Math.max(lisse[i], sol[i]) + 0.05;
+        const y = Math.max(lisse[i], sol[i] - 0.02) + 0.03;
         pos[i * 6 + 1] = y;
         pos[i * 6 + 4] = y;
       }

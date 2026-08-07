@@ -120,13 +120,26 @@ export class Foret {
     /* vertexColors : la geometrie porte une modulation clair/sombre par
        sommet, que la couleur d'instance vient teinter. Les deux se
        multiplient, donc la variation d'arbre a arbre est conservee. */
+    /* DEUX REGLAGES QUI DECIDENT SI L'ARBRE A DU VOLUME.
+
+       `flatShading` recalculait la normale a partir de la face, ce qui jetait
+       purement et simplement les normales de coque portees par la geometrie —
+       celles qui font que les lames d'une branche s'eclairent comme un seul
+       volume au lieu de se lire comme des plaques distinctes. Tout le travail
+       de la geometrie etait annule ici, en un mot.
+
+       `side` par defaut (FrontSide) eliminait en plus une lame sur deux : une
+       lame est un ruban, son orientation depend de l'ordre de ses sommets, et
+       la moitie d'entre elles tourne le dos a la camera. Les branches
+       disparaissaient a moitie et l'arbre se reduisait a un mat. Du feuillage
+       en lames se rend toujours sur les deux faces. */
     this.matFeuillage = new THREE.MeshStandardMaterial({
-      color: 0x44654E, roughness: 0.92, metalness: 0, flatShading: true,
-      vertexColors: true,
+      color: 0x3D6354, roughness: 0.92, metalness: 0,
+      vertexColors: true, side: THREE.DoubleSide,
     });
     this.matNeige = new THREE.MeshStandardMaterial({
-      color: 0xE4EEF8, roughness: 0.74, metalness: 0, flatShading: true,
-      vertexColors: true,
+      color: 0xE4EEF8, roughness: 0.74, metalness: 0,
+      vertexColors: true, side: THREE.DoubleSide,
     });
     this.matTronc = new THREE.MeshStandardMaterial({
       color: 0x2B2119, roughness: 0.96, metalness: 0,
@@ -208,8 +221,17 @@ export class Foret {
            il grossit beaucoup plus lentement. On le dimensionne donc a part,
            autour d'un arbre moyen, avec une variation faible : tous les
            troncs restent alors entre trente et soixante centimetres de
-           diametre, ce qui est la fourchette d'un epicea adulte. */
-        const epTronc = (11 + a.h * 0.28) * (0.85 + a.large * 0.2);
+           diametre, ce qui est la fourchette d'un epicea adulte.
+
+           LE TERME CONSTANT ETAIT DIX FOIS TROP GROS. A 11, un arbre de
+           vingt-cinq metres recevait un facteur de 18, et comme le profil du
+           tronc vaut 0,026 a hauteur d'homme, cela donnait un fut de plus
+           d'un metre soixante-dix de diametre. C'est exactement le sequoia que
+           ce commentaire promet d'eviter : la correction avait ete ecrite,
+           mais avec une constante qui la ruinait. A 1,6, on obtient quarante
+           centimetres a vingt-cinq metres de haut et seize sur un jeune sujet
+           de six metres — les bonnes valeurs. */
+        const epTronc = (1.6 + a.h * 0.27) * (0.85 + a.large * 0.2);
         m.compose(v, q, ech.set(epTronc, a.h, epTronc));
         tronc.setMatrixAt(k, m);
 
@@ -429,7 +451,12 @@ export class Foret {
        tronçon « proche » peut deja etre a quatre-vingts metres. On prefere
        basculer un peu tard qu'un peu tot : une transition qu'on remarque
        coute plus cher, en credibilite, que les triangles qu'elle economise. */
-    const seuilLoin = 40;
+    /* CE SEUIL EST LE VRAI BOUTON DE PERFORMANCE. Une branche a lames
+       croisees coute cinq fois un eventail plat ; ce qui decide du cout total
+       n'est donc pas le detail de l'arbre proche mais le NOMBRE d'arbres qui
+       y ont droit. A quarante metres un sapin fait une cinquantaine de pixels
+       de large et la version pleine suffit largement. */
+    const seuilLoin = 27;
     const p = camera.position;
     for (const tr of this.troncons) {
       if (!tr) continue;
