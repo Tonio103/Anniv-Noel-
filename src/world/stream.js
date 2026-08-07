@@ -219,7 +219,23 @@ export class Ruisseau {
         }
       }
       for (let i = 0; i <= N; i++) {
-        const y = Math.max(lisse[i], sol[i] - 0.02) + 0.03;
+        /* ET SURTOUT : IL NE DOIT JAMAIS DECOLLER.
+
+           Le lissage seul ne suffit pas — il ne peut meme pas suffire. Un
+           profil lisse passe forcement AU-DESSUS du terrain dans les creux,
+           c'est sa definition ; et comme je prenais le maximum des deux pour
+           l'empecher de s'enterrer, la glace s'est mise a planer au-dessus de
+           chaque cuvette. Sur le telephone d'Antoine cela donnait une dalle
+           sombre suspendue en travers du paysage, a hauteur de poitrine, avec
+           le bord franc. C'est le pire defaut que cette scene ait eu, et je
+           l'ai introduit moi-meme en corrigeant l'exces inverse.
+
+           La regle tient en une ligne : le ruban SUIT le terrain, et le
+           lissage n'a le droit de l'en ecarter que de quelques centimetres.
+           On garde une surface calme — l'eau ne copie pas les bosses de
+           detail — sans jamais qu'elle se detache de ce sur quoi elle pose. */
+        const MARGE = 0.08;
+        const y = Math.min(Math.max(lisse[i], sol[i] - MARGE), sol[i] + MARGE) + 0.02;
         pos[i * 6 + 1] = y;
         pos[i * 6 + 4] = y;
       }

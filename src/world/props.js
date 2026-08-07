@@ -250,7 +250,14 @@ export class Fouillis {
        sous-bois. On triple, et on autorise ces objets bien plus pres du
        passage : ce sont eux qui donnent au sol son echelle et qui empechent
        la neige d'etre une nappe. */
-    const budget = palier.nom === 'bas' ? 320 : palier.nom === 'moyen' ? 620 : 1000;
+    /* Le palier bas n'avait que 320 objets sur sept cents metres de couloir.
+       C'est un objet tous les deux metres, donc rien du tout dans un cadre —
+       et c'est le palier que voit un telephone, c'est-a-dire le seul qui
+       compte. En portrait, la moitie basse de l'ecran est du sol : si rien
+       n'y traine, on regarde un drap. On le remonte franchement ; ce sont de
+       petits objets instancies, ils coutent surtout des appels de dessin,
+       deja groupes par famille. */
+    const budget = palier.nom === 'bas' ? 760 : palier.nom === 'moyen' ? 1000 : 1400;
 
     const semis = this._semer(rand, chemin, relief, clairieres, budget);
 

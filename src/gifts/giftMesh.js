@@ -12,23 +12,12 @@
 */
 
 import * as THREE from 'three';
+import { lueurDiffuse } from '../core/dot.js';
 
-/* Degrade radial doux, dessine une fois. */
+/* La meme lueur diffuse que partout ailleurs : peinte pixel par pixel, sans
+   arret de degrade, donc sans anneau de Mach et sans contour. */
 function halo() {
-  const n = 128;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = n;
-  const c = cv.getContext('2d');
-  const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
-  g.addColorStop(0, 'rgba(255,255,255,0.95)');
-  g.addColorStop(0.22, 'rgba(255,255,255,0.45)');
-  g.addColorStop(0.55, 'rgba(255,255,255,0.12)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = g;
-  c.fillRect(0, 0, n, n);
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return lueurDiffuse();
 }
 
 export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow = 0xFFC98A }, palier) {

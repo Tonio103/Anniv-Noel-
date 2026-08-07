@@ -249,8 +249,24 @@ export function genererSapin(rand, detail = 6, simple = false) {
      divisant leur largeur par deux, chacune redevient une branche, et c'est
      leur SUPERPOSITION qui fait la masse — ce qui est aussi la facon dont un
      vrai houppier se remplit. */
-  const parEtage = simple ? 9 : Math.max(7, Math.round(detail * 1.45));
-  const couches = simple ? 7 : (detail >= 6 ? 12 : 10);
+  /* LA VERSION LOINTAINE NE DOIT PAS PERDRE SON VOLUME.
+
+     Elle avait neuf branches TRES LARGES sur sept etages, sans lame croisee :
+     autrement dit sept disques quasi pleins empiles. C'est litteralement un
+     empilement de triangles plats, et comme la bascule se faisait a
+     vingt-sept metres, sur un telephone c'etait presque toute la foret.
+     Antoine voyait donc des sapins en carton — pas par accident de rendu,
+     mais parce que c'est exactement ce qu'on lui envoyait.
+
+     Le bon compromis n'est pas d'elargir les lames jusqu'a fermer l'anneau
+     (ce qui donne le disque), c'est de garder des branches FINES et le
+     CROISEMENT — les deux choses qui font le volume — et d'economiser
+     ailleurs : moins d'etages, moins de branches par etage, une seule section
+     par nervure. Un sapin lointain coute alors trois fois plus qu'avant, mais
+     il ressemble encore a un sapin, et on peut reculer la bascule assez loin
+     pour que personne ne la voie. */
+  const parEtage = simple ? 10 : Math.max(7, Math.round(detail * 1.45));
+  const couches = simple ? 8 : (detail >= 6 ? 12 : 10);
   // Segments le long de la nervure : c'est eux qui donnent sa courbure a la
   // branche. Au loin, une branche droite suffit largement.
   const segments = simple ? 1 : 2;
@@ -303,10 +319,10 @@ export function genererSapin(rand, detail = 6, simple = false) {
            elargissant chaque lame jusqu'a ce que l'anneau se referme, la
            silhouette redevient pleine pour trois cents triangles, et la
            bascule a quarante metres cesse de se voir. */
-        demiLarge: L * (simple ? 0.38 + rand() * 0.13 : 0.12 + rand() * 0.08),
-        plein: simple,
+        demiLarge: L * (simple ? 0.19 + rand() * 0.09 : 0.12 + rand() * 0.08),
+        plein: false,
         segments,
-        croisee: !simple,
+        croisee: true,
         // Les etages du bas sont enfouis sous ceux du dessus, donc plus sombres.
         sombre: (0.38 + t * 0.20) * (0.9 + rand() * 0.2),
         clair: (0.98 + t * 0.32) * (0.9 + rand() * 0.2),

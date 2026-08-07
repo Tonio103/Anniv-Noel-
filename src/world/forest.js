@@ -40,19 +40,48 @@ function geoBouleau(rand) {
   fut.translate(0, 0.5, 0);
   parties.push(cintrer(fut));
 
-  /* Les branches partent haut et remontent : c'est le port en balai du
-     bouleau. Des branches horizontales donneraient un chene. */
-  const nb = 5 + ((rand() * 4) | 0);
-  for (let i = 0; i < nb; i++) {
-    const y = 0.52 + rand() * 0.42;
-    const a = rand() * Math.PI * 2;
-    const L = 0.16 + rand() * 0.24;
-    const b = new THREE.CylinderGeometry(0.003, 0.011, L, 4, 1, true);
+  /* UNE COURONNE, PAS SEPT BRANCHES SUR UN MAT.
+
+     Le bouleau avait cinq a huit branches. Sur un arbre de douze metres, cela
+     fait sept traits sur un poteau : de loin on ne voit que le poteau. Et
+     c'est exactement ce qu'Antoine a signale deux fois — des « antennes » au
+     milieu des sapins. J'avais retire mes propres futs de premier plan en
+     croyant regler le probleme ; ceux-la etaient restes.
+
+     Un bouleau en hiver, c'est un tronc clair et une MASSE de ramilles fines,
+     assez dense pour se lire comme un nuage gris-brun. On construit donc de
+     vraies charpentieres qui se divisent : chacune porte deux ou trois
+     ramilles qui repartent vers le haut. Une quarantaine de brins au total —
+     encore loin d'un vrai bouleau, mais assez pour que la silhouette cesse
+     d'etre un baton. Le port reste en balai : tout remonte. */
+  const brin = (x0, y0, z0, ang, incl, L, r0, r1) => {
+    const b = new THREE.CylinderGeometry(r1, r0, L, 4, 1, true);
     b.translate(0, L / 2, 0);
-    b.rotateX(0.55 + rand() * 0.5);
-    b.rotateY(a);
-    b.translate(pencheX * y * y, y, pencheZ * y * y);
+    b.rotateX(incl);
+    b.rotateY(ang);
+    b.translate(x0, y0, z0);
     parties.push(b);
+    // Extremite du brin, pour y accrocher la suite.
+    const s = Math.sin(incl) * L;
+    return [x0 + Math.sin(ang) * s, y0 + Math.cos(incl) * L, z0 + Math.cos(ang) * s];
+  };
+
+  const nb = 11 + ((rand() * 5) | 0);
+  for (let i = 0; i < nb; i++) {
+    const y = 0.38 + rand() * 0.52;
+    const a = rand() * Math.PI * 2;
+    const L = 0.20 + rand() * 0.26;
+    // Plus la branche part haut, plus elle est dressee.
+    const incl = (0.95 - y * 0.55) + (rand() - 0.5) * 0.30;
+    const bout = brin(pencheX * y * y, y, pencheZ * y * y, a, incl, L, 0.011, 0.005);
+
+    const sec = 2 + ((rand() * 2) | 0);
+    for (let k = 0; k < sec; k++) {
+      const L2 = L * (0.38 + rand() * 0.34);
+      brin(bout[0], bout[1], bout[2],
+           a + (rand() - 0.5) * 1.5, incl * (0.45 + rand() * 0.4),
+           L2, 0.005, 0.0018);
+    }
   }
   return fusionner(parties);
 }
@@ -445,7 +474,7 @@ export class Foret {
        C'est le genre de reglage qui ne se voit pas a l'image et se voit
        beaucoup sur le budget : c'est exactement ce qu'on veut sacrifier en
        premier pour financer la definition. */
-    const portee = 118;
+    const portee = 132;
     /* Bascule vers la version grossiere. Le seuil est genereux — les
        tronçons font une soixantaine de metres, donc un arbre du bord d'un
        tronçon « proche » peut deja etre a quatre-vingts metres. On prefere
@@ -456,7 +485,13 @@ export class Foret {
        n'est donc pas le detail de l'arbre proche mais le NOMBRE d'arbres qui
        y ont droit. A quarante metres un sapin fait une cinquantaine de pixels
        de large et la version pleine suffit largement. */
-    const seuilLoin = 27;
+    /* Vingt-sept metres, c'etait la largeur d'une clairiere. Sur un telephone
+       tenu a bout de bras, tout ce qui compte visuellement est PLUS LOIN que
+       ca : la bascule ne se voyait pas comme une bascule, elle se voyait
+       comme « les arbres sont en carton ». Maintenant que la version
+       lointaine a du volume elle aussi, on peut la reculer sans exploser le
+       budget, et la difference entre les deux ne se lit plus. */
+    const seuilLoin = 40;
     const p = camera.position;
     for (const tr of this.troncons) {
       if (!tr) continue;

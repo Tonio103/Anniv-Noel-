@@ -20,22 +20,15 @@
 */
 
 import * as THREE from 'three';
+import { lueurDiffuse } from '../core/dot.js';
 import { rng } from '../core/noise.js';
 
+/* Toutes les sources de la clairiere partagent la meme lueur diffuse.
+   Elle est peinte pixel par pixel dans core/dot.js : un degrade a arrets
+   dessine des anneaux de Mach et donne a chaque lumiere un contour net, ce
+   qui est exactement ce qu'on ne veut pas ici. */
 function halo() {
-  const n = 64;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = n;
-  const c = cv.getContext('2d');
-  const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
-  g.addColorStop(0, 'rgba(255,255,255,0.95)');
-  g.addColorStop(0.25, 'rgba(255,255,255,0.4)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = g;
-  c.fillRect(0, 0, n, n);
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return lueurDiffuse();
 }
 
 /* Une lanterne sur son piquet : un montant sombre, une cage claire, un halo.

@@ -149,8 +149,11 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
                    l'assombrissement qui doit tout porter — un creux dans la
                    neige est sombre parce qu'il voit moins de ciel, et c'est
                    la seule chose que l'oeil demande. */
-                normal = normalize(normal - vec3(dx, 0.0, dz) * 1.6);
-                diffuseColor.rgb *= mix(1.0, 0.42, clamp(d * 1.5, 0.0, 1.0));
+                normal = normalize(normal - vec3(dx, 0.0, dz) * 1.9);
+                // Un trou dans la neige est FRANCHEMENT sombre : il ne voit
+                // presque plus le ciel. A 0,42 la piste restait un soupcon
+                // gris qui disparaissait des que le sol etait un peu clair.
+                diffuseColor.rgb *= mix(1.0, 0.26, clamp(d * 1.9, 0.0, 1.0));
               }
             }
           }

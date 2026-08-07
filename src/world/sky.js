@@ -47,29 +47,29 @@ import { GLSL_NOISE } from '../core/noise.js';
 export const AMBIANCES = {
   crepuscule: {
     zenith: 0x14304C, horizon: 0x4A6E88, lueur: 0xE8A75C,
-    brouillard: 0x40607A, densite: 0.0092, etoiles: 0.12,
+    brouillard: 0x40607A, densite: 0.0056, etoiles: 0.12,
     soleil: 0xFFDCB4, force: 1.75, ciel: 0x7A9CBC, sol: 0xD2DCE6, ambiant: 0.82,
   },
   soir: {
     zenith: 0x0C1F38, horizon: 0x2E4C6E, lueur: 0xD08A54,
-    brouillard: 0x2A4460, densite: 0.0108, etoiles: 0.45,
+    brouillard: 0x2A4460, densite: 0.0064, etoiles: 0.45,
     soleil: 0xFFD4AE, force: 1.25, ciel: 0x5C7FA4, sol: 0xC8D4E0, ambiant: 0.70,
   },
   nuit: {
     zenith: 0x050E1E, horizon: 0x16304C, lueur: 0x2E5A7E,
-    brouillard: 0x16283C, densite: 0.0126, etoiles: 1.0,
+    brouillard: 0x16283C, densite: 0.0072, etoiles: 1.0,
     soleil: 0xBFD8FF, force: 0.85, ciel: 0x3E6288, sol: 0xB4C4D4, ambiant: 0.62,
   },
   clairiere: {
     /* Le ciel s'ouvre : plus d'etoiles, moins de brume, on respire. */
     zenith: 0x04101F, horizon: 0x1B3A58, lueur: 0x4E86A8,
-    brouillard: 0x18304A, densite: 0.0082, etoiles: 1.0,
+    brouillard: 0x18304A, densite: 0.0048, etoiles: 1.0,
     soleil: 0xD6E6FF, force: 1.05, ciel: 0x4E77A0, sol: 0xBECDDA, ambiant: 0.78,
   },
   maison: {
     /* Derniere clairiere : une maison eclairee au loin rechauffe tout. */
     zenith: 0x061224, horizon: 0x2A3E52, lueur: 0xE8B26A,
-    brouillard: 0x22354A, densite: 0.0098, etoiles: 0.86,
+    brouillard: 0x22354A, densite: 0.0058, etoiles: 0.86,
     soleil: 0xFFE2BE, force: 1.15, ciel: 0x577FA6, sol: 0xD6D0C2, ambiant: 0.88,
   },
 };

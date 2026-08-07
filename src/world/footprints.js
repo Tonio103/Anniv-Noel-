@@ -104,7 +104,21 @@ function tamponSabot() {
   return t;
 }
 
-const ETENDUE = 72;          // cote de la fenetre, en metres
+/* Cote de la fenetre, en metres.
+
+   C'ETAIT LE VRAI PLAFOND SUR TELEPHONE. Soixante-douze metres pour 512
+   texels, cela fait QUATORZE CENTIMETRES par texel : une empreinte de
+   vingt-cinq centimetres n'y occupait pas deux texels, et le filtrage
+   lineaire la reduisait a un voile gris que rien ne distinguait de la neige.
+   Sur mes captures en haute qualite la carte faisait 2048 et tout allait
+   bien — c'est exactement pour cela que je ne voyais pas ce qu'Antoine
+   voyait.
+
+   La bonne variable a corriger n'est pas la taille de la texture, qui coute
+   de la memoire, mais l'ETENDUE couverte, qui ne coute rien. Quarante-huit
+   metres suffisent largement : le sillage n'a d'interet que sur les vingt
+   metres derriere l'animal, au-dela le voile l'a de toute facon efface. */
+const ETENDUE = 48;
 
 export class Empreintes {
   constructor(renderer, palier) {
@@ -115,7 +129,7 @@ export class Empreintes {
        ramenait a une tache grise sans forme. C'est une limite de la carte, pas
        du tampon : aussi soigne soit-il, il ne peut pas etre plus fin que la
        grille sur laquelle on le pose. */
-    this.taille = palier.nom === 'haut' ? 2048 : (palier.nom === 'moyen' ? 1024 : 512);
+    this.taille = palier.nom === 'haut' ? 2048 : 1024;
     this.texel = ETENDUE / this.taille;
 
     const opts = {
@@ -294,7 +308,28 @@ export class Empreintes {
         m.visible = true;
         m.position.set(e.x, 0, e.z);
         m.scale.set(taille, taille * (1.30 + e.alea * 0.18), 1);
-        m.rotation.z = -e.angle + (e.alea - 0.5) * 0.34;
+        /* LE CAP ETAIT INVERSE, ET C'EST POUR CA QUE LA PISTE NE SUIVAIT PAS.
+
+           Le tampon est pose a plat par rotation.x = -90°, et son « avant »
+           est le +Y de la texture. Avec l'ordre d'Euler XYZ, la matrice vaut
+           Rx·Ry·Rz : le z s'applique DANS le plan de l'image, avant d'etre
+           couche. On calcule alors ou pointe l'avant du tampon :
+
+             Rz(phi) : (0,1,0) → (-sin phi, cos phi, 0)
+             Rx(-90) : (x,y,z) → (x, z, -y)
+             donc l'avant du pas → (-sin phi, 0, -cos phi)
+
+           Le cerf, lui, est modelise museau vers -Z, donc apres rotation.y
+           = theta il avance vers (-sin theta, 0, -cos theta). Les deux
+           coincident quand phi = theta. Le code posait phi = -theta.
+
+           Consequence exacte : les traces etaient MIROITEES par rapport a la
+           direction de marche. Sur une ligne droite theta vaut zero et le
+           defaut ne se voit pas ; des que le chemin tourne, l'ecart double
+           l'angle du virage et la piste part de travers pendant que l'animal
+           va tout droit. C'est precisement ce qu'Antoine decrit : des
+           empreintes qui ne suivent pas le cerf. */
+        m.rotation.z = e.angle + (e.alea - 0.5) * 0.22;
         // Franche : c'est l'assombrissement qui porte toute la lecture.
         m.material.opacity = (0.78 + e.force * 0.22) * (0.88 + e.alea * 0.14);
       }

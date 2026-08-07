@@ -17,24 +17,13 @@
 */
 
 import * as THREE from 'three';
-import { grainRond } from '../core/dot.js';
+import { grainRond, lueurDiffuse } from '../core/dot.js';
 import { rng } from '../core/noise.js';
 
-/* Halo doux pour la lueur des fenetres. */
+/* La meme lueur diffuse que partout ailleurs : peinte pixel par pixel, sans
+   arret de degrade, donc sans anneau de Mach et sans contour. */
 function halo() {
-  const n = 64;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = n;
-  const c = cv.getContext('2d');
-  const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
-  g.addColorStop(0, 'rgba(255,255,255,0.9)');
-  g.addColorStop(0.3, 'rgba(255,255,255,0.35)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = g;
-  c.fillRect(0, 0, n, n);
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return lueurDiffuse();
 }
 
 function construireCabane(rand, palier, texHalo) {
