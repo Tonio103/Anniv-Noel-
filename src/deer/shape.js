@@ -77,30 +77,72 @@ export function anatomie() {
   const C = (ax, ay, az, bx, by, bz, ra, rb, opt) =>
     c.push({ ax, ay, az, bx, by, bz, ra, rb, ...(opt || {}) });
 
-  /* --- tronc : une chaine, du bassin au poitrail ------------------------- */
-  const tronc = { sy: 1.24, groupe: 'tronc' };
-  C(0, 1.00, 0.86, 0, 1.03, 0.66, 0.135, 0.205, tronc);   // bassin
-  C(0, 1.03, 0.66, 0, 1.00, 0.40, 0.205, 0.200, tronc);   // croupe
-  C(0, 1.00, 0.40, 0, 0.98, 0.08, 0.200, 0.198, tronc);   // rein
-  C(0, 0.98, 0.08, 0, 1.00, -0.26, 0.198, 0.212, tronc);  // dos
-  C(0, 1.00, -0.26, 0, 0.97, -0.54, 0.212, 0.190, tronc); // garrot / poitrail
-  C(0, 0.97, -0.54, 0, 0.90, -0.78, 0.190, 0.120, tronc); // avant-poitrail
+  /* --- tronc : une chaine, du bassin au poitrail -------------------------
+     LE RAPPORT PROFONDEUR / LONGUEUR EST TOUT.
+
+     La version precedente donnait un tube long et peu epais : un metre
+     soixante-six de long pour cinquante centimetres de haut, soit un rapport
+     de 0,30. Un cerf elaphe reel se tient autour de 0,40 — il est COURT ET
+     PROFOND, pas long et fin. C'est ce seul chiffre qui separait une
+     silhouette de cervide d'une silhouette de levrier, et aucun raffinement
+     de detail n'aurait pu compenser.
+
+     Le poitrail descend donc NETTEMENT SOUS LE COUDE. C'est le repere le plus
+     sur pour juger un ongule : chez un animal profond, la ligne du ventre
+     passe sous l'articulation du bras, et il ne reste sous elle qu'une patte
+     mince. Quand le ventre s'arrete au coude, on lit une bete sur echasses.
+
+     On raccourcit par l'ARRIERE et on garde l'avant en place : l'attache de
+     l'encolure et celle des anterieurs sont des reperes du squelette, les
+     deplacer obligerait a reprendre tout le rig pour rien.
+
+     La ligne du dos n'est pas droite non plus : garrot haut, rein legerement
+     creuse, croupe pleine et arrondie. */
+  const tronc = { sy: 1.30, groupe: 'tronc' };
+  C(0, 0.97, 0.74, 0, 1.00, 0.54, 0.150, 0.206, tronc);   // bassin -> croupe
+  C(0, 1.00, 0.54, 0, 0.99, 0.26, 0.206, 0.198, tronc);   // croupe -> rein
+  C(0, 0.99, 0.26, 0, 1.00, -0.02, 0.198, 0.216, tronc);  // rein, un peu creuse
+  C(0, 1.00, -0.02, 0, 1.04, -0.30, 0.216, 0.250, tronc); // le thorax s'ouvre
+  C(0, 1.04, -0.30, 0, 0.99, -0.56, 0.250, 0.232, tronc); // poitrail profond
+  C(0, 0.99, -0.56, 0, 0.92, -0.78, 0.232, 0.140, tronc); // avant-poitrail
 
   /* Les masses musculaires : ce sont elles qui donnent le galbe. Sans la
      cuisse et l'epaule, le tronc est un cylindre et les membres y sont
      plantes comme des piquets. */
-  C(0.10, 0.98, 0.60, 0.155, 0.72, 0.60, 0.185, 0.105, { sx: 0.78, groupe: 'cuisseG' });
-  C(-0.10, 0.98, 0.60, -0.155, 0.72, 0.60, 0.185, 0.105, { sx: 0.78, groupe: 'cuisseD' });
-  C(0.09, 1.00, -0.34, 0.145, 0.76, -0.42, 0.155, 0.095, { sx: 0.80, groupe: 'epauleG' });
-  C(-0.09, 1.00, -0.34, -0.145, 0.76, -0.42, 0.155, 0.095, { sx: 0.80, groupe: 'epauleD' });
+  C(0.10, 1.00, 0.54, 0.155, 0.72, 0.58, 0.196, 0.110, { sx: 0.78, groupe: 'cuisseG' });
+  C(-0.10, 1.00, 0.54, -0.155, 0.72, 0.58, 0.196, 0.110, { sx: 0.78, groupe: 'cuisseD' });
+  C(0.09, 1.01, -0.32, 0.145, 0.76, -0.42, 0.168, 0.100, { sx: 0.80, groupe: 'epauleG' });
+  C(-0.09, 1.01, -0.32, -0.145, 0.76, -0.42, 0.168, 0.100, { sx: 0.80, groupe: 'epauleD' });
 
-  /* --- encolure : epaisse a la base, portee en oblique -------------------- */
-  C(0, 0.96, -0.66, 0, 1.16, -0.80, 0.175, 0.150, { sy: 1.10, groupe: 'cou0' });
-  C(0, 1.16, -0.80, 0, 1.38, -0.90, 0.150, 0.115, { sy: 1.08, groupe: 'cou1' });
+  /* --- encolure ----------------------------------------------------------
+     Une encolure de cerf en hiver est MASSIVE. C'est meme, avec la profondeur
+     du poitrail, ce qui frappe le plus sur une photo : le cou est presque
+     aussi epais que la tete est longue, et il s'evase vers le poitrail sans
+     qu'on puisse dire ou il commence. La version precedente en faisait un
+     tube mince — la tete semblait portee au bout d'une tige. */
+  C(0, 0.98, -0.62, 0, 1.18, -0.78, 0.212, 0.166, { sy: 1.14, groupe: 'cou0' });
+  C(0, 1.18, -0.78, 0, 1.38, -0.89, 0.166, 0.124, { sy: 1.08, groupe: 'cou1' });
 
-  /* --- tete : un coin allonge, front large, chanfrein qui s'affine -------- */
-  C(0, 1.40, -0.92, 0, 1.36, -1.04, 0.108, 0.082, { groupe: 'tete' });
-  C(0, 1.36, -1.04, 0, 1.30, -1.20, 0.082, 0.048, { groupe: 'tete' });
+  /* LA CRINIERE. Sous la gorge pend un manchon de poils longs, plus bas et
+     plus large que le cou lui-meme. C'est le signe distinctif du male en
+     hiver, et c'est aussi ce qui donne a l'encolure sa masse vue de profil.
+     Deux capsules decalees vers le bas suffisent : la fusion adoucie les
+     soude au cou sans qu'aucune jonction n'apparaisse. */
+  C(0, 0.82, -0.58, 0, 0.99, -0.80, 0.172, 0.142, { sx: 0.80, sy: 1.22, groupe: 'cou0' });
+  C(0, 0.99, -0.80, 0, 1.14, -0.92, 0.142, 0.094, { sx: 0.80, sy: 1.14, groupe: 'cou1' });
+
+  /* --- tete : un coin court, front large, chanfrein epais ----------------
+     Un cerf n'a pas un museau pointu. Le chanfrein reste EPAIS jusqu'au
+     mufle, qui est large et carre. La version precedente s'effilait a cinq
+     centimetres de rayon : de profil, cela donnait un bec. */
+  C(0, 1.41, -0.90, 0, 1.37, -1.04, 0.132, 0.106, { groupe: 'tete' });
+  C(0, 1.37, -1.04, 0, 1.31, -1.19, 0.106, 0.080, { sy: 1.08, groupe: 'tete' });
+
+  /* LES JOUES. Sans elles la tete est un cone lisse et le raccord au cou se
+     lit comme un emmanchement. Un cerf a une masse de machoire nette sous
+     l'oeil, qui elargit la tete a l'arriere et lui donne son coin. */
+  C(0.055, 1.34, -0.94, 0.052, 1.30, -1.06, 0.082, 0.062, { groupe: 'tete' });
+  C(-0.055, 1.34, -0.94, -0.052, 1.30, -1.06, 0.082, 0.062, { groupe: 'tete' });
 
   /* --- membres anterieurs ------------------------------------------------- */
   for (const s of [1, -1]) {
@@ -119,7 +161,7 @@ export function anatomie() {
   }
 
   /* --- queue --------------------------------------------------------------- */
-  C(0, 1.02, 0.90, 0, 0.88, 1.00, 0.048, 0.020, { groupe: 'queue' });
+  C(0, 1.02, 0.76, 0, 0.90, 0.88, 0.048, 0.020, { groupe: 'queue' });
 
   return c;
 }

@@ -230,8 +230,20 @@ function boisGeo(rand) {
     }
   }
 
+  /* LA RAMURE.
+
+     Elle etait beaucoup trop chetive : un merrain de trois centimetres de
+     rayon sur cinquante de long, ce qui donne de loin deux brindilles. Or la
+     ramure est ce qui identifie l'animal en une fraction de seconde, et c'est
+     aussi le seul element qui depasse de sa silhouette — sur une capture de
+     nuit, c'est souvent tout ce qu'on distingue.
+
+     Un dix-cors porte des merrains longs de quatre-vingts centimetres, epais
+     comme un poignet a la base, qui partent EN ARRIERE avant de se relever.
+     C'est ce depart vers l'arriere qui fait la lyre caracteristique ; partir
+     vers le haut donne une fourche de chevreuil. */
   for (const cote of [-1, 1]) {
-    branche(V(cote * 0.062, 0.02, -0.02), V(cote * 0.40, 0.88, 0.28), 0.54, 0.032, 2);
+    branche(V(cote * 0.068, 0.02, 0.00), V(cote * 0.34, 0.80, 0.50), 0.80, 0.052, 2);
   }
 
   const g = new THREE.BufferGeometry();
@@ -408,7 +420,11 @@ export function creerCerf(palier) {
   const f = champ(caps, 0.055);
   const pas = palier.nom === 'bas' ? 0.046 : palier.nom === 'moyen' ? 0.036 : 0.029;
 
-  const boite = new THREE.Box3(V(-0.38, -0.14, -1.36), V(0.38, 1.58, 1.14));
+  /* La boite doit contenir TOUT le champ, criniere et poitrail compris : un
+     volume qui deborde se fait trancher net par le bord de la grille, ce qui
+     laisse un trou beant dans la peau. On la prend large — le cout est
+     lineaire en volume, mais une troncature est irrattrapable. */
+  const boite = new THREE.Box3(V(-0.40, -0.14, -1.38), V(0.40, 1.62, 1.02));
   const { positions, index } = polygoniser(f, boite, pas);
   const normales = normalesParGradient(f, positions, pas);
   const retournes = orienterFaces(positions, index, normales);
@@ -504,14 +520,20 @@ export function creerCerf(palier) {
   /* --- 7. pieces rigides accrochees a la tete ----------------------------
      L'os de la tete est a (0, 1.40, -0.92) dans la pose de liaison ; les
      pieces sont donc exprimees relativement a ce point. */
+  /* ATTENTION : ces pieces sont posees a des coordonnees FIXES, alors que la
+     tete, elle, est un volume implicite. Elargir le champ de la tete les
+     enfouit donc dessous sans que rien ne le signale — c'est exactement ce
+     qui s'est produit en epaississant le chanfrein et en ajoutant les joues :
+     oreilles et yeux ont purement disparu de la silhouette. Toute retouche du
+     volume cranien impose de reverifier ces trois blocs. */
   const rel = (x, y, z) => V(x, y - 1.40, z + 0.92);
 
   const mufle = new THREE.Mesh(
-    new THREE.SphereGeometry(0.040, 10, 8),
+    new THREE.SphereGeometry(0.052, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0x120E0A, roughness: 0.32 })
   );
   mufle.scale.set(1, 0.86, 0.78);
-  mufle.position.copy(rel(0, 1.295, -1.235));
+  mufle.position.copy(rel(0, 1.300, -1.285));
   tete.add(mufle);
 
   /* Oreilles : grandes et bien ecartees. Chez un cerf elles sont enormes ;
@@ -523,9 +545,9 @@ export function creerCerf(palier) {
      entend derriere lui pendant qu'il regarde devant. */
   const oreilles = [];
   for (const cote of [-1, 1]) {
-    const o = new THREE.Mesh(teinter(new THREE.SphereGeometry(0.078, 10, 8), 0x33251A), mat);
+    const o = new THREE.Mesh(teinter(new THREE.SphereGeometry(0.092, 10, 8), 0x33251A), mat);
     o.scale.set(0.28, 0.98, 0.58);
-    o.position.copy(rel(cote * 0.092, 1.445, -0.905));
+    o.position.copy(rel(cote * 0.138, 1.462, -0.895));
     o.rotation.z = cote * 0.88;
     o.rotation.x = -0.34;
     o.userData = { cote, reposZ: cote * 0.88, reposX: -0.34 };
@@ -544,13 +566,13 @@ export function creerCerf(palier) {
   const yeux = [];
   for (const cote of [-1, 1]) {
     const y = new THREE.Mesh(new THREE.SphereGeometry(0.026, 9, 8), matOeil);
-    y.position.copy(rel(cote * 0.079, 1.408, -1.035));
+    y.position.copy(rel(cote * 0.116, 1.412, -1.042));
     tete.add(y);
     yeux.push(y);
   }
 
   const ramure = new THREE.Mesh(boisGeo(rand), mat);
-  ramure.position.copy(rel(0, 1.455, -0.925));
+  ramure.position.copy(rel(0, 1.478, -0.915));
   ramure.castShadow = palier.ombres;
   tete.add(ramure);
 
@@ -569,7 +591,7 @@ export function creerCerf(palier) {
 
   /* --- 9. buee des naseaux ----------------------------------------------- */
   const souffle = creerSouffle();
-  souffle.position.copy(rel(0, 1.285, -1.28));
+  souffle.position.copy(rel(0, 1.292, -1.345));
   tete.add(souffle);
 
   /* --- 10. les membres, tels que le rig les attend ------------------------ */

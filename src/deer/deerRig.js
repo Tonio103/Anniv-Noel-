@@ -409,17 +409,28 @@ export class Cerf {
       vie[i] += dt * debit;
       if (vie[i] > 1) {
         vie[i] -= 1;
-        arr[i * 3] = (Math.random() - 0.5) * 0.03;
-        arr[i * 3 + 1] = (Math.random() - 0.5) * 0.03;
-        arr[i * 3 + 2] = 0;
+        // Depart deja disperse : deux naseaux, pas un point.
+        arr[i * 3] = (Math.random() - 0.5) * 0.075;
+        arr[i * 3 + 1] = (Math.random() - 0.5) * 0.05;
+        arr[i * 3 + 2] = -Math.random() * 0.04;
       }
       const v = vie[i];
-      arr[i * 3] += (Math.random() - 0.5) * 0.006;
-      arr[i * 3 + 1] += dt * 0.10;
+      /* La bouffee S'EVASE en s'eloignant. Sans cet evasement, les vingt-six
+         grains restaient dans un fuseau de trois centimetres et se
+         superposaient tous : a trois metres, vingt-six couches a dix-huit
+         pour cent d'opacite font quatre-vingt-dix-neuf pour cent, soit une
+         plaque blanche opaque plaquee sur le museau. Le defaut ne se voyait
+         pas au recul habituel de la camera, mais il apparaissait exactement
+         quand le cerf se retourne vers nous — c'est-a-dire aux deux moments
+         qui comptent, les haltes et l'adieu. */
+      arr[i * 3] += (Math.random() - 0.5) * 0.010 + arr[i * 3] * dt * 1.4;
+      arr[i * 3 + 1] += dt * 0.10 + Math.abs(arr[i * 3 + 1]) * dt * 0.9;
       arr[i * 3 + 2] -= dt * (0.55 + v * 0.5);
     }
     p.geometry.attributes.position.needsUpdate = true;
-    p.material.opacity = 0.20 * clamp(this.vitesse / 4 + 0.35, 0, 1);
+    // Bien plus faible qu'avant : c'est le CUMUL qui donne la densite, pas
+    // l'opacite de chaque grain.
+    p.material.opacity = 0.075 * clamp(this.vitesse / 4 + 0.35, 0, 1);
   }
 
   /* Position du garrot dans le monde — la camera vise ce point. */

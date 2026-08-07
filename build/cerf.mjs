@@ -60,6 +60,13 @@ for (const v of angles) {
   // On refait le rendu juste avant la capture : la boucle a pu repasser.
   await page.evaluate((v) => {
     const s = window.__scene;
+    /* On neutralise les gestes spontanes : sinon la capture tombe au hasard
+       sur un coup d'oeil en arriere ou une secousse de tete, et on juge une
+       pose accidentelle au lieu de la morphologie. */
+    s.cerf.regard = 0; s.cerf.regardAuto = 0; s.cerf.secousse = 0;
+    s.cerf._geste = null; s.cerf._prochainGeste = 999;
+    s.cerf._regardLisse = 0;
+    s.cerf.maj(1 / 60, s.boucle.t);
     const c = s.cerf.racine.position;
     const y = s.cerf.racine.rotation.y;
     s.camera.position.set(
