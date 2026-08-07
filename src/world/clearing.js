@@ -166,7 +166,25 @@ function sapinDeFete(modele, matFeuillage, matNeige, texHalo, rand, palier) {
   const g = new THREE.Group();
   const H = 7.2;
 
-  const f = new THREE.Mesh(modele.feuillage, matFeuillage);
+  /* 8 : IL NE SE LISAIT PAS COMME UN SAPIN DECORE.
+
+     Et pour cause : c'etait exactement le meme materiau que les mille autres
+     sapins de la foret, avec des points lumineux poses dessus. Or ce qui fait
+     lire « sapin de Noel » d'un seul coup d'oeil n'est pas la guirlande, c'est
+     que l'ARBRE LUI-MEME soit eclaire par elle — un conifere de nuit est noir,
+     et cent bougies dessus le rendent chaud et visible de loin.
+
+     Simuler ca avec de vraies lumieres couterait cent sources ponctuelles. On
+     l'ecrit donc dans la matiere : une copie du materiau de feuillage a
+     laquelle on ajoute une emission chaude tres faible. L'arbre cesse d'etre
+     une silhouette noire et devient une masse qui rayonne doucement, ce qui
+     est precisement ce qu'on voit quand on regarde un sapin allume. */
+  const matFete = matFeuillage.clone();
+  matFete.emissive = new THREE.Color(0x2A1608);
+  matFete.emissiveIntensity = 1.0;
+  matFete.customProgramCacheKey = () => 'feuillage-fete';
+
+  const f = new THREE.Mesh(modele.feuillage, matFete);
   f.scale.set(H * 1.18, H, H * 1.18);      // trapu, comme un vrai sapin de Noel
   f.castShadow = palier.ombres;
   g.add(f);
@@ -181,7 +199,7 @@ function sapinDeFete(modele, matFeuillage, matNeige, texHalo, rand, palier) {
   const teintes = [[4.6, 2.2, 0.8], [4.2, 1.0, 0.9], [1.5, 3.8, 1.6], [4.4, 3.6, 1.2], [1.4, 2.2, 4.4]];
 
   /* --- la guirlande, en cordon continu ----------------------------------- */
-  const nb = palier.nom === 'bas' ? 46 : 92;
+  const nb = palier.nom === 'bas' ? 76 : 120;
   const tours = 5.5;
   for (let i = 0; i < nb; i++) {
     const t = i / (nb - 1);

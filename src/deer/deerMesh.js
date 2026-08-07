@@ -86,7 +86,7 @@ function distSegment(px, py, pz, a, b) {
    -------------------------------------------------------------------------- */
 const ROBE = {
   flanc: C(0x9A7A52), dorsal: C(0x56402A), ventre: C(0xC9B189),
-  croupe: C(0xEADCBC), membre: C(0x5E4830), encolure: C(0x685039),
+  croupe: C(0xDCCBA8), membre: C(0x5E4830), encolure: C(0x685039),
   museau: C(0xB29A74), cuisse: C(0x7C6142),
 };
 
@@ -166,9 +166,15 @@ function robeAu(x, y, z, c) {
      C'est ce contraste qui le rend lisible a cinquante metres, pas sa
      surface. On le taille donc en ellipsoide autour de la naissance de la
      queue, et on FONCE l'arriere-cuisse tout autour pour qu'il ressorte. */
-  const dz = (z - 0.66) / 0.24;
-  const dy = (y - (AXE + 0.05)) / 0.24;
-  const dx = x / 0.24;
+  /* PLUS PETIT ET MOINS BLANC. A vingt-quatre centimetres de rayon et 96 %
+     de melange vers le creme, le miroir couvrait presque toute la croupe et
+     s'y lisait comme une grosse tache pale posee sur l'animal — d'autant plus
+     genante qu'on voit le cerf DE DOS pendant la quasi-totalite de la balade.
+     Un miroir d'elaphe est un signal, pas une couverture : il tire son
+     efficacite de son contraste avec le poil autour, pas de sa surface. */
+  const dz = (z - 0.66) / 0.185;
+  const dy = (y - (AXE + 0.05)) / 0.185;
+  const dx = x / 0.185;
   const d2 = dz * dz + dy * dy + dx * dx * 0.55;
   if (d2 < 2.8) {
     /* Cerne sombre. Il monte en s'eloignant du miroir PUIS REDESCEND : une
@@ -182,7 +188,7 @@ function robeAu(x, y, z, c) {
     c.lerp(ROBE.cuisse, cerne * 0.55);
   }
   if (d2 < 1) {
-    c.lerp(ROBE.croupe, Math.pow(1 - d2, 0.55) * 0.96);
+    c.lerp(ROBE.croupe, Math.pow(1 - d2, 0.75) * 0.82);
   }
 
   // Encolure et poitrail, nettement plus fonces.

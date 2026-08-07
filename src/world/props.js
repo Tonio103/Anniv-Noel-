@@ -257,7 +257,13 @@ export class Fouillis {
        n'y traine, on regarde un drap. On le remonte franchement ; ce sont de
        petits objets instancies, ils coutent surtout des appels de dessin,
        deja groupes par famille. */
-    const budget = palier.nom === 'bas' ? 760 : palier.nom === 'moyen' ? 1000 : 1400;
+    /* 9 : LE PREMIER PLAN RESTE VIDE EN PORTRAIT. Un ecran debout donne au
+       sol la moitie basse de l'image, et c'est la zone la plus proche donc la
+       plus detaillee : elle ne pardonne rien. On monte encore le semis, et
+       surtout on autorise les objets bien plus pres du passage (voir plus
+       bas) — un caillou a un metre du chemin traverse le cadre entier et vaut
+       dix cailloux au loin. */
+    const budget = palier.nom === 'bas' ? 1150 : palier.nom === 'moyen' ? 1500 : 2000;
 
     const semis = this._semer(rand, chemin, relief, clairieres, budget);
 
@@ -350,7 +356,7 @@ export class Fouillis {
       /* On les laisse venir jusqu'au bord du passage. Un caillou ou une
          touffe a un metre du chemin ne gene personne — le cerf marche au
          milieu — et c'est precisement la, au premier plan, qu'ils comptent. */
-      if (pr.d < 1.6) continue;
+      if (pr.d < 1.1) continue;
 
       let dansClairiere = false;
       for (const c of clairieres) {
@@ -359,7 +365,11 @@ export class Fouillis {
       if (dansClairiere) continue;
 
       const avancee = pr.s / chemin.longueur;
-      if (rand() > 0.35 + avancee * 0.5) continue;
+      /* Densite plus forte AU BORD du passage : c'est la seule zone qui
+         traverse le premier plan, donc la seule qui remplisse le bas du
+         cadre. Au-dela de vingt metres, un objet de plus ne se voit pas. */
+      const bord = 1 - Math.min(1, pr.d / 22) * 0.55;
+      if (rand() > (0.35 + avancee * 0.5) * bord * 1.35) continue;
 
       const y = relief.hauteur(x, z);
       const r = rand();
