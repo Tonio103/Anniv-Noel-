@@ -319,9 +319,17 @@ function boisGeo(rand) {
     }
 
     if (profondeur > 0) {
-      const nb = profondeur === 2 ? 3 : 2;
+      /* QUATRE ANDOUILLERS SUR LE MERRAIN, PAS TROIS, ET ILS PARTENT PLUS BAS.
+
+         Un dix-cors en porte cinq ou six par bois. A trois, espaces a partir
+         du cinquieme de la hauteur, on obtient une fourche plutot qu'une
+         ramure : de dos — la vue principale — on lisait deux batons a peine
+         divises. Le nombre compte ici davantage que la finesse, parce que la
+         ramure est vue en silhouette contre le ciel et que sa lecture tient
+         entierement a la DENSITE de ses divisions. */
+      const nb = profondeur === 2 ? 4 : 2;
       for (let k = 0; k < nb; k++) {
-        const t = 0.20 + k * 0.27;
+        const t = 0.14 + k * 0.21;
         const base = pts[Math.min(pas, Math.round(t * pas))].clone();
         const dir = d.clone();
         dir.x += (rand() - 0.5) * 1.1;
@@ -345,7 +353,16 @@ function boisGeo(rand) {
      C'est ce depart vers l'arriere qui fait la lyre caracteristique ; partir
      vers le haut donne une fourche de chevreuil. */
   for (const cote of [-1, 1]) {
-    branche(V(cote * 0.068, 0.02, 0.00), V(cote * 0.34, 0.80, 0.50), 0.80, 0.052, 2);
+    // Merrain principal, epaissi : a 5,2 cm de rayon il se perdait contre les
+    // sapins des qu'on s'eloignait un peu.
+    branche(V(cote * 0.068, 0.02, 0.00), V(cote * 0.34, 0.80, 0.50), 0.82, 0.064, 2);
+
+    /* L'ANDOUILLER DE MASSACRE : celui qui part tout en bas du merrain et
+       pointe vers l'avant, au-dessus du front. C'est le trait le plus
+       reconnaissable d'un cerf elaphe — celui qu'on dessine sans y penser —
+       et il manquait completement. Il se detache du reste puisqu'il part dans
+       l'autre sens, ce qui donne a la ramure sa base large. */
+    branche(V(cote * 0.062, 0.06, -0.01), V(cote * 0.30, 0.62, -0.86), 0.30, 0.030, 0);
   }
 
   const g = new THREE.BufferGeometry();
