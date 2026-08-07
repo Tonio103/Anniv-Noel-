@@ -51,7 +51,7 @@ for (let i = 0; i < n; i++) {
       coupe: dedans.scrollHeight - dedans.clientHeight,
       partCachee: +(1 - dedans.clientHeight / dedans.scrollHeight).toFixed(2),
       // Y a-t-il quoi que ce soit qui annonce le defilement ?
-      indice: !!carte.querySelector('.card-fade, .defilement, .plus, .scroll-hint'),
+      indice: !!carte.querySelector('.c-suite'),
       basCarte: Math.round(carte.getBoundingClientRect().bottom),
       hauteurEcran: window.innerHeight,
     };

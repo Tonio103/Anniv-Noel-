@@ -99,6 +99,12 @@ export class Carte {
      alors de libelle — proposer « Suivre le cerf » alors qu'on est deja plus
      loin sur le chemin serait un mensonge sur ce qui va se passer. */
   ouvrir(card, revue = false) {
+    /* La lisiere n'a pas de carte : `STATIONS[0].card` vaut null, et rien ici
+       ne s'en protegeait. Le geste n'y est pas propose en jeu normal, donc le
+       plantage ne s'est jamais produit — mais une carte absente est un etat
+       parfaitement legitime et il ne doit pas dependre du parcours qu'il ne
+       soit jamais atteint. */
+    if (!card) return;
     this.revue = revue;
     /* LE TITRE ET LE PRIX SUR LA MEME LIGNE.
 
@@ -115,6 +121,26 @@ export class Carte {
           card.price.note ? `<span>${card.price.note}</span>` : ''}</p>`
       : '';
 
+    /* LES LIENS REMONTENT AU-DESSUS DE LA LIGNE DE FLOTTAISON.
+
+       Mesure : zero lien d'achat sur dix etait visible sans faire defiler.
+       Ils sont tous ecrits en fin de carte — ce qui est logique quand on
+       redige, et desastreux quand on affiche, parce que la fin de carte est
+       precisement ce qu'on ne voit pas.
+
+       On les hisse donc juste apres le paragraphe d'accroche. C'est aussi le
+       bon endroit dans la lecture : la personne vient d'apprendre de quoi il
+       s'agit et combien ca coute ; « ou l'acheter » est exactement la
+       question suivante. Le reste du texte explique ensuite. */
+    const blocs = [...card.blocks];
+    const iLiens = blocs.findIndex((b) => b.t === 'links');
+    if (iLiens > 0) {
+      const apresAccroche = blocs.findIndex((b) => b.t === 'lead') + 1;
+      if (apresAccroche > 0 && apresAccroche < iLiens) {
+        blocs.splice(apresAccroche, 0, blocs.splice(iLiens, 1)[0]);
+      }
+    }
+
     this.scroll.innerHTML =
       `<header class="c-head">
          ${card.kicker ? `<p class="c-kicker">${card.kicker}</p>` : ''}
@@ -123,7 +149,7 @@ export class Carte {
            ${prix}
          </div>
        </header>
-       ${card.blocks.map(bloc).join('')}`;
+       ${blocs.map(bloc).join('')}`;
 
     this.bouton.textContent = revue ? 'Fermer' : (card.next || 'Continuer');
     this.el.hidden = false;
@@ -134,6 +160,32 @@ export class Carte {
 
     this._brancherCases();
     this._brancherCompte();
+    this._jauger();
+  }
+
+  /* Y a-t-il quelque chose sous le bord, et l'a-t-on atteint ?
+
+     C'est mesure plutot que suppose : selon la halte, la langue du systeme et
+     la taille de police choisie par la personne, la meme carte tient ou ne
+     tient pas. On regarde donc la hauteur reelle, a chaque ouverture et a
+     chaque redimensionnement. */
+  _jauger() {
+    const dedans = this.el.querySelector('.card-in');
+    if (!dedans) return;
+    const relire = () => {
+      const reste = this.scroll.scrollHeight - this.scroll.clientHeight;
+      dedans.classList.toggle('deborde', reste > 12);
+      dedans.classList.toggle(
+        'aBout', this.scroll.scrollTop >= reste - 14);
+    };
+    // Deux images d'attente : la carte arrive avec une transition, et sa
+    // hauteur n'est pas encore la sienne au moment ou on l'ouvre.
+    requestAnimationFrame(() => requestAnimationFrame(relire));
+    if (!this._jauge) {
+      this._jauge = relire;
+      this.scroll.addEventListener('scroll', relire, { passive: true });
+      window.addEventListener('resize', () => setTimeout(relire, 120));
+    }
   }
 
   fermer() {

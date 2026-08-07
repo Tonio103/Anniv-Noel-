@@ -104,11 +104,19 @@ body{
   text-shadow:0 0 60px rgba(150,200,240,.28), 0 14px 46px rgba(0,0,0,.7);
   animation:rise 1.3s .42s var(--ease) backwards;
 }
+/* LA PASTILLE SE CASSAIT EN DEUX AU MAUVAIS ENDROIT.
+
+   Les quatre morceaux — « Mes 16 ans », « fin novembre », « et », « Noel · 25
+   decembre » — etaient des noeuds de texte libres dans un conteneur
+   `flex-wrap`. Sur un ecran de 390 points, le retour tombait donc n'importe ou,
+   typiquement entre une occasion et sa date, et le contour arrondi passait au
+   travers. Chaque occasion est maintenant un bloc qui ne se coupe pas, et la
+   pastille adopte un vrai rythme sur deux lignes quand il le faut. */
 .entry-occasion{
   margin-top:18px;
-  display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;
-  justify-content:center;
-  padding:8px 18px 9px;border-radius:999px;
+  display:inline-flex;align-items:center;gap:4px 10px;flex-wrap:wrap;
+  justify-content:center;line-height:1.5;
+  padding:9px 18px 10px;border-radius:22px;
   background:rgba(242,193,78,.10);
   border:1px solid rgba(242,193,78,.30);
   font-size:clamp(12.5px,3.2vw,15px);color:var(--ink-2);letter-spacing:.01em;
@@ -116,6 +124,7 @@ body{
 }
 .entry-occasion b{font-weight:500;color:var(--gold-lt)}
 .entry-occasion i{font-style:normal;color:var(--ink-3);font-size:.9em}
+.entry-occasion span{white-space:nowrap}
 
 .entry-lead{
   margin-top:16px;font-size:clamp(14px,3.7vw,17px);line-height:1.62;
@@ -262,9 +271,24 @@ body{
    vivante au-dessus : le paquet ouvert, sa lueur sur la neige, le cerf qui
    attend, la neige qui tombe. La caméra continue son arc derriere. C'est ce
    tiers-la qui fait qu'on lit DANS la foret et non par-dessus. */
+/* HUIT CARTES SUR NEUF ETAIENT COUPEES SANS LE DIRE.
+
+   Mesure en 390x844 : de 22 % a 64 % du contenu hors champ selon la halte, et
+   zero lien d'achat sur dix visible. Le conteneur defilait bien — mais
+   l'ascenseur fait quatre pixels, iOS le masque tant qu'on ne fait pas
+   glisser, et rien d'autre n'annoncait qu'il restait quelque chose. On lit
+   donc la moitie d'une idee en croyant l'avoir lue en entier, ce qui est pire
+   qu'une carte franchement trop longue.
+
+   Trois mesures ensemble, parce qu'aucune ne suffit seule : un peu plus de
+   hauteur, un degrade qui montre que le texte continue, et un ascenseur qu'on
+   voit. La hauteur ne monte que de 62 a 72 vh : au-dela, la carte cesse
+   d'etre une carte posee dans la foret et redevient une diapositive, ce qui
+   est le defaut d'origine de tout ce projet. */
 .card-in{
   pointer-events:auto;
-  max-height:min(62vh,640px);
+  max-height:min(72vh,680px);
+  position:relative;
   display:flex;flex-direction:column;
   border-radius:22px;
   background:linear-gradient(168deg, rgba(22,38,50,.78), rgba(9,18,26,.86));
@@ -290,9 +314,56 @@ body{
   overflow-y:auto;overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
   padding:26px var(--pad) 8px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(190,220,240,.42) transparent;
 }
-.card-scroll::-webkit-scrollbar{width:4px}
-.card-scroll::-webkit-scrollbar-thumb{background:rgba(190,220,240,.24);border-radius:4px}
+.card-scroll::-webkit-scrollbar{width:7px}
+.card-scroll::-webkit-scrollbar-thumb{
+  background:rgba(190,220,240,.42);border-radius:4px;
+  border:2px solid transparent;background-clip:content-box;
+}
+
+/* LE VOILE DU BAS. Il n'apparait que si le texte continue reellement — la
+   classe est posee par card.js apres mesure — sinon on suggererait du contenu
+   la ou il n'y en a pas, ce qui est aussi trompeur que l'inverse. */
+.card-in.deborde::after{
+  content:"";position:absolute;left:1px;right:1px;bottom:78px;height:64px;
+  pointer-events:none;z-index:2;
+  background:linear-gradient(to bottom, rgba(11,20,28,0), rgba(11,20,28,.92));
+  transition:opacity .3s var(--ease);
+}
+.card-in.deborde.aBout::after{opacity:0}
+
+/* L'INDICE DE SUITE. Un voile seul se lit comme une ombre ; il faut dire le
+   mot. Il disparait des qu'on a atteint le bas. */
+/* L'indice flotte au-dessus du texte : il faut donc lui RESERVER sa place,
+   sinon il recouvre la derniere ligne visible — ce qui remplace un contenu
+   coupe par un contenu masque, soit exactement le defaut qu'on corrige. */
+.card-in.deborde .card-scroll{padding-bottom:50px}
+
+.c-suite{
+  position:absolute;left:0;right:0;bottom:84px;z-index:3;
+  display:none;justify-content:center;pointer-events:none;
+}
+.card-in.deborde .c-suite{display:flex}
+.card-in.deborde.aBout .c-suite{opacity:0}
+.c-suite span{
+  font:600 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(226,240,255,.86);
+  background:rgba(16,30,42,.88);
+  border:1px solid rgba(190,225,255,.22);
+  border-radius:999px;padding:7px 14px;
+  box-shadow:0 4px 18px rgba(0,0,0,.5);
+  animation:respireSuite 2.4s ease-in-out infinite;
+}
+.c-suite b{font-weight:700;margin-left:.35em}
+@keyframes respireSuite{
+  0%,100%{transform:translateY(0);opacity:.86}
+  50%{transform:translateY(3px);opacity:1}
+}
+@media (prefers-reduced-motion:reduce){
+  .c-suite span{animation:none}
+}
 
 @media (min-width:900px){
   .card{
@@ -433,7 +504,7 @@ body{
 .c-check{display:flex;flex-direction:column;gap:8px;margin:14px 0 4px}
 .c-ck{
   display:flex;gap:12px;align-items:flex-start;
-  padding:12px 14px;border-radius:13px;
+  padding:9px 13px;border-radius:12px;
   background:rgba(255,255,255,.045);border:1px solid var(--stroke);
   cursor:pointer;transition:background .25s,border-color .25s,opacity .3s;
 }
@@ -451,7 +522,18 @@ body{
 .c-ck.done .ck-t{text-decoration:line-through}
 .c-ck u{text-decoration:none;flex:1;min-width:0}
 .c-ck .ck-t{display:block;font-size:14px;font-weight:500;color:var(--ink)}
-.c-ck .ck-d{display:block;font-size:12px;line-height:1.5;color:var(--ink-3);margin-top:3px}
+/* LA LISTE FINALE MONTRAIT DEUX ARTICLES SUR CINQ.
+
+   C'est la carte du recapitulatif : son role entier est qu'on voie les cinq
+   idees d'un coup pour eviter les doublons. Chaque ligne portait un descriptif
+   de trois lignes qui repete ce que la halte a deja dit en detail — ici on ne
+   relit pas, on coche. Le descriptif tient donc sur une ligne, coupee net si
+   besoin : cinq articles compacts valent infiniment mieux que deux complets.
+   Le detail reste accessible par le bouton de relecture de chaque halte. */
+.c-ck .ck-d{
+  display:block;font-size:12px;line-height:1.45;color:var(--ink-3);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .c-ck .ck-p{font-family:"Fraunces",serif;font-weight:700;font-size:14px;color:var(--gold-lt);white-space:nowrap}
 
 /* bouton de sortie de carte : formulation diegetique, jamais "suivant" */

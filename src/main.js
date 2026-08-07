@@ -223,11 +223,41 @@ async function demarrer() {
     );
     /* On vise A COTE du cerf et AU-DESSUS : viser l'animal lui-meme le
        ramenerait au centre, exactement derriere le titre. C'est la visee qui
-       compose, jamais la position seule. */
+       compose, jamais la position seule.
+
+       LE DECALAGE NE PEUT PAS ETRE UN NOMBRE DE METRES. Il valait 5,4 m, ce
+       qui compose correctement en paysage — et met le cerf HORS CHAMP en
+       portrait, ou il ne restait de lui qu'une croupe collee au bord droit.
+       La raison est arithmetique : a quinze metres, 5,4 m de decalage font
+       dix-neuf degres, alors que la demi-ouverture horizontale d'un telephone
+       tenu debout n'est que de quatorze. Le cadrage etait donc juste sur mon
+       ecran et faux sur le sien, sans que rien dans le code ne le dise.
+
+       On raisonne desormais en FRACTION DE LA DEMI-LARGEUR VISIBLE : le cerf
+       se place a 58 % du bord, quel que soit le format. C'est la seule
+       formulation qui veuille dire la meme chose sur les deux appareils. */
+    const recul = 10.5, avance = 5;
+    const demiOuverture = Math.atan(
+      Math.tan(THREE.MathUtils.degToRad(drone.fov) / 2) * (camera.aspect || 1));
+
+    /* EN PORTRAIT, ON NE DEGAGE PAS SUR LE COTE : ON DEGAGE VERS LE BAS.
+
+       Ecarter le cerf lateralement fonctionne en paysage, ou le texte occupe
+       une colonne centrale et laisse les bords libres. En portrait le bloc de
+       titre traverse toute la largeur : meme pousse au bord, l'animal reste
+       derriere du texte, et ses bois passent au travers des lettres.
+
+       Le format donne pourtant lui-meme la solution — ce qu'un ecran debout a
+       en abondance, c'est de la hauteur. On vise donc nettement plus haut, ce
+       qui fait tomber le cerf dans le tiers bas, sous le bouton, la ou il n'y
+       a rien. Les deux formats obtiennent ainsi la meme chose — un animal
+       lisible et un texte lisible — par le degagement que chacun peut offrir. */
+    const portrait = (camera.aspect || 1) < 1;
+    const lateral = Math.tan(demiOuverture * (portrait ? 0.34 : 0.58)) * (recul + avance);
     const vise = new THREE.Vector3(
-      p0.x + tan0.x * 5 - cot0.x * 5.4,
-      sol0 + 3.05,
-      p0.z + tan0.z * 5 - cot0.z * 5.4
+      p0.x + tan0.x * avance - cot0.x * lateral,
+      sol0 + (portrait ? 6.6 : 3.05),
+      p0.z + tan0.z * avance - cot0.z * lateral
     );
     drone.figer(vise, poste);
     drone.pos.copy(poste);

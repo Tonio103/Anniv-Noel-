@@ -71,7 +71,7 @@ export const STATIONS = [
              buried: true, light: 'crepuscule' },
     prompt: 'Touchez le cadeau',
     card: {
-      kicker: 'Idée 1 sur 5',
+      kicker: 'Pour le bureau',
       title: 'Un bandeau LED',
       price: { amount: '10 €', note: 'environ' },
       blocks: [
@@ -97,7 +97,7 @@ export const STATIONS = [
              buried: true, light: 'soir' },
     prompt: 'Touchez le cadeau',
     card: {
-      kicker: 'Idée 2 sur 5',
+      kicker: 'Pour la chambre',
       title: 'De la déco',
       price: { amount: '20 €', note: 'et plus si envie' },
       blocks: [
@@ -124,7 +124,7 @@ export const STATIONS = [
              buried: true, light: 'soir' },
     prompt: 'Touchez le cadeau',
     card: {
-      kicker: 'Idée 3 sur 5',
+      kicker: 'Pour jouer',
       title: 'Une manette',
       price: { amount: '40 €', note: 'environ' },
       blocks: [
@@ -151,7 +151,7 @@ export const STATIONS = [
              buried: true, light: 'nuit' },
     prompt: 'Touchez le cadeau',
     card: {
-      kicker: 'Idée 4 sur 5',
+      kicker: 'Le jeu de l’année',
       title: 'GTA 6',
       price: { amount: '80 €', note: 'édition standard' },
       blocks: [
@@ -174,7 +174,7 @@ export const STATIONS = [
              buried: true, light: 'nuit' },
     prompt: 'Touchez le cadeau',
     card: {
-      kicker: 'Idée 5 sur 5',
+      kicker: 'Le gros morceau',
       title: 'Un écran',
       price: { amount: '150 €', note: 'en occasion' },
       blocks: [
@@ -208,13 +208,13 @@ export const STATIONS = [
       kicker: 'La date à retenir',
       title: 'Black Friday',
       blocks: [
-        { t: 'lead', h: '<strong>Vendredi 27&nbsp;novembre 2026.</strong> Une seule journée, et elle tombe juste avant mon anniversaire, un mois avant Noël.' },
+        { t: 'lead', h: '<strong>Vendredi 27&nbsp;novembre 2026.</strong> Une seule journée, et elle tombe juste avant <strong>mes 16 ans</strong>, un mois avant Noël. Une seule date à retenir pour les deux.' },
         { t: 'countdown', to: 'bf' },
         { t: 'milestones', items: [
           { d: '19 nov.', s: 'Sortie de GTA&nbsp;6 (consoles)' },
           { d: '27 nov.', s: 'Black Friday', hot: true },
           { d: '30 nov.', s: 'Cyber Monday' },
-          { d: 'fin nov.', s: 'Mon anniversaire — 16&nbsp;ans' },
+          { d: 'fin nov.', s: '<b>Mes 16 ans</b>', hot: true },
           { d: '25 déc.', s: 'Noël' },
         ]},
         { t: 'note', tone: 'good', h: '<b>L’essentiel&nbsp;:</b> acheter le 27&nbsp;novembre, offrir un mois plus tard — c’est le conseil le plus utile de toute la balade.' },
@@ -287,7 +287,7 @@ export const CHECKLIST = [
 export const META = {
   de: 'Antoine',
   pour: 'Pour vous tous',
-  occasion: 'Mes 16 ans — fin novembre · Noël — 25 décembre',
+  occasion: 'Mes 16 ans — fin novembre  ·  Noël — 25 décembre',
   intro:
     'Un mois d’écart entre les deux, alors je mets tout ensemble. ' +
     'Rien n’est attribué à l’une ou à l’autre occasion : ' +
