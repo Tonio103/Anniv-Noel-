@@ -41,6 +41,49 @@ function minDoux(a, b, k) {
   return Math.min(a, b) - h * h * k * 0.25;
 }
 
+/* --------------------------------------------------------------------------
+   POURQUOI LE CERF AVAIT DES BOURRELETS EN ACCORDEON SUR L'ENCOLURE.
+
+   Le minimum adouci ci-dessus est PAR PAIRES. On l'appliquait donc en chaine :
+   on prenait la premiere capsule, on la fondait avec la deuxieme, le resultat
+   avec la troisieme, et ainsi de suite sur les vingt-cinq capsules du modele.
+
+   Or chaque fusion RETIRE jusqu'a k/4 au champ — c'est ce retrait qui gonfle
+   la surface et cree le raccord. Ces retraits s'ACCUMULENT : un point voisin
+   de quatre capsules en subit trois, un point voisin de deux n'en subit qu'un.
+   L'inflation de la peau depend donc du NOMBRE de capsules proches.
+
+   Sur l'encolure, ce nombre change par paliers en descendant vers le poitrail
+   — mesure : quatre capsules melangees a z = -0,62, deux a z = -0,68. La
+   surface faisait donc un ressaut de plus d'un centimetre a chaque palier, et
+   comme ces paliers sont horizontaux, on obtenait des anneaux reguliers autour
+   du cou. Exactement les bosses observees.
+
+   LA CORRECTION : un minimum adouci qui traite toutes les capsules D'UN SEUL
+   COUP, au lieu de les enchainer. La forme exponentielle le permet —
+
+       smin(d1..dn) = -k · log( Σ exp(-di / k) )
+
+   Elle est par construction independante de l'ordre, et son inflation ne
+   croit que comme le LOGARITHME du nombre de voisins au lieu de s'additionner.
+   Le passage de quatre voisins a deux ne produit plus un ressaut mais une
+   variation continue et minuscule.
+
+   On soustrait le minimum avant d'exponentier : sans cette precaution
+   classique, exp(-d/k) deborde des qu'un point est profondement a l'interieur
+   du volume. */
+function minDouxTous(distances, n, k) {
+  let dmin = Infinity;
+  for (let i = 0; i < n; i++) if (distances[i] < dmin) dmin = distances[i];
+  let somme = 0;
+  for (let i = 0; i < n; i++) {
+    const e = (distances[i] - dmin) / k;
+    // Au-dela de dix-huit, la contribution est inferieure a 1e-8 : inutile.
+    if (e < 18) somme += Math.exp(-e);
+  }
+  return dmin - k * Math.log(somme);
+}
+
 /* Distance a un segment epais, avec etirement anisotrope facultatif : le
    tronc d'un cerf est nettement plus haut que large, et une capsule ronde ne
    peut pas le rendre. */
@@ -188,15 +231,16 @@ export function anatomie() {
   return c;
 }
 
-/* Champ scalaire de l'animal : negatif dedans, positif dehors. */
+/* Champ scalaire de l'animal : negatif dedans, positif dehors.
+
+   Le tampon des distances est alloue une fois : le champ est evalue plusieurs
+   centaines de milliers de fois a la generation, une allocation par appel
+   couterait bien plus que le calcul lui-meme. */
 export function champ(caps, k) {
+  const d = new Float64Array(caps.length);
   return function (x, y, z) {
-    let d = 1e9;
-    for (let i = 0; i < caps.length; i++) {
-      const di = capsule(x, y, z, caps[i]);
-      d = i === 0 ? di : minDoux(d, di, k);
-    }
-    return d;
+    for (let i = 0; i < caps.length; i++) d[i] = capsule(x, y, z, caps[i]);
+    return minDouxTous(d, caps.length, k);
   };
 }
 

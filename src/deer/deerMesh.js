@@ -203,34 +203,37 @@ function robeAu(x, y, z, c) {
     c.lerp(ROBE.museau, k * 0.7);
   }
 
-  /* --- LA MATIERE, par-dessus les plages -------------------------------- */
+  /* --- LA MATIERE, par-dessus les plages ---------------------------------
 
-  /* Les plaques, grande echelle. Elles ne s'appliquent pas au visage ni aux
-     membres : la ou le poil est ras, il est aussi uni, et l'y moucheter
-     donnerait des taches de peinture. */
+     ATTENTION AU PAS DU MAILLAGE. Une couleur par sommet ne peut porter que
+     des motifs NETTEMENT PLUS GROS que l'espacement des sommets — c'est du
+     theoreme d'echantillonnage, rien de plus. Ici les sommets sont distants
+     de 2,9 cm au palier haut et de 4,6 cm au palier bas.
+
+     J'y avais mis des meches de 2,6 cm et une bourre d'encolure de 2,8 cm,
+     c'est-a-dire PLUS FIN QUE LE MAILLAGE. Le motif s'est donc replie en un
+     battement de basse frequence, et comme les sommets d'un maillage extrait
+     par marching tetrahedra sont poses sur une grille reguliere, ce battement
+     etait parfaitement regulier lui aussi : le cerf s'est retrouve avec des
+     bourrelets en accordeon sur le cou et le dos.
+
+     La regle qui en decoule, et qui vaut pour tout ce fichier : LE SOMMET
+     PORTE LE GRAND, LE PIXEL PORTE LE PETIT. Ne restent donc ici que les
+     plaques, dont la cellule fait trente-huit centimetres — treize fois
+     l'espacement, largement de quoi etre representee. Les meches et la
+     criniere sont passees dans le fragment shader (voir matierePelage), ou
+     elles sont evaluees par pixel et ne peuvent pas se replier. */
   const surTronc = z > -0.72 && y > 0.72;
   if (surTronc) {
     const plaque = ondule(x, y, z, 2.6) - 0.5;
     c.offsetHSL(plaque * 0.012, plaque * 0.05, plaque * 0.075);
   }
 
-  /* Les meches. Elles sont ETIREES SELON LE POIL — allongees le long du
-     corps et serrees en hauteur — parce que c'est ainsi que le poil se
-     couche. Un bruit isotrope donnerait une eponge, pas une fourrure. */
-  const meche = ondule(x * 2.2, y * 5.5, z * 1.5, 7.0) - 0.5;
-  const forceMeche = surTronc ? 0.085 : 0.05;
-  c.offsetHSL(0, meche * 0.03, meche * forceMeche);
-
-  /* La bourre d'hiver de l'encolure : plus longue, donc plus contrastee. */
-  if (z < -0.50 && z > -1.00) {
-    const criniere = ondule(x * 1.6, y * 4.0, z * 1.6, 9.0) - 0.5;
-    const k = THREE.MathUtils.clamp((-0.50 - z) / 0.30, 0, 1);
-    c.offsetHSL(0, 0, criniere * 0.10 * k);
-  }
-
-  /* Le grain fin, qui casse les deux precedents. Tres faible : au-dela, on
-     retombe sur le mouchetis blanc qu'on avait deja combattu dans le shader. */
-  c.offsetHSL(0, 0, (bruit3(x * 61, y * 61, z * 61) - 0.5) * 0.028);
+  /* Une seconde echelle, encore largement au-dessus du pas du maillage :
+     cellule de dix-neuf centimetres, six fois l'espacement. C'est la plus
+     fine qu'on puisse se permettre ici. */
+  const large = ondule(x * 1.2, y * 1.6, z * 0.9, 3.2) - 0.5;
+  c.offsetHSL(0, large * 0.022, large * 0.045);
 
   // Le noir reste du noir : sans plancher, les membres se piquettent.
   c.r = Math.max(0, c.r); c.g = Math.max(0, c.g); c.b = Math.max(0, c.b);
@@ -381,6 +384,20 @@ function matierePelage() {
         float grain(vec3 p){
           return fract(sin(dot(floor(p), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
         }
+
+        /* Bruit continu par interpolation : le bruit par cellule donne un
+           mouchetis, pas des meches. C'est l'interpolation qui fait qu'on lit
+           des touffes de poil et non du sable. */
+        float bruitDoux(vec3 p){
+          vec3 i = floor(p);
+          vec3 f = p - i;
+          f = f * f * (3.0 - 2.0 * f);
+          float a = mix(mix(grain(i), grain(i + vec3(1,0,0)), f.x),
+                        mix(grain(i + vec3(0,1,0)), grain(i + vec3(1,1,0)), f.x), f.y);
+          float b = mix(mix(grain(i + vec3(0,0,1)), grain(i + vec3(1,0,1)), f.x),
+                        mix(grain(i + vec3(0,1,1)), grain(i + vec3(1,1,1)), f.x), f.y);
+          return mix(a, b, f.z);
+        }
       `)
       .replace('#include <opaque_fragment>', `
         {
@@ -389,6 +406,38 @@ function matierePelage() {
              en mouchetis blanc sur tout le corps au lieu d'un velours. */
           float g1 = grain(vLiaison * 34.0);
           outgoingLight *= 0.97 + g1 * 0.05;
+
+          /* LES MECHES, ICI ET PAS AILLEURS.
+
+             Elles etaient calculees par sommet, a une finesse de deux
+             centimetres et demi — plus fine que l'espacement des sommets du
+             maillage. Le motif se repliait donc en un battement regulier, et
+             le cerf portait des bourrelets en accordeon sur le dos.
+
+             Evaluees par PIXEL, la question ne se pose plus : il n'y a pas de
+             sous-echantillonnage possible, on peut descendre aussi fin qu'on
+             veut. C'est le bon endroit pour le detail fin, et le sommet reste
+             le bon endroit pour les grandes plages.
+
+             Elles sont ETIREES SELON LE POIL — allongees le long du corps,
+             serrees en hauteur — parce que c'est ainsi que le poil se couche.
+             Un bruit isotrope donnerait une eponge. */
+          {
+            vec3 pm = vLiaison * vec3(11.0, 46.0, 8.0);
+            float m = bruitDoux(pm);
+            // Une seconde passe, deux fois plus fine, pour l'irregularite.
+            m = m * 0.68 + bruitDoux(pm * 2.3 + 17.0) * 0.32;
+            outgoingLight *= 0.86 + m * 0.28;
+
+            /* La bourre d'hiver de l'encolure : poil plus long, donc meches
+               plus larges et plus contrastees. Le cou occupe z < -0,5 dans la
+               pose de liaison. */
+            float col = smoothstep(-0.46, -0.78, vLiaison.z);
+            if (col > 0.001) {
+              float b = bruitDoux(vLiaison * vec3(9.0, 26.0, 9.0) + 5.0);
+              outgoingLight *= 1.0 + (b - 0.5) * 0.34 * col;
+            }
+          }
 
           /* LA FOURRURE NE BLEUIT PAS.
 
@@ -465,7 +514,7 @@ function matierePelage() {
         #include <opaque_fragment>
       `);
   };
-  mat.customProgramCacheKey = () => 'pelage6';
+  mat.customProgramCacheKey = () => 'pelage8';
   return mat;
 }
 
@@ -495,7 +544,7 @@ export function creerCerf(palier) {
 
   /* --- 1. la peau, extraite du champ ------------------------------------- */
   const caps = anatomie();
-  const f = champ(caps, 0.055);
+  const f = champ(caps, 0.024);
   const pas = palier.nom === 'bas' ? 0.046 : palier.nom === 'moyen' ? 0.036 : 0.029;
 
   /* La boite doit contenir TOUT le champ, criniere et poitrail compris : un
