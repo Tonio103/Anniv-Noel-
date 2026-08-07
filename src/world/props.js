@@ -399,14 +399,48 @@ export class Fouillis {
         sx = t; sy = t * (0.7 + rand() * 0.7); sz = t;
       }
 
+      /* ON S'ASSOIT SUR LE POINT LE PLUS BAS DE SON EMPRISE, PAS SUR SON
+         CENTRE.
+
+         Les souches flottaient — visiblement, au-dessus de la neige, avec du
+         jour dessous. Pourtant la mesure disait le contraire : toutes etaient
+         enfoncees sous le terrain. Les deux sont vrais, parce qu'ils ne
+         parlent pas du meme terrain. `relief.hauteur` donne la surface
+         ANALYTIQUE ; ce qu'on voit est un maillage de 2,9 m de maille au
+         palier bas, dont la corde passe SOUS la courbe sur les bosses. Pour
+         une ondulation d'un metre sur vingt, ce creusement atteint dix
+         centimetres — soit exactement l'enfoncement d'une souche.
+
+         Un objet peut donc etre sous la surface theorique et au-dessus de la
+         surface dessinee. La parade ne consiste pas a enfoncer davantage au
+         jugé, mais a echantillonner le sol SUR TOUTE L'EMPRISE de l'objet et
+         a s'asseoir sur son point le plus bas : le contact est alors garanti
+         quel que soit le relief et quelle que soit la finesse du maillage. */
+      /* Le rayon d'echantillonnage ne peut pas etre plus petit que la MAILLE
+         DU TERRAIN : c'est entre deux sommets que la corde s'affaisse, donc
+         c'est la qu'il faut aller chercher le point bas. On sonde donc aussi
+         a une maille de distance, et on borne l'enfoncement pour qu'une
+         petite souche sur une pente forte ne finisse pas enterree. */
+      const maille = relief.palier?.nom === 'bas' ? 2.9
+                   : relief.palier?.nom === 'moyen' ? 2.1 : 1.7;
+      let solBas = y;
+      for (const rayon of [Math.max(sx, sz) * 0.5 + 0.15, maille * 0.72]) {
+        for (let a2 = 0; a2 < 6; a2++) {
+          const an = (a2 / 6) * Math.PI * 2 + rayon;
+          const h = relief.hauteur(x + Math.cos(an) * rayon, z + Math.sin(an) * rayon);
+          if (h < solBas) solBas = h;
+        }
+      }
+      solBas = Math.max(solBas, y - 0.42);
+
       out.push({
         type, x, z, sx, sy, sz, penche, roule,
         rot: rand() * Math.PI * 2,
         t: rand(),
         // Enfoncement : chaque famille s'assoit differemment dans la neige.
-        y: y - (type === 'rocher' ? sy * 0.42
-              : type === 'tronc' ? sz * 0.30
-              : type === 'souche' ? 0.10 : 0.06),
+        y: solBas - (type === 'rocher' ? sy * 0.42
+                   : type === 'tronc' ? sz * 0.30
+                   : type === 'souche' ? 0.10 + sy * 0.10 : 0.06 + sy * 0.08),
       });
     }
     return out;

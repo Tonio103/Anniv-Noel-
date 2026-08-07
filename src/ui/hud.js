@@ -31,12 +31,44 @@ export class Invite {
     setTimeout(() => { if (!this.visible) this.el.hidden = true; }, 520);
   }
 
-  /* Suit la projection du paquet a l'ecran. */
+  /* Suit la projection du paquet a l'ecran.
+
+     MAIS RESTE DANS LE CADRE. L'invite etait posee exactement sur la
+     projection du paquet, sans borne. Quand le paquet se trouve pres d'un
+     bord — ce qui arrive tout le temps, puisqu'on le place volontairement du
+     cote de la camera — l'etiquette debordait : sur un ecran de 390 points,
+     « Touchez le cadeau » commencait hors ecran et se lisait tronquee.
+
+     On borne donc la position a une marge qui tient compte de la LARGEUR
+     REELLE de l'etiquette, mesuree, et pas d'une valeur au jugé : le texte
+     change (« Touchez le paquet », « Approchez »), et une marge fixe serait
+     juste pour l'un et fausse pour l'autre. L'invite reste ainsi accrochee au
+     paquet tant qu'elle le peut, et se contente de longer le bord sinon. */
   ancrer(point3D, camera) {
     if (!this.visible) return;
     const p = point3D.clone().project(camera);
-    document.documentElement.style.setProperty('--card-x', ((p.x * 0.5 + 0.5) * 100).toFixed(2) + '%');
-    document.documentElement.style.setProperty('--card-y', ((-p.y * 0.5 + 0.5) * 100).toFixed(2) + '%');
+
+    const L = window.innerWidth || 1, H = window.innerHeight || 1;
+
+    /* On mesure L'ANNEAU ET LE TEXTE separement, et c'est le texte qui
+       commande. Le libelle est en `position:absolute` sous l'anneau : il est
+       donc HORS FLUX, et le rectangle de l'invite ne fait que la taille de
+       l'anneau — soixante-quatorze pixels. En bornant sur cette valeur je
+       laissais deborder les soixante-quinze pixels de texte de chaque cote,
+       et « Touchez le cadeau » restait coupe exactement comme avant. Un
+       element absolu ne dit rien de sa taille a son parent : il faut aller le
+       lui demander. */
+    const r = this.el.getBoundingClientRect();
+    const rt = this.txt.getBoundingClientRect();
+    const margeX = Math.max(r.width, rt.width) / 2 + 14;
+    // Le texte pend SOUS l'anneau : la garde du bas doit l'englober.
+    const margeY = r.height / 2 + rt.height + 22;
+
+    const x = Math.min(L - margeX, Math.max(margeX, (p.x * 0.5 + 0.5) * L));
+    const y = Math.min(H - margeY, Math.max(margeY, (-p.y * 0.5 + 0.5) * H));
+
+    document.documentElement.style.setProperty('--card-x', (x / L * 100).toFixed(2) + '%');
+    document.documentElement.style.setProperty('--card-y', (y / H * 100).toFixed(2) + '%');
   }
 }
 
