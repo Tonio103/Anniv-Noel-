@@ -113,6 +113,31 @@ export class Empreintes {
     this.copie.visible = false;
     this.scene.add(this.copie);
 
+    /* LE VOILE.
+
+       Une trace qui ne s'efface jamais est une trace fausse : il neige, et
+       une empreinte de sabot se comble en quelques minutes. Sans effacement,
+       le couloir finissait laboure d'un bout a l'autre — ce qui, en plus
+       d'etre faux, effacait justement l'information qu'on veut lire, a savoir
+       que les traces FRAICHES sont juste derriere l'animal.
+
+       On repasse donc un voile noir tres faible sur toute la fenetre. La
+       trace s'estompe du plus vieux au plus recent, exactement comme la neige
+       la recouvre. Constante de temps d'environ cinquante secondes : assez
+       long pour qu'on suive la piste sur toute la traversee d'une clairiere,
+       assez court pour que le sillage ait une fin visible. */
+    this.voile = new THREE.Mesh(
+      new THREE.PlaneGeometry(ETENDUE, ETENDUE),
+      new THREE.MeshBasicMaterial({
+        color: 0x000000, transparent: true, opacity: 0.05,
+        depthTest: false, depthWrite: false,
+      })
+    );
+    this.voile.rotation.x = -Math.PI / 2;
+    this.voile.visible = false;
+    this.scene.add(this.voile);
+    this._depuisVoile = 0;
+
     this.centre = new THREE.Vector2(0, 0);
     this.premier = true;
     this.file = [];
@@ -132,12 +157,20 @@ export class Empreintes {
   /* Un sabot vient de se poser. On enregistre, le rendu suivra. */
   ajouter(x, z, angle, force = 1) {
     if (!this.actif) return;
-    if (this.file.length < this.reserve.length) this.file.push({ x, z, angle, force });
+    if (this.file.length < this.reserve.length) {
+      this.file.push({ x, z, angle, force, alea: Math.random() });
+    }
   }
 
   /* A appeler dans la boucle de rendu, avant de dessiner la scene. */
-  rendre(renderer, suivi) {
+  rendre(renderer, suivi, dt = 0) {
     if (!this.actif) return;
+
+    /* Le voile est applique par bouffees plutot qu'a chaque image : une passe
+       pleine fenetre par frame serait du remplissage pur pour un effet qui,
+       de toute facon, ne se voit qu'a l'echelle de la dizaine de secondes. */
+    this._depuisVoile += dt;
+    const voiler = this._depuisVoile > 0.4 && !this.premier;
 
     const cible = this.centre;
     // Cale sur la grille de texels : le recopiage tombe alors pile sur les
@@ -145,7 +178,7 @@ export class Empreintes {
     const nx = Math.round(suivi.x / this.texel) * this.texel;
     const nz = Math.round(suivi.z / this.texel) * this.texel;
     const bouge = this.premier || Math.abs(nx - cible.x) > 3 || Math.abs(nz - cible.y) > 3;
-    if (!bouge && !this.file.length) return;
+    if (!bouge && !this.file.length && !voiler) return;
 
     const ancienCentre = { x: cible.x, z: cible.y };
     if (bouge) { cible.set(nx, nz); }
@@ -176,16 +209,35 @@ export class Empreintes {
       this.premier = false;
     }
 
+    /* Le voile, puis les nouveaux pas : dans cet ordre, sinon l'empreinte
+       qu'on vient de poser serait aussitot attenuee. */
+    if (voiler) {
+      // Proportionnelle au temps ecoule : le rythme d'effacement ne depend
+      // donc pas de la cadence d'images.
+      this.voile.material.opacity = Math.min(0.10, this._depuisVoile / 50);
+      this.voile.position.set(cible.x, 0, cible.y);
+      this.voile.visible = true;
+      renderer.autoClear = false;
+      renderer.setRenderTarget(this.rtA);
+      renderer.render(this.scene, this.cam);
+      this.voile.visible = false;
+      this._depuisVoile = 0;
+    }
+
     if (this.file.length) {
       for (let i = 0; i < this.file.length; i++) {
         const e = this.file[i];
         const m = this.reserve[i];
-        const taille = 0.30 + e.force * 0.10;
+        /* Un sabot ne fait jamais deux fois la meme marque : la taille, le
+           cap et l'appui varient d'un pas a l'autre. Sans ce desordre, la
+           piste devient une frise de tampons identiques — l'oeil repere le
+           motif immediatement et toute la credibilite du sol s'effondre. */
+        const taille = (0.30 + e.force * 0.10) * (0.88 + e.alea * 0.24);
         m.visible = true;
         m.position.set(e.x, 0, e.z);
-        m.scale.set(taille, taille * 1.25, 1);
-        m.rotation.z = -e.angle;
-        m.material.opacity = 0.55 + e.force * 0.35;
+        m.scale.set(taille, taille * (1.16 + e.alea * 0.18), 1);
+        m.rotation.z = -e.angle + (e.alea - 0.5) * 0.34;
+        m.material.opacity = (0.55 + e.force * 0.35) * (0.84 + e.alea * 0.2);
       }
       renderer.autoClear = false;
       renderer.setRenderTarget(this.rtA);

@@ -48,6 +48,25 @@ export class Cerf {
     this.regard = 0;            // >0 quand il se retourne vers le visiteur
     this.tempsArret = 0;
 
+    /* --- ce qu'il fait de lui-meme ----------------------------------------
+       Les trajets entre deux haltes durent une douzaine de secondes pendant
+       lesquelles, jusqu'ici, il ne se passait rien : le cerf trottait en
+       ligne droite a vitesse constante. Un animal ne fait jamais ca. Il
+       jette un oeil en arriere, secoue la tete pour chasser la neige, presse
+       le pas puis se laisse porter.
+
+       Ces gestes ne sont pilotes par personne : ils tombent d'eux-memes, sur
+       un minuteur volontairement irregulier, pour qu'aucun trajet ne
+       ressemble au precedent. C'est le seul endroit du programme ou le hasard
+       est souhaitable — partout ailleurs il ferait desordre. */
+    this.regardAuto = 0;        // coup d'oeil en arriere, de son initiative
+    this.secousse = 0;          // il secoue la tete
+    this.allant = 1;            // modulation lente de son entrain
+    this._prochainGeste = 4 + Math.random() * 7;
+    this._geste = null;
+    this._resteGeste = 0;
+    this._dureeGeste = 1;
+
     /* Evenements de poser, consommes par le son pour les crissements. */
     this.posers = [];
     this._auSol = { AG: true, AD: true, PG: true, PD: true };
@@ -111,9 +130,68 @@ export class Cerf {
     mb.bas.rotation.set(-mb.sens * (Math.PI - Math.acos(cosA2)), 0, 0);
   }
 
+  /* Les gestes qu'il prend de lui-meme, pendant les trajets.
+
+     Trois seulement, et jamais deux a la fois : au-dela, on ne lit plus un
+     animal mais une marionnette agitee. Le minuteur est irregulier (5 a 14 s)
+     pour que le spectateur ne puisse pas anticiper le prochain. Rien de tout
+     ceci ne se declenche a l'arret : la, c'est la mise en scene qui commande,
+     et deux intentions concurrentes sur la meme nuque donneraient un
+     tremblement. */
+  _vivre(dt) {
+    const enRoute = this.vitesse > 1.2 && this.grattage <= 0 && this.regard <= 0.01;
+
+    if (this._geste) {
+      this._resteGeste -= dt;
+      // Enveloppe en cloche : le geste monte, tient, redescend. Un creneau
+      // se verrait comme un a-coup.
+      const u = 1 - clamp(this._resteGeste / this._dureeGeste, 0, 1);
+      const env = Math.sin(clamp(u, 0, 1) * Math.PI);
+
+      if (this._geste === 'regarde') {
+        // Il tourne la tete vers l'arriere — vers nous. C'est le geste qui
+        // dit "tu suis ?", et c'etait la promesse du plan.
+        this.regardAuto = env * 0.72;
+      } else if (this._geste === 'secoue') {
+        // Deux allers-retours francs : la neige tombe des oreilles.
+        this.secousse = Math.sin(u * Math.PI * 4) * env;
+      } else if (this._geste === 'presse') {
+        // Un coup d'allant, puis il se laisse porter : la vitesse cesse
+        // d'etre une constante.
+        this.allant = 1 + env * 0.26;
+      }
+
+      if (this._resteGeste <= 0) {
+        this._geste = null;
+        this._prochainGeste = 5 + Math.random() * 9;
+      }
+    } else {
+      this.regardAuto = damp(this.regardAuto, 0, 3.0, dt);
+      this.secousse = damp(this.secousse, 0, 5.0, dt);
+      this.allant = damp(this.allant, 1, 1.4, dt);
+
+      if (enRoute) {
+        this._prochainGeste -= dt;
+        if (this._prochainGeste <= 0) {
+          const d = Math.random();
+          if (d < 0.45)      { this._geste = 'regarde'; this._dureeGeste = 2.2 + Math.random() * 1.1; }
+          else if (d < 0.75) { this._geste = 'secoue';  this._dureeGeste = 0.9 + Math.random() * 0.4; }
+          else               { this._geste = 'presse';  this._dureeGeste = 3.0 + Math.random() * 2.0; }
+          this._resteGeste = this._dureeGeste;
+        }
+      }
+    }
+  }
+
   maj(dt, temps) {
-    /* --- vitesse : montee et descente en douceur ------------------------- */
-    this.vitesse = damp(this.vitesse, this.vitesseCible, 2.6, dt);
+    this._vivre(dt);
+
+    /* --- vitesse : montee et descente en douceur -------------------------
+       `allant` module la consigne plutot que la vitesse elle-meme : le
+       lissage reste seul maitre de l'acceleration, donc aucun a-coup ne
+       peut passer, et la relation foulee/vitesse qui interdit le glissement
+       des sabots tient toujours. */
+    this.vitesse = damp(this.vitesse, this.vitesseCible * this.allant, 2.6, dt);
     if (this.vitesse < 0.05) this.vitesse = 0;
 
     // L'allure suit la vitesse : on marche a l'approche, on trotte en route.
@@ -204,7 +282,10 @@ export class Cerf {
     /* --- tete, cou, queue -------------------------------------------------
        Un cerf en mouvement balance la tete. A l'arret, il la releve et
        observe. Quand il se retourne vers le visiteur, tout part du cou. */
-    const cibleRegard = this.regard;
+    /* Le regard commande peut venir de la mise en scene (aux haltes) ou de
+       lui-meme (en route). On prend le plus fort des deux plutot que la
+       somme : additionnes, ils lui tordraient le cou au-dela du possible. */
+    const cibleRegard = Math.max(this.regard, this.regardAuto);
     this._regardLisse = damp(this._regardLisse ?? 0, cibleRegard, 3.2, dt);
     const r = this._regardLisse;
 
@@ -221,6 +302,16 @@ export class Cerf {
       const g = smoothstep(0, 0.25, this.grattage) * smoothstep(1, 0.75, this.grattage);
       this.cou.rotation.x += g * 0.62;
       this.tete.rotation.x += g * 0.30;
+    }
+
+    /* La secousse : le cou donne l'impulsion, la tete suit en retard et plus
+       ample — c'est ce decalage qui fait "il se secoue" plutot que "sa tete
+       pivote". Les bois, rigides et parentes a la tete, amplifient encore le
+       mouvement, ce qui rend le geste lisible de loin. */
+    if (Math.abs(this.secousse) > 0.001) {
+      this.cou.rotation.z += this.secousse * 0.16;
+      this.tete.rotation.z += this.secousse * 0.30;
+      this.tete.rotation.y += this.secousse * 0.12;
     }
 
     this.queue.rotation.x = Math.sin(temps * 1.7) * 0.16 + 0.12;

@@ -45,10 +45,88 @@ export class Trace {
     this.el = document.getElementById('trail');
     this.el.innerHTML = Array.from({ length: nb }, () => '<i></i>').join('');
     this.pas = [...this.el.children];
+    this._dernier = -1;
+  }
+
+  /* On allume tout jusqu'a i, mais on n'anime QUE le nouveau : rejouer
+     l'animation sur toute la ligne ferait clignoter un compteur, ce qu'on
+     passe justement tout ce programme a eviter. */
+  effacer() {
+    for (const p of this.pas) p.classList.remove('on', 'neuf');
+    this._dernier = -1;
   }
 
   marquer(i) {
     for (let k = 0; k <= i && k < this.pas.length; k++) this.pas[k].classList.add('on');
+    const neuf = this.pas[i];
+    if (neuf && i !== this._dernier) {
+      this._dernier = i;
+      neuf.classList.remove('neuf');
+      // Force le navigateur a recalculer avant de remettre la classe, sinon
+      // l'animation ne repart pas quand la meme empreinte est remarquee.
+      void neuf.offsetWidth;
+      neuf.classList.add('neuf');
+      setTimeout(() => neuf.classList.remove('neuf'), 900);
+    }
+  }
+}
+
+/* Le texte de fin, et la porte de retour.
+
+   Il arrive tard et par le bas, sans jamais recouvrir la clairiere : ce
+   qu'on doit regarder a ce moment-la, c'est le sapin allume et les seize
+   bougies, pas un ecran de generique.
+
+   Le bouton ne recharge pas la page — le contenu est dechiffre en memoire,
+   et un rechargement redemanderait le code a la famille. On recommence donc
+   la balade sur place. */
+export class Fin {
+  constructor(surRetour) {
+    this.el = document.getElementById('outro');
+    this.visible = false;
+    this.opacite = 0;
+    document.getElementById('outroAgain').addEventListener('click', () => {
+      this.cacher();
+      surRetour();
+    });
+  }
+
+  montrer() {
+    if (this.visible) return;
+    this.visible = true;
+    this.el.hidden = false;
+  }
+
+  cacher() {
+    this.visible = false;
+  }
+
+  /* LE FONDU EST PILOTE PAR LA BOUCLE, pas par le navigateur.
+
+     Ni la transition CSS ni l'animation en keyframes ne convenaient : elles
+     dependent de la timeline d'animation du document, qui n'avance pas quand
+     le compositeur ne commet pas d'image de lui-meme. On observait alors une
+     animation "running" avec un currentTime bloque a zero et un texte
+     invisible, sans que rien n'indique la panne.
+
+     Or cette page possede deja une horloge fiable, celle du rendu 3D. On s'en
+     sert : une opacite ecrite en style en ligne est une valeur statique, donc
+     elle s'affiche toujours, quel que soit l'etat du compositeur. C'est aussi
+     ce qui rend l'apparition verifiable par capture. */
+  maj(dt) {
+    const cible = this.visible ? 1 : 0;
+    if (Math.abs(this.opacite - cible) < 0.002) {
+      if (!this.visible && !this.el.hidden && this.opacite < 0.01) {
+        this.el.hidden = true;
+        this.el.style.opacity = '0';
+      }
+      return;
+    }
+    // Deux secondes pour arriver, une pour partir : on entre dans une fin, on
+    // en sort plus vite.
+    const v = this.visible ? dt / 2.2 : -dt / 1.0;
+    this.opacite = Math.min(1, Math.max(0, this.opacite + v));
+    this.el.style.opacity = this.opacite.toFixed(3);
   }
 }
 

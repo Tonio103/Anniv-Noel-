@@ -61,6 +61,11 @@ export class Drone {
     this._interet = null;
     this._forceInteret = 0;
     this._premiere = true;
+
+    this.orbite = 0;
+    this.orbiteVitesse = 0;
+    this.descente = 0;
+    this.descenteCible = 0;
   }
 
   /* Un point a regarder en plus du cerf — typiquement le cadeau qui sort de
@@ -101,7 +106,88 @@ export class Drone {
     this.basCible = c.bas || 0;
   }
 
+  /* LE DRONE SE POSE.
+
+     Tant que la camera suit, il n'y a pas de fin : le cerf a beau s'eloigner,
+     il reste au centre du cadre et on attend la suite. Une fin, c'est le
+     moment ou l'appareil RENONCE A SUIVRE et le laisse sortir du champ.
+
+     On ne coupe pas tout pour autant : le flottement de main levee et la
+     respiration de l'objectif continuent. Une image parfaitement immobile
+     ferait croire a un plantage — c'est le contraire de l'effet cherche. */
+  figer(pointVise, position) {
+    if (this.fige) return;
+    this.fige = true;
+    /* On peut IMPOSER la position finale au lieu de garder celle qu'on avait.
+       C'est indispensable : la camera de suivi se trouvait au hasard de sa
+       derive au moment ou la fin se declenche, et se figer sur place l'a
+       plantee en plein milieu de l'arc de bougies, qui remplissait alors
+       l'ecran de piliers blancs. Une derniere image se compose, elle ne se
+       constate pas. */
+    this._posFigee = (position || this.pos).clone();
+    this._viseFigee = (pointVise || this.vise).clone();
+    // La camera y va en glissant, elle n'y saute pas.
+    this._arrivee = 0;
+  }
+
+  liberer() {
+    this.fige = false;
+    this._premiere = true;
+    this.orbite = 0;
+    this.orbiteCible = 0;
+    this.descente = 0;
+    this.descenteCible = 0;
+  }
+
+  /* L'ARC DE HALTE.
+
+     Une halte durait une quinzaine de secondes pendant lesquelles la camera
+     ne faisait rien : elle prenait un cadrage et le tenait. Or c'est
+     precisement le moment ou le visiteur lit, donc celui ou une image figee
+     se remarque le plus — et une image figee sur laquelle du texte s'affiche,
+     c'est la definition d'une diapositive.
+
+     On lui donne donc un MOUVEMENT PROPRE : la camera contourne lentement le
+     paquet pendant qu'il sort et pendant qu'on lit. C'est le geste de base du
+     plan de drone, et il ne coute qu'un angle qui derive.
+
+     La vitesse est volontairement basse — un dixieme de radian par seconde —
+     parce qu'un arc rapide donne le tournis quand on lit en meme temps. On ne
+     doit pas voir la camera bouger ; on doit seulement se rendre compte,
+     apres coup, qu'on a change de point de vue. */
+  arc(vitesse, descente = 0) {
+    this.orbiteVitesse = vitesse;
+    this.descenteCible = descente;
+  }
+
   maj(dt, temps, cerf) {
+    if (this.fige) {
+      const b1 = this.bruit(temps * 0.33, 0.0);
+      const b2 = this.bruit(0.0, temps * 0.29);
+      const b3 = this.bruit(temps * 0.21, 5.5);
+      // Glissement vers la position finale : un saut se lirait comme une
+      // coupe, et tout ce programme tient sur l'absence de coupe.
+      this.pos.x = damp(this.pos.x, this._posFigee.x, 0.55, dt);
+      this.pos.y = damp(this.pos.y, this._posFigee.y, 0.55, dt);
+      this.pos.z = damp(this.pos.z, this._posFigee.z, 0.55, dt);
+      this.camera.position.set(
+        this.pos.x + b1 * 0.34,
+        this.pos.y + b2 * 0.24,
+        this.pos.z + b3 * 0.34
+      );
+      this.vise.lerp(this._viseFigee, 1 - Math.exp(-1.1 * dt));
+      this.camera.lookAt(this.vise);
+      this.roulis = damp(this.roulis, 0, 0.7, dt);
+      this.camera.rotateZ(this.roulis);
+      const fovFige = (this.fov + Math.sin(temps * 0.19) * 0.55)
+                    * (this.camera.userData.fovEchelle || 1);
+      if (Math.abs(this.camera.fov - fovFige) > 0.01) {
+        this.camera.fov = fovFige;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
+
     /* --- glissement lent vers le cadrage demande -------------------------- */
     this.recul = damp(this.recul, this.reculCible, 0.9, dt);
     this.hauteur = damp(this.hauteur, this.hauteurCible, 0.9, dt);
@@ -120,10 +206,22 @@ export class Drone {
     this.chemin.tangente(cerf.s, this._tan);
     this._cote.set(-this._tan.z, 0, this._tan.x);
 
+    /* L'arc de halte : l'angle s'accumule tant qu'une vitesse est demandee,
+       et il retombe a zero des qu'on repart. On le fait tourner dans le plan
+       (tangente, cote) plutot qu'autour d'un axe monde, pour qu'il reste
+       coherent quel que soit le cap du chemin. */
+    this.orbite = (this.orbite || 0) + (this.orbiteVitesse || 0) * dt;
+    if (!this.orbiteVitesse) this.orbite = damp(this.orbite, 0, 0.55, dt);
+    this.descente = damp(this.descente || 0, this.descenteCible || 0, 0.8, dt);
+
+    const ca = Math.cos(this.orbite), sa = Math.sin(this.orbite);
+    const recul = this.recul + oscRecul;
+    const late = this.lateral + oscLat;
+
     const cible = this._tmp2.copy(ancre);
-    cible.addScaledVector(this._tan, -(this.recul + oscRecul));
-    cible.addScaledVector(this._cote, this.lateral + oscLat);
-    cible.y += this.hauteur + oscHaut;
+    cible.addScaledVector(this._tan, -recul * ca - late * sa);
+    cible.addScaledVector(this._cote, late * ca - recul * sa);
+    cible.y += this.hauteur + oscHaut - this.descente;
 
     // Main levee : un flottement continu, ample mais tres lent.
     const n1 = this.bruit(temps * 0.33, 0.0);

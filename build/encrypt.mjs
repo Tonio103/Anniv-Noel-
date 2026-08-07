@@ -4,7 +4,7 @@
 
    Le mot de passe n'est jamais ecrit dans le depot : il est lu dans la
    variable d'environnement NOEL_CODE.
-       NOEL_CODE="TONIO-NOEL-4726" npm run build
+       NOEL_CODE="<le code>" npm run build
 */
 
 import { readFile, writeFile } from 'node:fs/promises';

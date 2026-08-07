@@ -142,6 +142,53 @@ body{
 @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 
 /* --------------------------------------------------------------------------
+   LA FIN.
+
+   Elle ne ressemble volontairement pas au seuil : pas de titre, pas de grand
+   aplat, rien qui recouvre l'image. La derniere chose qu'on doit voir, c'est
+   la clairiere allumee et le cerf qui s'en va — pas un ecran.
+
+   Le texte se pose donc en BAS, sur un simple degrade, et il arrive tard.
+   Le bouton de retour est discret : il propose, il ne conclut pas.
+   -------------------------------------------------------------------------- */
+.outro{
+  position:fixed;left:0;right:0;bottom:0;z-index:78;
+  display:grid;justify-items:center;gap:6px;
+  padding:64px calc(var(--pad) + var(--safe-r))
+          calc(30px + var(--safe-b)) calc(var(--pad) + var(--safe-l));
+  text-align:center;
+  background:linear-gradient(to top,rgba(5,13,20,.88) 0%,rgba(5,13,20,.45) 55%,transparent 100%);
+  pointer-events:none;
+  /* L'opacite est ecrite par la boucle de rendu, en style en ligne. Ni
+     transition ni keyframes ici : voir la classe Fin, qui explique pourquoi
+     la timeline d'animation du document n'est pas une horloge fiable. */
+  opacity:0;
+}
+.outro-line{
+  font-family:"Fraunces",Georgia,serif;font-weight:400;font-style:italic;
+  font-size:clamp(20px,5.4vw,32px);line-height:1.25;
+  color:var(--ink);
+  text-shadow:0 0 46px rgba(150,200,240,.3),0 10px 34px rgba(0,0,0,.7);
+}
+.outro-sign{
+  margin-top:4px;
+  font-size:clamp(12px,3.2vw,14.5px);color:var(--ink-3);letter-spacing:.02em;
+}
+.outro-sign b{font-weight:500;color:var(--gold)}
+.outro-again{
+  margin-top:20px;padding:11px 26px;
+  border-radius:999px;cursor:pointer;pointer-events:auto;
+  font-family:"Outfit",sans-serif;font-size:14px;font-weight:400;letter-spacing:.03em;
+  color:var(--ink-2);
+  background:rgba(14,26,36,.55);
+  border:1px solid var(--stroke);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  transition:color .3s var(--ease),border-color .3s var(--ease),transform .3s var(--ease);
+}
+.outro-again:hover{color:var(--gold-lt);border-color:rgba(242,193,78,.45);transform:translateY(-2px)}
+.outro-again:active{transform:scale(.97)}
+
+/* --------------------------------------------------------------------------
    Invite : un anneau qui respire, ancre sur le cadeau
    -------------------------------------------------------------------------- */
 .prompt{
@@ -369,13 +416,50 @@ body{
 .ico.muted svg .w1,.ico.muted svg .w2{opacity:.2}
 
 /* trace : une empreinte par halte franchie, c'est toute la "progression" */
-.trail{display:flex;gap:5px;align-items:center;padding-right:2px}
+/* --- la trace ------------------------------------------------------------
+   Une empreinte par halte franchie : la seule mesure de progression, et la
+   seule qui ne transforme pas la balade en diaporama.
+
+   La premiere version faisait cinq pixels sur huit, d'un gris a 22 % : c'est
+   dire qu'elle n'existait pas. Or elle porte a elle seule tout le "ou j'en
+   suis" de l'experience — sans elle, on avance a l'aveugle.
+
+   On lui rend donc une vraie taille et sa VRAIE FORME : un sabot de cerf est
+   fendu, deux lobes en goutte. C'est ce dessin, et pas une pastille, qui la
+   rattache a l'animal qu'on suit. Et la derniere franchie s'enfonce d'un
+   coup, comme un pas qu'on vient de poser : l'oeil est attire au bon moment
+   sans qu'aucun compteur n'apparaisse. */
+.trail{display:flex;gap:9px;align-items:center;padding-right:3px}
 .trail i{
-  width:5px;height:8px;border-radius:60% 60% 45% 45%;
-  background:rgba(233,242,248,.22);
-  transition:background .6s var(--ease),transform .6s var(--ease);
+  position:relative;
+  width:11px;height:15px;
+  opacity:.30;
+  transition:opacity .7s var(--ease),transform .7s var(--ease);
 }
-.trail i.on{background:var(--gold-lt);transform:scale(1.12)}
+.trail i::before,.trail i::after{
+  content:"";position:absolute;top:0;
+  width:4.5px;height:100%;
+  border-radius:52% 52% 46% 46%;
+  background:rgba(233,242,248,.85);
+  transition:background .7s var(--ease),box-shadow .7s var(--ease);
+}
+.trail i::before{left:0;transform:rotate(-7deg)}
+.trail i::after{right:0;transform:rotate(7deg)}
+.trail i.on{opacity:1}
+.trail i.on::before,.trail i.on::after{
+  background:var(--gold-lt);
+  box-shadow:0 0 9px rgba(242,193,78,.55);
+}
+/* Le pas qu'on vient de poser : il s'enfonce puis reprend sa place. */
+.trail i.neuf{animation:poser .85s var(--ease)}
+@keyframes poser{
+  0%{transform:translateY(-5px) scale(1.28);opacity:.4}
+  45%{transform:translateY(1px) scale(.94);opacity:1}
+  100%{transform:none;opacity:1}
+}
+@media (prefers-reduced-motion:reduce){
+  .trail i.neuf{animation:none}
+}
 
 /* --------------------------------------------------------------------------
    Panneau son

@@ -84,9 +84,9 @@ function distSegment(px, py, pz, a, b) {
    pelage trop clair se fait pousser dans les blancs par la courbe ACES.
    -------------------------------------------------------------------------- */
 const ROBE = {
-  flanc: C(0x9A7A52), dorsal: C(0x56402A), ventre: C(0xCEBA96),
-  croupe: C(0xDBC9A4), membre: C(0x5E4830), encolure: C(0x685039),
-  museau: C(0xB29A74),
+  flanc: C(0x9A7A52), dorsal: C(0x56402A), ventre: C(0xC9B189),
+  croupe: C(0xEADCBC), membre: C(0x5E4830), encolure: C(0x685039),
+  museau: C(0xB29A74), cuisse: C(0x7C6142),
 };
 
 function robeAu(x, y, z, c) {
@@ -96,15 +96,48 @@ function robeAu(x, y, z, c) {
   const hautDos = THREE.MathUtils.clamp((y - AXE) / 0.26, 0, 1);
   c.lerp(ROBE.dorsal, Math.pow(hautDos, 1.4) * 0.85);
 
-  // Ventre creme, sous l'axe du corps et seulement sur le tronc.
-  if (z > -0.70 && z < 0.85) {
+  // Ventre creme, sous l'axe du corps et seulement sur le tronc. La borne
+  // arriere s'arrete avant le bassin : au-dela, le creme bavait sur la
+  // croupe et noyait le miroir dans une meme masse claire.
+  if (z > -0.70 && z < 0.52) {
     const bas = THREE.MathUtils.clamp((AXE - 0.05 - y) / 0.24, 0, 1);
     c.lerp(ROBE.ventre, Math.pow(bas, 1.6) * 0.75);
   }
 
-  // Tache claire de la croupe : arriere du bassin et arriere-cuisses.
-  const arr = THREE.MathUtils.clamp((z - 0.46) / 0.34, 0, 1);
-  if (arr > 0) c.lerp(ROBE.croupe, arr * 0.80);
+  /* LE MIROIR.
+
+     C'est le repere le plus important de tout l'animal, parce que la camera
+     le suit par l'arriere : c'est cette tache-la qu'on regarde pendant les
+     trois quarts de la balade.
+
+     La version precedente etendait un creme uniforme sur toute l'arriere-main
+     des que z depassait 0,46. Resultat : une croupe plate et sans relief, qui
+     virait au vert-de-gris parce qu'un creme neutre eclaire par un ciel bleu
+     ne peut rien faire d'autre. Vue de dos — la vue principale — le cerf
+     n'etait plus qu'une couverture mouillee.
+
+     Un vrai miroir de cerf elaphe est PETIT et VIF, cerne de poil sombre.
+     C'est ce contraste qui le rend lisible a cinquante metres, pas sa
+     surface. On le taille donc en ellipsoide autour de la naissance de la
+     queue, et on FONCE l'arriere-cuisse tout autour pour qu'il ressorte. */
+  const dz = (z - 0.66) / 0.24;
+  const dy = (y - (AXE + 0.05)) / 0.24;
+  const dx = x / 0.24;
+  const d2 = dz * dz + dy * dy + dx * dx * 0.55;
+  if (d2 < 2.8) {
+    /* Cerne sombre. Il monte en s'eloignant du miroir PUIS REDESCEND : une
+       rampe simple, coupee net a sa borne, laissait une arete franche en
+       plein milieu de la cuisse — on lisait une couverture posee sur
+       l'animal, pas un degrade de poil. Les deux pentes se croisent a la
+       meme valeur, donc la teinte est continue partout. */
+    const monte = (d2 - 0.55) / 0.75;
+    const descend = (2.8 - d2) / 1.50;
+    const cerne = THREE.MathUtils.clamp(Math.min(monte, descend), 0, 1);
+    c.lerp(ROBE.cuisse, cerne * 0.55);
+  }
+  if (d2 < 1) {
+    c.lerp(ROBE.croupe, Math.pow(1 - d2, 0.55) * 0.96);
+  }
 
   // Encolure et poitrail, nettement plus fonces.
   if (z < -0.58) {
@@ -266,11 +299,67 @@ function matierePelage() {
              en mouchetis blanc sur tout le corps au lieu d'un velours. */
           float g1 = grain(vLiaison * 34.0);
           outgoingLight *= 0.97 + g1 * 0.05;
+
+          /* LA FOURRURE NE BLEUIT PAS.
+
+             La lune est devant l'animal et la camera le suit par l'arriere :
+             tout ce qu'on voit de lui est donc a contre-jour, eclaire par le
+             seul ciel, qui est bleu. Un pelage brun sous une lumiere bleue
+             devient vert-de-gris — c'est de la colorimetrie, pas un bug, et
+             c'est exactement ce que la scene donnait.
+
+             La neige, elle, DOIT bleuir : c'est ce qui fait le froid. On ne
+             touche donc pas a l'eclairage, on corrige la reponse de la seule
+             fourrure — ce que ferait un etalonneur. La correction est ancree
+             sur la luminance : elle rechauffe sans eclaircir, sinon le cerf
+             se detacherait du decor comme un decalque.
+
+             Un poil garde toujours un fond roux, meme dans l'ombre : la
+             seconde ligne remet ce fond, proportionnellement a ce que la
+             lumiere a laisse, donc sans jamais deboucher les noirs. */
+          float lum = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
+          outgoingLight = mix(outgoingLight, vec3(lum) * vec3(1.30, 0.98, 0.70), 0.42);
+          outgoingLight += vec3(0.055, 0.030, 0.014) * lum;
+
+          /* LE LISERE DE LUNE.
+
+             La lune est devant l'animal, la camera derriere : le cerf est en
+             contre-jour permanent, donc plat, donc illisible. C'est le defaut
+             le plus couteux de toute la scene, puisque cette vue-la est celle
+             qu'on a sous les yeux pendant les trois quarts de la balade.
+
+             Un contre-jour se traite par un LISERE, pas par du remplissage :
+             on rallume la seule tranche de silhouette qui regarde la lumiere.
+             Le poil, translucide en bordure, s'embrase la — c'est la plus
+             belle chose qu'on puisse faire d'un animal a contre-jour, et
+             lighting.js la promettait deja en commentaire sans que rien ne la
+             produise.
+
+             Une premiere tentative avait ete retiree, et pour une bonne
+             raison : elle ne dependait que de l'angle de VUE. Sur un corps
+             rond, (1 - N.V) vaut presque un partout, et l'animal entier
+             s'allumait d'une couleur unie — au point qu'une robe forcee au
+             noir restait beige. Le facteur qui manquait est celui-ci : il
+             faut AUSSI que la normale regarde la lune. Le produit des deux
+             ne survit que sur le contour eclaire, ce qui est exactement la
+             definition d'un lisere. */
+          #if NUM_DIR_LIGHTS > 0
+          {
+            vec3 N = normalize(normal);
+            vec3 V = normalize(vViewPosition);
+            vec3 L = normalize(directionalLights[0].direction);
+            float tranche = pow(1.0 - abs(dot(N, V)), 3.0);
+            float versLune = clamp(dot(N, L), 0.0, 1.0);
+            // Reste sous le seuil du halo : le cerf s'ourle, il ne rayonne
+            // pas. Un cerf qui bloome serait une lampe, pas un animal.
+            outgoingLight += vec3(1.00, 0.78, 0.52) * tranche * versLune * 0.85;
+          }
+          #endif
         }
         #include <opaque_fragment>
       `);
   };
-  mat.customProgramCacheKey = () => 'pelage2';
+  mat.customProgramCacheKey = () => 'pelage4';
   return mat;
 }
 

@@ -18,6 +18,19 @@ import { creerCadeau } from './giftMesh.js';
 import { Emergence } from './emergence.js';
 import { clamp, smoothstep, damp } from '../core/noise.js';
 
+/* Un entier stable a partir de l'identifiant d'une halte. Il sert de graine
+   au temperament du deterrement : deux visites de la meme halte donnent donc
+   exactement la meme sequence, et deux haltes differentes n'en partagent
+   aucune. */
+function hacher(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % 100000;
+}
+
 export const PHASES = {
   ROUTE: 'route',
   APPROCHE: 'approche',
@@ -72,11 +85,19 @@ export class Halte {
     this.cadeau = creerCadeau(g, this.palier);
     this.groupeCadeau.add(this.cadeau.groupe);
     this.cadeau.groupe.position.copy(p);
-    this.cadeau.groupe.rotation.y = Math.atan2(-c.x, -c.z) + 0.4;
+    /* L'orientation est desormais composee de trois termes distincts — le cap
+       de depart, la derive lente, la vrille de sortie. Les cumuler dans le
+       meme `rotation.y +=` rendait la vrille impossible : on ne peut pas
+       ajouter un angle absolu a une valeur qu'on incremente par ailleurs. */
+    this.rotBase = Math.atan2(-c.x, -c.z) + 0.4;
+    this.rotLente = 0;
+    this.cadeau.groupe.rotation.y = this.rotBase;
 
     this.enfoui = station.scene.buried !== false;
     if (this.enfoui) {
-      this.emergence.poser(p, g.size);
+      // La graine fixe le temperament de ce deterrement : le rang de la halte
+      // suffit, et il garantit que la meme halte se rejoue a l'identique.
+      this.emergence.poser(p, g.size, station.id ? hacher(station.id) : 0);
       this.cadeau.groupe.position.y = p.y - g.size * 0.85;
     } else {
       // Deja sorti : celui-la etait posé la, offert.
@@ -123,8 +144,15 @@ export class Halte {
     }
 
     // Rotation tres lente : le paquet vit sans jamais tourner comme un objet
-    // de catalogue.
-    this.cadeau.groupe.rotation.y += dt * 0.055;
+    // de catalogue. On y ajoute la vrille propre a cette halte, et le devers
+    // avec lequel il est sorti de la neige avant de se redresser.
+    this.rotLente += dt * 0.055;
+    this.cadeau.groupe.rotation.y = this.rotBase + this.rotLente
+      + (this.enfoui ? this.emergence.vrille : 0);
+    if (this.enfoui) {
+      this.cadeau.groupe.rotation.z = this.emergence.devers;
+      this.cadeau.groupe.rotation.x = this.emergence.devers * 0.55;
+    }
 
     // La lueur enfermee monte avec l'emergence.
     const l = smoothstep(0.45, 0.9, avance);
