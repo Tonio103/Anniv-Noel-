@@ -499,24 +499,38 @@ export function creerCerf(palier) {
   tete.add(mufle);
 
   /* Oreilles : grandes et bien ecartees. Chez un cerf elles sont enormes ;
-     les faire timides suffit a rendre la tete quelconque. */
+     les faire timides suffit a rendre la tete quelconque.
+
+     Elles sont conservees dans une liste : le rig les fait pivoter, et c'est
+     le mouvement d'oreille qui, plus que tout autre detail, distingue un
+     animal vivant d'une figurine. Un cervide balaie en permanence — il
+     entend derriere lui pendant qu'il regarde devant. */
+  const oreilles = [];
   for (const cote of [-1, 1]) {
     const o = new THREE.Mesh(teinter(new THREE.SphereGeometry(0.078, 10, 8), 0x33251A), mat);
     o.scale.set(0.28, 0.98, 0.58);
     o.position.copy(rel(cote * 0.092, 1.445, -0.905));
     o.rotation.z = cote * 0.88;
     o.rotation.x = -0.34;
+    o.userData = { cote, reposZ: cote * 0.88, reposX: -0.34 };
     tete.add(o);
+    oreilles.push(o);
   }
 
   const matOeil = new THREE.MeshStandardMaterial({
     color: 0x0C0805, roughness: 0.10, metalness: 0.25,
     emissive: 0x3A2A16, emissiveIntensity: 0.8,
   });
+  /* Les yeux sont gardes eux aussi : le rig les ecrase brievement pour
+     figurer un clignement. On ne modelise pas de paupiere — a la distance ou
+     l'animal est vu, un aplatissement vertical de l'oeil se lit exactement
+     comme un clin, pour trois lignes au lieu d'une geometrie de plus. */
+  const yeux = [];
   for (const cote of [-1, 1]) {
     const y = new THREE.Mesh(new THREE.SphereGeometry(0.026, 9, 8), matOeil);
     y.position.copy(rel(cote * 0.079, 1.408, -1.035));
     tete.add(y);
+    yeux.push(y);
   }
 
   const ramure = new THREE.Mesh(boisGeo(rand), mat);
@@ -563,7 +577,7 @@ export function creerCerf(palier) {
   }
 
   return {
-    racine, peau, corps, cou, tete, queue, membres,
+    racine, peau, corps, cou, tete, queue, membres, oreilles, yeux,
     materiau: mat, souffle, ombre, skeleton,
     hauteurGarrot: AXE,
     infos: { sommets: nSommets, triangles: index.length / 3, pas, retournes },

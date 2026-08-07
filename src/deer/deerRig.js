@@ -67,6 +67,18 @@ export class Cerf {
     this._resteGeste = 0;
     this._dureeGeste = 1;
 
+    /* --- les trois riens qui font le vivant --------------------------------
+       Aucun des trois ne se remarque consciemment, et c'est precisement ce
+       qui les rend efficaces : leur ABSENCE, elle, se remarque. Un animal
+       parfaitement immobile de la tete est une figurine, meme quand ses
+       pattes sont animees a la perfection. */
+    this._oreilleD = 0; this._oreilleG = 0;   // pivot instantane de chaque oreille
+    this._prochainOreille = 1 + Math.random() * 3;
+    this._clin = 0;                            // 0 ouvert, 1 ferme
+    this._prochainClin = 2 + Math.random() * 4;
+    this._flick = 0;                           // coup de queue
+    this._prochainFlick = 3 + Math.random() * 5;
+
     /* Evenements de poser, consommes par le son pour les crissements. */
     this.posers = [];
     this._auSol = { AG: true, AD: true, PG: true, PD: true };
@@ -183,8 +195,67 @@ export class Cerf {
     }
   }
 
+  /* LES OREILLES, LES YEUX, LA QUEUE.
+
+     Trois automatismes independants du reste, parce que dans la nature ils le
+     sont aussi : un cerf balaie des oreilles pendant qu'il marche, cligne
+     sans rapport avec ce qu'il fait, et chasse d'un coup de queue.
+
+     Le point commun des trois, et la raison pour laquelle ils marchent : ils
+     sont BREFS ET RARES. Une oreille qui tourne en permanence devient un
+     essuie-glace ; un clignement toutes les deux secondes devient un tic. On
+     les tire donc au sort sur des minuteurs longs, et chaque geste dure moins
+     d'une demi-seconde. */
+  _tics(dt) {
+    /* --- oreilles ---------------------------------------------------------
+       Elles ne bougent jamais ensemble : c'est l'asymetrie qui fait qu'on
+       lit une ecoute et non un mecanisme. */
+    this._prochainOreille -= dt;
+    if (this._prochainOreille <= 0) {
+      this._prochainOreille = 0.9 + Math.random() * 3.4;
+      const amp = 0.22 + Math.random() * 0.42;
+      if (Math.random() < 0.5) this._oreilleG = amp; else this._oreilleD = amp;
+    }
+    // Retour au repos rapide, mais pas instantane : le cartilage a de l'inertie.
+    this._oreilleG = damp(this._oreilleG, 0, 5.5, dt);
+    this._oreilleD = damp(this._oreilleD, 0, 5.5, dt);
+
+    if (this.oreilles) {
+      for (const o of this.oreilles) {
+        const v = o.userData.cote > 0 ? this._oreilleG : this._oreilleD;
+        o.rotation.z = o.userData.reposZ + v * o.userData.cote * 0.9;
+        o.rotation.x = o.userData.reposX - v * 0.5;
+      }
+    }
+
+    /* --- clignement -------------------------------------------------------
+       Cent millisecondes, comme un vrai. Plus long, on lit une somnolence. */
+    this._prochainClin -= dt;
+    if (this._prochainClin <= 0 && this._clin <= 0) {
+      this._prochainClin = 1.8 + Math.random() * 5.0;
+      this._clin = 1;
+    }
+    if (this._clin > 0) {
+      this._clin = Math.max(0, this._clin - dt / 0.11);
+      const ouvert = 1 - Math.sin(Math.min(1, 1 - this._clin) * Math.PI);
+      if (this.yeux) for (const y of this.yeux) y.scale.y = 0.06 + ouvert * 0.94;
+    }
+
+    /* --- coup de queue ----------------------------------------------------
+       La version precedente balancait la queue en continu sur deux sinus. Un
+       pendule, donc : le seul mouvement qu'un animal ne fait jamais. Une
+       queue est au repos, et se leve d'un coup sec. */
+    this._prochainFlick -= dt;
+    if (this._prochainFlick <= 0) {
+      this._prochainFlick = 2.2 + Math.random() * 6.0;
+      this._flick = 1;
+    }
+    if (this._flick > 0) this._flick = Math.max(0, this._flick - dt / 0.42);
+  }
+
   maj(dt, temps) {
     this._vivre(dt);
+    this._tics(dt);
 
     /* --- vitesse : montee et descente en douceur -------------------------
        `allant` module la consigne plutot que la vitesse elle-meme : le
@@ -314,8 +385,14 @@ export class Cerf {
       this.tete.rotation.y += this.secousse * 0.12;
     }
 
-    this.queue.rotation.x = Math.sin(temps * 1.7) * 0.16 + 0.12;
-    this.queue.rotation.z = Math.sin(temps * 2.3) * 0.10;
+    /* La queue : au repos, plus un coup sec de temps en temps, plus un
+       balancement passif quand il court — celui-la est subi, pas voulu, donc
+       il suit la foulee et non une horloge propre. */
+    const coup = Math.sin(this._flick * Math.PI) * (0.9 + Math.random() * 0.05);
+    this.queue.rotation.x = 0.12 - coup * 0.62
+      + Math.sin(this.cycle * Math.PI * 2) * 0.05 * bat;
+    this.queue.rotation.z = coup * 0.30 * (this._flick > 0.5 ? 1 : -1)
+      + Math.sin(this.cycle * Math.PI * 4 + 0.7) * 0.04 * bat;
 
     this._majSouffle(dt, temps);
   }
