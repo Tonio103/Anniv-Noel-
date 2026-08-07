@@ -309,6 +309,9 @@ export class Clairieres {
     const p = new THREE.Vector3();
     const c = new THREE.Vector3();
     const tan = new THREE.Vector3();
+    // Reperes de travail pour les lanternes semees entre les haltes.
+    const pL = new THREE.Vector3();
+    const cL = new THREE.Vector3();
 
     for (let i = 0; i < stations.length; i++) {
       const st = stations[i];
@@ -316,6 +319,39 @@ export class Clairieres {
       chemin.point(s, p);
       chemin.cote(s, c);
       chemin.tangente(s, tan);
+
+      /* DES LANTERNES TOUT AU LONG DU CHEMIN, PAS SEULEMENT DANS LA
+         CLAIRIERE DES DATES.
+
+         Antoine en veut « plus Noel ». Ce qui manquait n'etait pas un objet de
+         Noel de plus quelque part, c'etait que la balade traverse une foret
+         strictement identique a une foret ordinaire pendant les trois quarts
+         de sa duree. Le Noel etait concentre a deux endroits ; entre les deux,
+         rien ne disait qu'on n'etait pas simplement en montagne.
+
+         Quelques lanternes plantees a intervalles irreguliers entre chaque
+         halte changent cela sans rien ajouter de tapageur : on suit une piste
+         que QUELQU'UN A BALISEE, ce qui est exactement l'histoire racontee.
+         Elles reprennent la lueur diffuse commune, donc elles ne coutent qu'un
+         sprite et un piquet chacune. */
+      if (i > 0 && i < stations.length - 1) {
+        const sPrec = chemin.haltes[i - 1].s;
+        const nb = 3;
+        for (let k = 0; k < nb; k++) {
+          const u = (k + 0.5 + (rand() - 0.5) * 0.4) / nb;
+          const sl = sPrec + (s - sPrec) * u;
+          chemin.point(sl, pL); chemin.cote(sl, cL);
+          const cote = rand() < 0.5 ? -1 : 1;
+          const ec = (3.6 + rand() * 2.6) * cote;
+          const x = pL.x + cL.x * ec;
+          const z = pL.z + cL.z * ec;
+          const j = JALONS[(k + i) % JALONS.length];
+          const l = lanterne(texHalo, matBois, 1.15 + rand() * 0.45, j);
+          l.position.set(x, relief.hauteur(x, z) - 0.06, z);
+          l.rotation.y = rand() * 6.28;
+          this.groupe.add(l);
+        }
+      }
 
       if (st.scene?.lanterns) {
         /* Cinq jalons, alignes le long de la traversee et decales du chemin

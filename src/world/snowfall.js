@@ -173,11 +173,17 @@ export class Neige {
     }
   }
 
-  /* Fait forcir ou faiblir la chute — utile dans les clairieres exposees. */
+  /* Fait forcir ou faiblir la chute — utile dans les clairieres exposees.
+
+     La chute de base a ete acceleree d'un tiers et sa derive laterale
+     augmentee de moitie : une neige qui tombe droit et lentement se lit comme
+     un ecran de veille. Ce qui donne l'impression qu'il NEIGE, c'est que les
+     flocons filent en biais et que leur vitesse varie d'une couche a l'autre
+     — c'est la parallaxe entre les deux couches qui fait le volume. */
   intensite(v) {
-    this.loin.uniforms.uChute.value = 1.9 * v;
-    this.pres.uniforms.uChute.value = 2.3 * v;
-    this.loin.uniforms.uDerive.value = 0.6 * v;
-    this.pres.uniforms.uDerive.value = 0.8 * v;
+    this.loin.uniforms.uChute.value = 2.5 * v;
+    this.pres.uniforms.uChute.value = 3.1 * v;
+    this.loin.uniforms.uDerive.value = 0.95 * v;
+    this.pres.uniforms.uDerive.value = 1.30 * v;
   }
 }
