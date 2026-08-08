@@ -975,3 +975,55 @@ body{
     rgba(4,10,16,.93) 66%,
     rgba(4,10,16,.97) 100%);
 }
+
+/* ==========================================================================
+   LE VOILE VA D'UN BORD A L'AUTRE.
+
+   « La delimitation du texte est hyper brute sur les cotes. » Exact, et
+   c'etait une erreur d'accrochage : le degrade etait pose sur `.card-in`,
+   qui est inserre par les marges de lecture — seize a trente pixels de chaque
+   cote. Le voile s'arretait donc a ces marges, avec deux ARETES VERTICALES
+   nettes qui traversaient tout l'ecran. On avait retire la boite et on venait
+   d'en redessiner une, en plus grand et sans les coins arrondis qui la
+   rendaient au moins volontaire.
+
+   Le principe est simple et il vaut pour tous les fondus de ce genre : LE
+   VOILE APPARTIENT A L'ECRAN, LE TEXTE APPARTIENT A LA COLONNE. Ce sont deux
+   objets differents et ils n'ont aucune raison d'avoir la meme largeur. Le
+   degrade passe donc sur `.card`, qui va de bord a bord, et `.card-in` ne
+   porte plus que la mise en page.
+
+   Reste a lui rendre son fondu d'apparition : il vit maintenant sur un
+   pseudo-element dont l'opacite suit la meme classe que le reste.
+   ========================================================================== */
+.card-in{background:none;position:relative;z-index:1}
+.card::before{
+  content:"";
+  position:absolute;inset:0;
+  pointer-events:none;z-index:0;
+  background:linear-gradient(to bottom,
+    rgba(6,14,22,0)    0%,
+    rgba(6,14,22,.30) 16%,
+    rgba(5,12,19,.70) 40%,
+    rgba(4,10,16,.93) 66%,
+    rgba(4,10,16,.97) 100%);
+  opacity:0;
+  transition:opacity .62s var(--ease);
+}
+.card.in::before{opacity:1}
+
+/* L'indice tombait encore sur la derniere ligne visible : la bande reservee
+   avait ete calculee pour l'ancien bouton en pastille, deux fois plus haut
+   que celui-ci. On la reprend sur la hauteur reelle. */
+.card-in.deborde .card-scroll{margin-bottom:42px}
+.c-suite{bottom:60px}
+
+/* Sans cadre, l'entete se retrouve sur la partie la plus claire du voile —
+   la ou il n'est encore qu'a trente pour cent. Un sur-titre dore sur de la
+   neige eclairee y devient illisible. Plutot que d'assombrir le voile, ce qui
+   annulerait le fondu qu'on vient d'obtenir, on donne au texte sa propre
+   ombre : elle ne coute rien et elle le tient sur n'importe quel fond. */
+.c-kicker,.c-title,.c-price b,.c-price span{
+  text-shadow:0 1px 3px rgba(2,7,12,.72), 0 6px 22px rgba(2,7,12,.55);
+}
+.c-kicker{color:var(--gold-lt)}
