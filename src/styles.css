@@ -761,3 +761,217 @@ body{
 @media (max-width:360px){
   .c-faits > div{grid-template-columns:1fr;gap:1px}
 }
+
+/* ==========================================================================
+   LA CARTE, VERSION SANS CARTE.
+
+   Antoine : « c'est hideux, je veux un truc hyper moderne, genre integrer le
+   texte dans le jeu ». Le probleme n'etait pas la typographie ni les
+   couleurs : c'etait qu'un PANNEAU aux bords arrondis, avec sa bordure, son
+   ombre portee et son verre depoli, est un objet d'interface pose PAR-DESSUS
+   une image. Quoi qu'on ecrive dedans, on lit « fenetre de dialogue ». Toute
+   l'intention du projet — un seul plan, aucune coupe, rien qui ressemble a
+   une diapositive — bute sur ce rectangle.
+
+   Le panneau disparait donc entierement. A la place, un DEGRADE qui monte du
+   bas de l'ecran et se fond dans la scene sans jamais montrer d'arete : le
+   texte se pose directement sur la foret, comme un generique de film se pose
+   sur son image. Il n'y a plus de bord, donc plus rien a reconnaitre comme
+   une boite.
+
+   Ce que ca demande en echange, et qui n'est pas negociable : la typographie
+   doit porter seule ce que le cadre portait. D'ou une hierarchie beaucoup
+   plus tranchee — un titre deux fois plus gros que le corps, un prix traite
+   comme un chiffre de tableau de bord, des libelles en capitales tres
+   petites. Sans cadre, c'est le CONTRASTE DE TAILLE qui structure.
+
+   Les regles ci-dessous viennent apres celles d'origine et les remplacent.
+   ========================================================================== */
+
+.card{
+  padding-bottom:calc(10px + var(--safe-b));
+}
+
+/* Le voile. Il commence transparent bien au-dessus du texte et n'atteint sa
+   pleine densite qu'en bas : aucune ligne ne se voit nulle part. */
+.card-in{
+  max-height:min(78vh,760px);
+  background:linear-gradient(to top,
+    rgba(4,10,16,.96) 0%,
+    rgba(4,10,16,.93) 38%,
+    rgba(5,12,19,.80) 66%,
+    rgba(6,14,22,.46) 85%,
+    rgba(6,14,22,0) 100%);
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  backdrop-filter:blur(9px) saturate(1.06);
+  -webkit-backdrop-filter:blur(9px) saturate(1.06);
+  /* Le flou, lui, aurait un bord franc : on le decoupe avec le meme profil
+     que le voile, sinon on remplace une boite par une autre. */
+  -webkit-mask-image:linear-gradient(to top,#000 0%,#000 62%,rgba(0,0,0,.35) 84%,transparent 100%);
+  mask-image:linear-gradient(to top,#000 0%,#000 62%,rgba(0,0,0,.35) 84%,transparent 100%);
+  padding-top:26px;
+}
+.card-in::before{content:none}
+
+.card-scroll{padding:0 2px 6px}
+
+/* --- l'entete, traitee comme un titre de chapitre ------------------------ */
+.c-head{
+  margin-bottom:20px;padding-bottom:0;
+  border-bottom:0;
+}
+.c-kicker{
+  font-family:"Outfit",sans-serif;
+  font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:9px;
+}
+.c-head-ligne{
+  display:block;
+}
+.c-title{
+  font-size:clamp(34px,9vw,50px);line-height:.98;letter-spacing:-.032em;
+  font-weight:900;
+}
+/* Le prix descend sous le titre et devient un CHIFFRE, pas une etiquette :
+   c'est la deuxieme information que cherche quelqu'un qui offre. */
+.c-price{
+  margin-top:10px;align-items:baseline;gap:9px;
+}
+.c-price b{
+  font-size:clamp(26px,7vw,34px);letter-spacing:-.02em;
+  color:var(--gold-lt);
+}
+.c-price span{
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+}
+
+.c-lead{font-size:17px;line-height:1.55;margin-bottom:20px;color:var(--ink)}
+.c-body{font-size:14.5px;line-height:1.62;margin-bottom:15px}
+
+/* --- le bouton : un mot et une fleche, plus un bouton ------------------- */
+.card-next{
+  margin:12px 0 4px;padding:13px 0 4px;
+  border-radius:0;background:none;border:0;
+  border-top:1px solid rgba(190,220,240,.18);
+  color:var(--gold-lt);
+  font-size:14px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;
+  text-align:left;
+  box-shadow:none;
+}
+.card-next::after{content:" →";letter-spacing:0}
+.card-next:hover{transform:none;color:#fff}
+.card-next:active{transform:none;opacity:.7}
+
+/* L'indice de defilement suit : plus de pastille posee sur le texte, une
+   simple mention qui s'efface. */
+.card-in.deborde .card-scroll{margin-bottom:26px}
+.c-suite{bottom:66px}
+.c-suite span{
+  background:none;border:0;box-shadow:none;padding:0;
+  color:rgba(226,240,255,.62);font-size:11px;letter-spacing:.14em;
+}
+
+/* --- correction : le voile derriere, le texte devant --------------------- */
+/* Le degrade et le flou etaient poses sur `.card-in` avec un `mask-image`.
+   Or un masque s'applique a l'element ET a tous ses enfants : il effacait
+   donc le haut du texte en meme temps que le haut du voile — le sur-titre
+   disparaissait et le titre sortait a demi transparent. Le voile passe donc
+   sur un calque a lui, derriere le contenu, ou son masque ne concerne que
+   lui. */
+.card-in{
+  background:none;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+  -webkit-mask-image:none;
+  mask-image:none;
+  padding-top:52px;
+  isolation:isolate;
+}
+.card-in::before{
+  content:"";
+  position:absolute;left:0;right:0;top:0;bottom:0;
+  z-index:0;pointer-events:none;
+  background:linear-gradient(to top,
+    rgba(4,10,16,.96) 0%,
+    rgba(4,10,16,.93) 34%,
+    rgba(5,12,19,.78) 62%,
+    rgba(6,14,22,.42) 84%,
+    rgba(6,14,22,0) 100%);
+  backdrop-filter:blur(9px) saturate(1.06);
+  -webkit-backdrop-filter:blur(9px) saturate(1.06);
+  -webkit-mask-image:linear-gradient(to top,#000 0%,#000 58%,rgba(0,0,0,.3) 82%,transparent 100%);
+  mask-image:linear-gradient(to top,#000 0%,#000 58%,rgba(0,0,0,.3) 82%,transparent 100%);
+}
+.card-scroll,.card-next,.c-suite{position:relative;z-index:1}
+
+/* --- les liens perdent leur boite eux aussi ------------------------------ */
+/* Trois rectangles empiles au milieu d'une mise en page sans cadre, c'est la
+   boite qu'on vient de retirer, revenue en trois exemplaires. Ils deviennent
+   des lignes separees par un filet — le meme vocabulaire que les faits. */
+.c-links{margin:18px 0 4px;display:block}
+.c-link{
+  display:flex;align-items:baseline;gap:10px;
+  padding:11px 0;border-radius:0;
+  background:none;border:0;
+  border-top:1px solid rgba(190,220,240,.12);
+}
+.c-links .c-link:last-child{border-bottom:1px solid rgba(190,220,240,.12)}
+.c-link i{
+  order:2;margin-left:auto;font-style:normal;
+  color:var(--gold);font-size:15px;
+}
+.c-link u{text-decoration:none;display:block}
+.c-link b{
+  display:block;font-size:14.5px;font-weight:500;
+  color:var(--ink);
+  text-decoration:underline;text-decoration-color:rgba(242,193,78,.45);
+  text-underline-offset:3px;
+}
+.c-link s{
+  display:block;text-decoration:none;
+  font-size:12px;color:var(--ink-3);margin-top:2px;
+}
+
+/* --- correction : un seul degrade, ecrit dans le sens de la lecture ------ */
+/* La version precedente empilait un degrade `to top`, un masque `to top` et
+   un `backdrop-filter`. Trois mecanismes pour une seule chose, et le resultat
+   etait a l'envers : sombre en haut, absent en bas, avec une arete franche la
+   ou le flou s'arretait. Je n'ai pas cherche lequel des trois se trompait —
+   la bonne reponse est qu'il n'en faut qu'un.
+
+   Un degrade unique, ecrit `to bottom` en partant du transparent : on lit la
+   regle dans l'ordre ou on voit l'image, du haut vers le bas, et il n'y a
+   plus rien a inverser mentalement. Le flou disparait aussi : il coutait un
+   echantillonnage plein ecran sur telephone pour un effet que le degrade
+   rend deja. */
+.card-in::before{
+  background:linear-gradient(to bottom,
+    rgba(6,14,22,0)    0%,
+    rgba(6,14,22,.34) 18%,
+    rgba(5,12,19,.72) 42%,
+    rgba(4,10,16,.92) 66%,
+    rgba(4,10,16,.97) 100%);
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+  -webkit-mask-image:none;
+  mask-image:none;
+}
+.card-in{isolation:auto}
+
+/* --- correction finale : le voile revient sur l'element ------------------ */
+/* Le pseudo-element n'avait de raison d'etre que pour porter un masque sans
+   effacer le texte. Le masque a disparu ; il ne sert donc plus a rien, et il
+   ajoutait une couche de plus a diagnostiquer. Le degrade retourne sur
+   `.card-in`, ou il n'y a aucun empilement, aucun contexte de superposition
+   et rien qui puisse se retourner. */
+.card-in::before{content:none}
+.card-in{
+  background:linear-gradient(to bottom,
+    rgba(6,14,22,0)    0%,
+    rgba(6,14,22,.30) 16%,
+    rgba(5,12,19,.70) 40%,
+    rgba(4,10,16,.93) 66%,
+    rgba(4,10,16,.97) 100%);
+}
