@@ -274,7 +274,13 @@ export class PostFX {
         uNear: { value: 0.35 }, uFar: { value: 620 },
         // Large zone nette et flou plafonne : un flou marque ferait maquette.
         uFocus: { value: 10 }, uNet: { value: 10 }, uPlage: { value: 46 },
-        uDof: { value: complet ? 0.72 : 0.58 },
+        /* La profondeur de champ etait a 0,58 hors du palier haut. Sur un
+           telephone tenu a bout de bras, ou l'image fait dix centimetres, un
+           flou d'arriere-plan de cette force ne se lit pas comme du cinema —
+           il se lit comme une image pas nette. On le divise par deux la ou
+           l'ecran est petit ; le palier haut, qui vise un moniteur, le
+           garde. */
+        uDof: { value: complet ? 0.72 : 0.28 },
       },
       depthTest: false, depthWrite: false,
     });
@@ -288,11 +294,27 @@ export class PostFX {
     if (L === this.l && H === this.h) return;
     this.l = L; this.h = H;
     this.rtScene.setSize(L, H);
-    // Demi-resolution pour le halo : personne ne voit la difference sur un
-    // flou, et ca divise le cout par quatre.
-    this.rtA.setSize(Math.max(2, L >> 1), Math.max(2, H >> 1));
-    this.rtB.setSize(Math.max(2, L >> 1), Math.max(2, H >> 1));
-    this.rtC.setSize(Math.max(2, L >> 1), Math.max(2, H >> 1));
+
+    /* Demi-resolution pour le halo : personne ne voit la difference sur un
+       flou, et ca divise le cout par quatre.
+
+       MAIS PAS EN DESSOUS D'UN CERTAIN NOMBRE DE PIXELS. « Demi » est un
+       rapport, et un rapport n'a pas de plancher : quand la densite baisse,
+       ces tampons descendent avec elle, et le flou remonte a l'ecran en blocs
+       — d'autant plus visibles qu'ils couvrent de grandes surfaces unies,
+       c'est-a-dire le fond et le ciel. C'est ce qu'Antoine decrit comme « des
+       sortes de carres au loin ».
+
+       On borne donc le petit cote a 320 pixels. En dessous, on cesse de
+       diviser : un flou de qualite mediocre coute moins cher qu'un flou qui
+       se voit. */
+    const PLANCHER = 320;
+    const div = (Math.min(L, H) >> 1) >= PLANCHER ? 1 : 0;
+    const fl = Math.max(2, L >> div), fh = Math.max(2, H >> div);
+    this.rtA.setSize(fl, fh);
+    this.rtB.setSize(fl, fh);
+    this.rtC.setSize(fl, fh);
+    this._flouL = fl; this._flouH = fh;
   }
 
   _passe(mat, cible) {
@@ -346,7 +368,8 @@ export class PostFX {
     this._passe(this.matHaut, this.rtA);
 
     // 3. flou separable, deux fois, avec un pas qui s'elargit
-    const lw = Math.max(2, this.l >> 1), lh = Math.max(2, this.h >> 1);
+    const lw = this._flouL || Math.max(2, this.l >> 1);
+    const lh = this._flouH || Math.max(2, this.h >> 1);
     for (const ecart of [1.0, 2.4]) {
       this.matFlou.uniforms.uSrc.value = this.rtA.texture;
       this.matFlou.uniforms.uPas.value.set(ecart / lw, 0);

@@ -164,7 +164,24 @@ export class Vigie {
     this.bon = 0;
     this.grace = 2.5;       // on laisse la scene se mettre en place
     this.dprPlein = palier.dpr;   // la densite nominale, celle qu'on vise
-    this.dprMin = 0.85;
+    /* PLANCHER A 1,0, ET PAS UN CRAN PLUS BAS.
+
+       J'avais mis 0,85 en raisonnant en pourcentage de pixels economises,
+       sans me demander a quoi ressemble le resultat. Antoine a repondu :
+       « c'est flou, et au loin ca fait des sortes de carres ». Les deux
+       viennent de la meme cause, et la seconde est pire que la premiere.
+
+       Sous 1,0, on dessine moins de pixels que l'ecran n'en affiche : tout est
+       necessairement adouci. Mais surtout, les tampons de flou du
+       post-traitement sont en DEMI-resolution — a densite 0,85 ils tombent a
+       0,42 fois l'ecran, et le halo comme la profondeur de champ remontent
+       alors en blocs franchement visibles sur les zones etendues, c'est-a-dire
+       le fond. Une economie qui degrade la moitie lointaine de chaque image
+       n'est pas une economie acceptable.
+
+       Le pas de descente est aussi adouci — 8 % au lieu de 14 % — pour qu'un
+       appareil qui frole la limite n'y perde qu'un cran, pas deux. */
+    this.dprMin = 1.0;
   }
 
   _appliquer(grace = 2.5) {
@@ -200,7 +217,7 @@ export class Vigie {
       // 2. au dernier palier, on rogne la densite, par petits crans.
       if (this.palier.dpr > this.dprMin + 0.01) {
         this.palier = { ...this.palier,
-          dpr: Math.max(this.dprMin, this.palier.dpr * 0.86) };
+          dpr: Math.max(this.dprMin, this.palier.dpr * 0.92) };
         this._appliquer();
       } else {
         // Plus rien a donner : on cesse de mesurer pour ne pas y passer du
@@ -217,7 +234,7 @@ export class Vigie {
       this.bon += dt;
       if (this.bon > 4) {
         this.palier = { ...this.palier,
-          dpr: Math.min(this.dprPlein, this.palier.dpr * 1.12) };
+          dpr: Math.min(this.dprPlein, this.palier.dpr * 1.10) };
         this._appliquer(3.5);
       }
     } else {
