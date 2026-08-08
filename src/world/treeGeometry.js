@@ -265,11 +265,35 @@ export function genererSapin(rand, detail = 6, simple = false, fond = false) {
      par nervure. Un sapin lointain coute alors trois fois plus qu'avant, mais
      il ressemble encore a un sapin, et on peut reculer la bascule assez loin
      pour que personne ne la voie. */
-  const parEtage = fond ? 6 : simple ? 10 : Math.max(7, Math.round(detail * 1.45));
-  const couches = fond ? 5 : simple ? 8 : (detail >= 6 ? 12 : 10);
+  /* « ILS SONT TOUS MAIGRES. » Oui, et le compte le dit sans ambiguite : au
+     palier bas, un sapin PROCHE avait sept branches par etage sur dix etages,
+     soit soixante-dix rameaux pour tout un arbre de vingt metres. Un vrai
+     epicea en porte des centaines. Aucune finesse de lame ne rattrape ca : la
+     masse d'un conifere ne vient pas de la taille de ses branches, elle vient
+     de leur RECOUVREMENT. Sept branches ne se recouvrent nulle part, donc on
+     voit le ciel entre elles partout, et l'arbre se lit comme une arete.
+
+     Le nombre par etage double, et on ajoute des etages. C'est le seul levier
+     qui produise de la densite ; elargir les lames, que j'avais essaye, ne
+     fait que passer de « maigre » a « decoupe dans du carton ». */
+  const parEtage = fond ? 6 : simple ? 11 : Math.max(13, Math.round(detail * 2.6));
+  const couches = fond ? 5 : simple ? 8 : (detail >= 6 ? 16 : 14);
   // Segments le long de la nervure : c'est eux qui donnent sa courbure a la
   // branche. Au loin, une branche droite suffit largement.
-  const segments = simple ? 1 : 2;
+  /* OU L'ON RECUPERE CE QUE LA DENSITE COUTE.
+
+     Doubler le nombre de branches double le nombre de triangles ; il faut
+     donc le reprendre ailleurs, et le bon endroit est la COURBURE de chaque
+     branche. Deux sections par nervure servent a la faire retomber puis
+     relever sa pointe — un detail reel, mais qui demande que la branche
+     occupe plusieurs dizaines de pixels pour se voir.
+
+     Sur le palier bas, ou l'arbre proche est deja a vingt metres et ou le
+     budget est le plus serre, on passe donc a une section unique. On perd la
+     courbe d'UNE branche et on gagne le double de branches — a cette
+     distance, c'est un echange tres favorable, puisque c'est la masse qu'on
+     lit et pas le dessin. Les paliers moyen et haut gardent les deux. */
+  const segments = (simple || fond) ? 1 : (detail >= 6 ? 2 : 1);
 
   /* AU FOND, ON NE DESSINE PLUS DES BRANCHES : ON DESSINE DES JUPES.
 
@@ -364,8 +388,21 @@ export function genererSapin(rand, detail = 6, simple = false, fond = false) {
 
     // Profil : le plus large se situe vers le quart bas, pas tout en bas —
     // les branches du pied sont mortes et courtes chez les vrais coniferes.
-    const profil = Math.pow(1 - t, 0.72) * (0.55 + 0.45 * Math.min(1, t * 5.5));
-    const largeur = profil * 0.30 + 0.012;
+    /* LE BAS DE L'ARBRE ETAIT BRIDE A 55 % DE SA LARGEUR MAXIMALE.
+
+       C'est botaniquement defendable — les branches basses d'un epicea de
+       futaie meurent a l'ombre et raccourcissent — mais c'est le profil d'un
+       arbre de foret dense, pas celui qu'on a en tete quand on dit « sapin ».
+       Combine a une hauteur importante, il donnait des cones effiles montes
+       sur un pied vide : maigres, exactement.
+
+       La base remonte a 82 %. Le retrecissement existe toujours, il ne creuse
+       simplement plus la silhouette la ou l'oeil cherche la masse. Et la
+       largeur generale gagne un huitieme : a vingt metres de haut, cela fait
+       un houppier de treize metres d'envergure au lieu de douze — la
+       proportion d'un epicea qui a pousse au large. */
+    const profil = Math.pow(1 - t, 0.72) * (0.82 + 0.18 * Math.min(1, t * 4.0));
+    const largeur = profil * 0.34 + 0.014;
 
     const y0 = basFeuillage + t * (1 - basFeuillage - 0.06);
     const espace = (1 - basFeuillage - 0.06) / couches;
@@ -380,7 +417,13 @@ export function genererSapin(rand, detail = 6, simple = false, fond = false) {
                    + (rand() - 0.5) * (Math.PI * 2 / parEtage) * 0.42;
 
       // Longueur propre a chaque branche : c'est elle qui dechire la silhouette.
-      const L = largeur * (0.62 + rand() * 0.66);
+      /* Longueur resserree autour du profil. A 0,62-1,28 fois la largeur
+         theorique, une branche sur trois s'arretait bien avant le contour :
+         la silhouette etait rongee de l'interieur et l'arbre paraissait
+         etrique meme la ou il y avait de la matiere. Elles restent
+         irregulieres — c'est ce qui dechire le bord — mais autour du profil
+         et non en dessous. */
+      const L = largeur * (0.80 + rand() * 0.42);
       // Elle retombe d'autant plus qu'elle est longue et basse dans l'arbre.
       const chute = espace * (0.95 + rand() * 0.9) + L * (0.34 - t * 0.18);
 
@@ -401,7 +444,7 @@ export function genererSapin(rand, detail = 6, simple = false, fond = false) {
            silhouette redevient pleine pour trois cents triangles, et la
            bascule a quarante metres cesse de se voir. */
         demiLarge: L * (fond ? 0.42 + rand() * 0.14
-                      : simple ? 0.19 + rand() * 0.09 : 0.12 + rand() * 0.08),
+                      : simple ? 0.20 + rand() * 0.09 : 0.16 + rand() * 0.09),
         plein: fond,
         segments,
         croisee: !fond,

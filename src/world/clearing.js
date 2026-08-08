@@ -345,7 +345,13 @@ export class Clairieres {
           const ec = (3.6 + rand() * 2.6) * cote;
           const x = pL.x + cL.x * ec;
           const z = pL.z + cL.z * ec;
-          const j = JALONS[(k + i) % JALONS.length];
+          /* Seulement les trois teintes CHAUDES. Les cinq jalons de la
+             clairiere sont volontairement contrastes — chacun marque une date
+             differente, le vert et le rouge y sont porteurs de sens. Reprises
+             telles quelles le long du chemin, elles n'en ont plus aucun et se
+             lisent comme des feux de signalisation plantes dans la neige. Une
+             lanterne qui balise un passage est chaude, point. */
+          const j = JALONS[(k + i) % 3];
           const l = lanterne(texHalo, matBois, 1.15 + rand() * 0.45, j);
           l.position.set(x, relief.hauteur(x, z) - 0.06, z);
           l.rotation.y = rand() * 6.28;
