@@ -131,37 +131,97 @@ export function detecterPalier(gl) {
    que des trames isolees : un pic ponctuel (le navigateur qui compile un
    shader) ne doit pas declencher une degradation. */
 export class Vigie {
+  /* LE FILET S'ARRETAIT LA OU IL SERVAIT.
+
+     `this.fini = palier.nom === 'bas'` : une fois au palier bas, la
+     surveillance se coupait entierement. Or c'est le palier que recoit la
+     quasi-totalite des telephones — donc, sur l'appareil ou la fluidite est
+     le plus en jeu, il n'y avait aucun filet du tout. Un appareil qui ramait
+     a vingt images par seconde ramait jusqu'au bout.
+
+     Il n'y a pourtant plus de palier en dessous : que faire ? Baisser la
+     DENSITE DE PIXELS. C'est de tres loin le premier levier sur un mobile,
+     dont le goulot est le remplissage et non la geometrie — passer de 1,6 a
+     1,2 retire 44 % des pixels a dessiner sans toucher a un seul triangle,
+     a un seul arbre, a une seule ombre.
+
+     ET ON LA REND QUAND ON PEUT. C'est la partie qui compte pour « ameliorer
+     la fluidite sans inhiber la qualite » : la densite ne descend que d'un
+     cran a la fois, jusqu'a ce que ca passe, et elle REMONTE des que
+     l'appareil tient confortablement. Un telephone recent garde donc toute
+     sa finesse ; un vieux modele recoit exactement la reduction dont il a
+     besoin, et pas une de plus. Personne ne paie pour le voisin.
+
+     Les deux seuils sont volontairement ecartes — on baisse au-dela de 20 ms
+     (50 im/s), on remonte en deca de 13,5 ms (74 im/s) — pour qu'un appareil
+     pile a la limite ne passe pas son temps a osciller entre deux densites,
+     ce qui se verrait bien plus qu'une image de moins par seconde. */
   constructor(palier, surBaisse) {
     this.palier = palier;
     this.surBaisse = surBaisse;
     this.moy = 16.7;
     this.mauvais = 0;
+    this.bon = 0;
     this.grace = 2.5;       // on laisse la scene se mettre en place
-    this.fini = palier.nom === 'bas';
+    this.dprPlein = palier.dpr;   // la densite nominale, celle qu'on vise
+    this.dprMin = 0.85;
+  }
+
+  _appliquer(grace = 2.5) {
+    this.mauvais = 0;
+    this.bon = 0;
+    this.moy = 16.7;
+    this.grace = grace;
+    this.surBaisse(this.palier);
   }
 
   tic(dt) {
-    if (this.fini) return;
     if (this.grace > 0) { this.grace -= dt; return; }
 
     const ms = dt * 1000;
     this.moy += (ms - this.moy) * 0.06;
 
-    // au-dela de 20 ms de moyenne (moins de 50 im/s) pendant ~2 s, on baisse
     if (this.moy > 20) {
+      this.bon = 0;
       this.mauvais += dt;
-      if (this.mauvais > 2) {
+      if (this.mauvais < 2) return;
+
+      // 1. tant qu'il reste un palier au-dessous, c'est lui qu'on prend :
+      //    il rend bien plus que la densite, et il se voit moins.
+      if (this.palier.nom !== 'bas') {
         const suivant = this.palier.nom === 'haut' ? 'moyen' : 'bas';
         this.palier = { ...PALIERS[suivant], mobile: this.palier.mobile };
         this.palier.dpr = Math.min(this.palier.dpr, window.devicePixelRatio || 1);
-        this.mauvais = 0;
-        this.moy = 16.7;
-        this.grace = 2.5;
-        this.fini = suivant === 'bas';
-        this.surBaisse(this.palier);
+        this.dprPlein = this.palier.dpr;
+        this._appliquer();
+        return;
+      }
+
+      // 2. au dernier palier, on rogne la densite, par petits crans.
+      if (this.palier.dpr > this.dprMin + 0.01) {
+        this.palier = { ...this.palier,
+          dpr: Math.max(this.dprMin, this.palier.dpr * 0.86) };
+        this._appliquer();
+      } else {
+        // Plus rien a donner : on cesse de mesurer pour ne pas y passer du
+        // temps a chaque image sans jamais rien pouvoir en faire.
+        this.grace = 1e9;
+      }
+      return;
+    }
+
+    this.mauvais = Math.max(0, this.mauvais - dt * 0.5);
+
+    // Confortable et de la densite en reserve : on la rend, doucement.
+    if (this.moy < 13.5 && this.palier.dpr < this.dprPlein - 0.01) {
+      this.bon += dt;
+      if (this.bon > 4) {
+        this.palier = { ...this.palier,
+          dpr: Math.min(this.dprPlein, this.palier.dpr * 1.12) };
+        this._appliquer(3.5);
       }
     } else {
-      this.mauvais = Math.max(0, this.mauvais - dt * 0.5);
+      this.bon = Math.max(0, this.bon - dt * 0.5);
     }
   }
 }

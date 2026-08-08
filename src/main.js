@@ -768,6 +768,11 @@ async function demarrer() {
        relire, et c'est ainsi que la densite de pixels baisse pour de bon. */
     palier = p;
     postfx.palier = p;
+    /* Le compteur doit dire la VERITE sur la densite courante : c'est
+       precisement le chiffre qui m'interesse quand Antoine me le lit. Sans
+       cela il afficherait indefiniment la densite de depart, et une baisse
+       automatique passerait inapercue — y compris de moi. */
+    if (compteur) compteur.palier = p;
     ajusterTaille();
     ajusterPoudre();
   });
