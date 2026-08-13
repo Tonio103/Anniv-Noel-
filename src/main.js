@@ -800,20 +800,87 @@ async function demarrer() {
   setTimeout(() => { boot.hidden = true; }, 900);
   document.getElementById('entry').hidden = false;
 
+  /* LE PLAN D'OUVERTURE.
+
+     Trois reperes, traverses d'un seul mouvement continu. Ils ne sont pas
+     ecrits en coordonnees absolues mais construits a partir du chemin, pour
+     que le plan reste juste si le trace change.
+
+     · AU-DESSUS DES CIMES. On ne voit d'abord que la foret et le ciel : le
+       lieu avant le sujet. Un sapin adulte fait vingt metres, on passe donc a
+       trente-deux ; la visee est loin devant, ce qui incline la camera vers
+       l'avant et donne l'horizon.
+     · LA DESCENTE. On plonge en glissant vers l'avant. C'est la que le cerf
+       apparait, encore petit, en bas du cadre — on le TROUVE, on ne nous le
+       montre pas.
+     · LA PLACE. On finit derriere lui, a hauteur d'homme, exactement la ou le
+       suiveur se serait mis. Le raccord ne se voit donc pas.
+
+     Douze secondes en tout, dont la moitie pour la descente : c'est le temps
+     qu'il faut pour qu'un mouvement de drone se lise comme un geste et non
+     comme un deplacement. */
+  function planOuverture() {
+    const p0 = chemin.point(DEPART, new THREE.Vector3());
+    const tan = chemin.tangente(DEPART, new THREE.Vector3());
+    const cot = chemin.cote(DEPART, new THREE.Vector3());
+    const sol = relief.hauteur(p0.x, p0.z);
+    const V = (dTan, dCot, dY) => new THREE.Vector3(
+      p0.x + tan.x * dTan + cot.x * dCot,
+      sol + dY,
+      p0.z + tan.z * dTan + cot.z * dCot
+    );
+    /* PAS TROP HAUT : LE MONDE A UN BORD.
+
+       Ma premiere version partait a trente-deux metres. Le mouvement etait
+       bon, mais a cette altitude on voit par-dessus l'emprise du terrain — la
+       jupe plate a la couleur du brouillard qui la prolonge se lit alors
+       comme une bande horizontale nette, et le decor avoue sa taille des la
+       premiere image. Un plan d'ouverture doit faire croire que la foret
+       continue, pas montrer ou elle s'arrete.
+
+       Dix-neuf metres suffisent largement : on est au-dessus des cimes, donc
+       on voit la foret d'en haut, et l'horizon reste ferme par les arbres. */
+    return [
+      { pos: V(-24, 7, 19), vise: V(40, 3.4, 13), duree: 4.2 },
+      { pos: V(-17, 5, 9.5), vise: V(15, 1.4, 4.6), duree: 5.0 },
+      { pos: V(-8.6, 1.9, 3.2), vise: V(3.4, 0, 1.5), duree: 2.8 },
+      { pos: V(-8.0, 1.7, 3.0), vise: V(4.0, 0, 1.4), duree: 0 },
+    ];
+  }
+
   brancherSeuil(() => {
     son.demarrer(camera);
     voixCerf = sfx.ancrer(cerf.tete, 40);
     voixSabots = sfx.ancrer(cerf.racine, 34);
-    panneau.montrer();
     demarree = true;
-    /* La camera reprend son role de suiveur. Elle ne saute pas : `liberer`
-       la remet en poursuite depuis sa position actuelle, et l'elasticite du
-       rig fait le raccord. C'est le premier mouvement de la balade, et il
-       doit avoir l'air d'un decollage, pas d'une coupe. */
-    drone.liberer();
-    drone.cadrer('route');
-    viser(1);
-    entrerPhase(PHASES.ROUTE);
+
+    /* Le cerf ATTEND pendant l'ouverture. S'il partait tout de suite, la
+       camera passerait le plan a lui courir apres et on ne verrait ni la
+       foret ni son depart — or c'est son depart qui donne le signal de
+       suivre. Il se met en marche a la derniere seconde du plan. */
+    cerf.vitesseCible = 0;
+    drone.ouvrir(planOuverture(), () => {
+      panneau.montrer();
+      drone.liberer();
+      drone.cadrer('route');
+      viser(1);
+      entrerPhase(PHASES.ROUTE);
+    });
+    /* Il s'ebranle une seconde avant la fin du plan, pas apres. C'est SON
+       depart qui donne le signal de le suivre : si la camera se met en
+       poursuite d'un animal immobile, on attend ; si elle arrive derriere lui
+       au moment ou il s'en va, on part avec lui. Une seconde suffit — le
+       temps de voir un sabot bouger.
+
+       CE MINUTEUR NE FAIT QUE LE METTRE EN MARCHE. Ma premiere version lui
+       faisait entrer la phase ROUTE, et la fin du plan sautait alors cette
+       entree pour ne pas la rejouer. Or `phase` vaut deja ROUTE au demarrage :
+       le garde etait donc toujours vrai, l'entree n'avait jamais lieu, et le
+       cerf ne partait pas du tout — la balade restait bloquee a la lisiere.
+       Le parcours complet est passe de neuf cartes a zero sans qu'aucune
+       erreur ne soit levee. Une seule chose fait autorite sur l'etat, et c'est
+       la fin du plan ; ce minuteur ne touche qu'a la vitesse. */
+    setTimeout(() => { if (demarree && drone.enCinematique) cerf.vitesseCible = 4.2; }, 10800);
   });
 
   boucle.demarrer();
@@ -821,6 +888,9 @@ async function demarrer() {
   window.__THREE = THREE;   // outils de mesure des scripts de controle
   window.__scene = {
     renderer, scene, camera, chemin, relief, foret, ciel, cerf, drone, halte,
+    // Expose pour que les controles designent une halte par son CONTENU et
+    // non par son rang : un rang change des qu'on ajoute ou retire une idee.
+    stations: STATIONS,
     brume, details, cabanes, empreintes, fouillis, habitants, postfx, boucle, palier,
     son, sfx, ruisseau,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */

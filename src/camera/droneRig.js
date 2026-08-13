@@ -208,7 +208,91 @@ export class Drone {
     this.descenteCible = descente;
   }
 
+  /* ------------------------------------------------------------------------
+     LA CINEMATIQUE D'OUVERTURE.
+
+     Jusqu'ici, entrer dans la foret consistait a lever un plan fixe et a
+     rendre la main au suiveur. Ca fonctionne, mais ca ne raconte rien : on
+     est deja derriere le cerf a la premiere image, et on ne decouvre ni la
+     foret, ni ou l'on se trouve, ni pourquoi on suit cet animal.
+
+     Un plan d'ouverture doit faire trois choses dans cet ordre : montrer le
+     LIEU, trouver le SUJET, puis prendre la place d'ou on le suivra. C'est
+     exactement la grammaire d'un plan de drone au cinema, et elle tient en
+     une descente : on part au-dessus des cimes, on descend en glissant vers
+     l'avant, et on finit derriere l'animal a hauteur d'homme.
+
+     Le mouvement est decrit par des reperes que l'on traverse en continu, et
+     non par des cadrages successifs : une seule interpolation du debut a la
+     fin, donc aucune cassure possible entre deux morceaux. L'amorti de la
+     poursuite est desactive pendant ce temps — il lisserait le trajet en le
+     retardant — mais le flottement de main levee, lui, continue : sans lui
+     on lit un rail, avec lui on lit un appareil pilote.
+
+     A la derniere image, on ne coupe pas : on rend la main au suiveur depuis
+     la position ou l'on vient d'arriver, laquelle est deja celle qu'il aurait
+     choisie. Le raccord ne se voit donc pas, et la promesse du plan-sequence
+     tient d'un bout a l'autre.
+     ------------------------------------------------------------------------ */
+  ouvrir(reperes, surFin) {
+    this.plan = reperes;
+    this.planT = 0;
+    this.planFin = surFin;
+    this.fige = false;
+    this.planDuree = reperes.reduce((s2, r) => s2 + r.duree, 0);
+  }
+
+  get enCinematique() { return !!this.plan; }
+
+  _jouerPlan(dt, temps) {
+    this.planT += dt;
+
+    // Quel segment, et ou en est-on dedans ?
+    let t = this.planT, i = 0;
+    while (i < this.plan.length - 1 && t > this.plan[i].duree) {
+      t -= this.plan[i].duree; i++;
+    }
+    const a = this.plan[i];
+    const b = this.plan[Math.min(this.plan.length - 1, i + 1)];
+    let u = a.duree > 0 ? Math.min(1, t / a.duree) : 1;
+    // Adouci aux deux bouts : un segment qui demarre ou s'arrete net se voit,
+    // meme au milieu d'un mouvement continu.
+    u = u * u * (3 - 2 * u);
+
+    this.pos.lerpVectors(a.pos, b.pos, u);
+    this.vise.lerpVectors(a.vise, b.vise, u);
+
+    const b1 = this.bruit(temps * 0.31, 0.0);
+    const b2 = this.bruit(0.0, temps * 0.27);
+    const b3 = this.bruit(temps * 0.19, 5.5);
+    this.camera.position.set(
+      this.pos.x + b1 * 0.30,
+      this.pos.y + b2 * 0.22,
+      this.pos.z + b3 * 0.30
+    );
+    this.camera.lookAt(this.vise);
+    this.camera.rotation.z += this.bruit(temps * 0.13, 2.2) * 0.006;
+
+    const fovVivant = (this.fov + Math.sin(temps * 0.19) * 0.4)
+                    * (this.camera.userData.fovEchelle || 1);
+    if (Math.abs(this.camera.fov - fovVivant) > 0.01) {
+      this.camera.fov = fovVivant;
+      this.camera.updateProjectionMatrix();
+    }
+
+    if (this.planT >= this.planDuree) {
+      const fin = this.planFin;
+      this.plan = null;
+      this.planFin = null;
+      // La poursuite reprend d'ou l'on est, sans saut : `_premiere` reste
+      // faux, donc l'elasticite fait le raccord toute seule.
+      this._precPos.copy(this.pos);
+      if (fin) fin();
+    }
+  }
+
   maj(dt, temps, cerf) {
+    if (this.plan) { this._jouerPlan(dt, temps); return; }
     if (this.fige) {
       const b1 = this.bruit(temps * 0.33, 0.0);
       const b2 = this.bruit(0.0, temps * 0.29);

@@ -54,7 +54,17 @@ const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
   /* La halte du Black Friday porte le compte a rebours. On s'y rend, on
      ouvre la carte, et on regarde si les chiffres se remplissent VRAIMENT —
      un compteur qui reste sur des tirets est un compteur mort. */
-  await page.evaluate(() => window.__scene.aller(7, 'attente'));
+  /* On DESIGNE LA HALTE PAR SON CONTENU, jamais par son numero. Ce test
+     cherchait la halte 7 ; le jour ou une halte a ete retiree de la liste,
+     tout s'est decale d'un cran et le compte a rebours a disparu du test sans
+     que rien ne soit casse dans la page. Un numero d'index n'est pas une
+     identite. */
+  await page.evaluate(() => {
+    const s2 = window.__scene;
+    const i = s2.stations.findIndex(
+      (st) => st.card?.blocks?.some((b2) => b2.t === 'countdown'));
+    s2.aller(i, 'attente');
+  });
   await page.evaluate(() => document.getElementById('gl').dispatchEvent(new PointerEvent('pointerdown')));
   await page.evaluate(() => window.__scene.simuler(3));
   await page.waitForTimeout(1600);
@@ -86,7 +96,12 @@ const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
   await page.goto(url + '?debug=1&q=bas', { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.__scene!==undefined', { timeout: 240000 });
   await page.click('#enterBtn');
-  await page.evaluate(() => window.__scene.aller(9, 'attente'));
+  await page.evaluate(() => {
+    const s2 = window.__scene;
+    const i = s2.stations.findIndex(
+      (st) => st.card?.blocks?.some((b2) => b2.t === 'checklist'));
+    s2.aller(i, 'attente');
+  });
   await page.evaluate(() => document.getElementById('gl').dispatchEvent(new PointerEvent('pointerdown')));
   await page.evaluate(() => window.__scene.simuler(3));
   await page.waitForTimeout(1400);
@@ -108,7 +123,12 @@ const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
     await page.reload({ waitUntil: 'load', timeout: 120000 });
     await page.waitForFunction('window.__scene!==undefined', { timeout: 240000 });
     await page.click('#enterBtn');
-    await page.evaluate(() => window.__scene.aller(9, 'attente'));
+    await page.evaluate(() => {
+    const s2 = window.__scene;
+    const i = s2.stations.findIndex(
+      (st) => st.card?.blocks?.some((b2) => b2.t === 'checklist'));
+    s2.aller(i, 'attente');
+  });
     await page.evaluate(() => document.getElementById('gl').dispatchEvent(new PointerEvent('pointerdown')));
     await page.evaluate(() => window.__scene.simuler(3));
     await page.waitForTimeout(1400);

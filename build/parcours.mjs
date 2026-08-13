@@ -25,7 +25,16 @@ await page.click('#enterBtn');
 
 const vues = [];
 let secondes = 0;
-for (let i = 0; i < 400 && vues.length < 9; i++) {
+/* COMBIEN DE CARTES ATTENDRE ? On le DEMANDE a la page, on ne l'ecrit pas.
+   Ce nombre etait fige a neuf. Le jour ou une idee a ete retiree de la liste,
+   la boucle a continue de tourner en esperant une neuvieme carte qui
+   n'existait plus — six cents secondes de simulation, bien au-dela de la fin
+   de la balade, si bien que l'adieu du cerf avait eu lieu et etait termine
+   avant meme le premier releve. Le test annoncait alors « AUCUN ADIEU » pour
+   un adieu parfaitement joue. */
+const attendues = await page.evaluate(
+  () => window.__scene.stations.filter((st) => st.card).length);
+for (let i = 0; i < 400 && vues.length < attendues; i++) {
   const etat = await page.evaluate(() => {
     const s = window.__scene;
     s.simuler(1.5);
@@ -39,7 +48,7 @@ for (let i = 0; i < 400 && vues.length < 9; i++) {
   } else if (etat.phase === 'lecture' && etat.carte && etat.titre) {
     if (vues[vues.length-1] !== etat.titre) {
       vues.push(etat.titre);
-      if (vues.length === 1 || vues.length === 5 || vues.length === 9) {
+      if (vues.length === 1 || vues.length === Math.ceil(attendues / 2) || vues.length === attendues) {
         await page.waitForTimeout(1800);
         await page.screenshot({ path: join(root, `shots/${mobile?'mob':'pc'}-carte-${vues.length}.png`) });
       }
@@ -56,11 +65,24 @@ console.log('phase finale :', await page.evaluate(()=>window.__scene.phase()));
    avance par paliers et on releve ce qui doit s'etre produit a chaque fois. */
 const etapes = [];
 for (const [s, quoi] of [[3, 'ralentit'], [4, 'adieu'], [4, 'camera posee'], [4, 'texte']]) {
-  await page.evaluate((s)=>window.__scene.simuler(s), s);
+  /* ON RELEVE LE MAXIMUM SUR L'INTERVALLE, PAS LA VALEUR A L'INSTANT.
+     L'adieu du cerf dure une seconde ou deux ; l'echantillonner a quatre
+     instants fixes revient a esperer tomber dessus. Le test l'a signale
+     absent le jour ou la balade a raccourci d'une halte — alors qu'il avait
+     bien eu lieu, simplement plus tot. Un evenement bref se mesure sur une
+     fenetre. */
+  await page.evaluate((s2) => {
+    const sc = window.__scene;
+    sc.regardMax = Math.max(sc.regardMax || 0, sc.cerf.regard);
+    for (let i = 0; i < s2 * 60; i++) {
+      sc.simuler(1 / 60);
+      sc.regardMax = Math.max(sc.regardMax, sc.cerf.regard);
+    }
+  }, s);
   etapes.push(await page.evaluate((q) => {
     const s = window.__scene;
     return { quoi: q, phase: s.phase(),
-             regard: +s.cerf.regard.toFixed(2),
+             regard: +(s.regardMax || 0).toFixed(2),
              vitesse: +s.cerf.vitesseCible.toFixed(2),
              figee: !!s.drone.fige,
              outro: !document.getElementById('outro').hidden };

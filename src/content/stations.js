@@ -141,38 +141,6 @@ export const STATIONS = [
 
   /* ---------------------------------------------------------------- 4 */
   {
-    id: 'manette',
-    kind: 'gift',
-    chapter: 'La manette',
-    scene: { gift: { size: 0.86, box: 0x1F5C3A, ribbon: HUE.vert, glow: HUE.vert },
-             buried: true, light: 'soir' },
-    prompt: 'Touchez le cadeau',
-    card: {
-      kicker: 'Pour jouer',
-      title: 'Une manette',
-      price: { amount: '40 €', note: 'environ' },
-      blocks: [
-        { t: 'lead', h: 'Une manette <strong>pour le PC</strong>. Beaucoup de jeux se jouent bien mieux à la manette qu’au clavier, et ça permet aussi de jouer à deux.' },
-        { t: 'faits', items: [
-          { k: 'Modèle', v: 'GameSir Nova&nbsp;2 Lite' },
-          { k: 'Prix', v: '<b>sous 40 €</b>' },
-          { k: 'Sans fil', v: '2,4&nbsp;GHz à 1000&nbsp;Hz · Bluetooth · filaire' },
-          { k: 'En plus', v: 'deux boutons arrière personnalisables' },
-        ]},
-        { t: 'p', h: '<strong>Moins chère encore&nbsp;:</strong> la 8BitDo Ultimate&nbsp;2C, autour de 30 €, avec sticks et gâchettes à <em>effet Hall</em> — la technologie qui empêche la dérive des sticks avec le temps.' },
-        { t: 'note', tone: 'good', h: '<b>Une des meilleures cibles du Black Friday.</b> Les manettes font partie des produits les plus régulièrement remisés fin novembre. Attendre le 27&nbsp;novembre peut faire économiser 10 à 15 €.' },
-        { t: 'links', items: [
-          { href: 'https://www.amazon.fr/s?k=GameSir+Nova+2+Lite', label: 'GameSir Nova&nbsp;2 Lite', sub: 'sur Amazon' },
-          { href: 'https://www.gamesir.hk/', label: 'Site GameSir', sub: 'officiel' },
-          { href: 'https://www.amazon.fr/s?k=8BitDo+Ultimate+2C', label: '8BitDo Ultimate&nbsp;2C', sub: 'sticks à effet Hall' },
-        ]},
-      ],
-      next: 'Suivre le cerf',
-    },
-  },
-
-  /* ---------------------------------------------------------------- 5 */
-  {
     id: 'gta',
     kind: 'gift',
     chapter: 'GTA 6',
@@ -200,7 +168,7 @@ export const STATIONS = [
     },
   },
 
-  /* ---------------------------------------------------------------- 6 */
+  /* ---------------------------------------------------------------- 5 */
   {
     id: 'ecran',
     kind: 'gift',
@@ -239,7 +207,7 @@ export const STATIONS = [
     },
   },
 
-  /* ---------------------------------------------------------------- 7 */
+  /* ---------------------------------------------------------------- 6 */
   {
     id: 'bf-date',
     kind: 'clearing',
@@ -267,7 +235,7 @@ export const STATIONS = [
     },
   },
 
-  /* ---------------------------------------------------------------- 8 */
+  /* ---------------------------------------------------------------- 7 */
   {
     id: 'bf-viser',
     kind: 'clearing',
@@ -279,7 +247,6 @@ export const STATIONS = [
       title: 'Le bon plan',
       blocks: [
         { t: 'note', tone: 'good', h: '<b>✓ L’écran — deux stratégies.</b> Soit une bonne occasion 4K 144&nbsp;Hz vers 150 € (disponible toute l’année, pas besoin d’attendre), soit du neuf en promotion&nbsp;: l’AOC U27G4R à 280 € pourrait descendre autour de 230–250 € fin novembre.' },
-        { t: 'note', tone: 'good', h: '<b>✓ La manette — très souvent remisée.</b> Les manettes font partie des grands classiques des promotions de fin novembre.' },
         { t: 'note', tone: 'warn', h: '<b>✗ GTA&nbsp;6 — aucune remise à espérer.</b> Le jeu sort le 19&nbsp;novembre, soit huit jours avant le Black Friday. Un jeu majeur sorti la semaine précédente n’est jamais soldé. Et de toute façon la version PC n’existera pas encore.' },
         { t: 'p', h: '<strong>Relever les prix maintenant.</strong> Sans prix de référence noté avant novembre, impossible de savoir si une «&nbsp;remise&nbsp;» en est vraiment une. Un outil de suivi comme Keepa montre la courbe des mois précédents sur Amazon.' },
         { t: 'p', h: '<strong>Et si quelque chose est raté&nbsp;?</strong> Il reste le Cyber Monday du 30&nbsp;novembre, puis les soldes d’hiver de janvier — pratique pour ce qui n’aurait pas été pris à Noël.' },
@@ -289,7 +256,7 @@ export const STATIONS = [
     },
   },
 
-  /* ---------------------------------------------------------------- 9 */
+  /* ---------------------------------------------------------------- 8 */
   {
     id: 'final',
     kind: 'final',
@@ -304,7 +271,7 @@ export const STATIONS = [
         { t: 'lead', h: 'Une seule idée suffit largement. <strong>Cochez ce que vous prenez</strong> pour éviter les doublons — la coche reste sur votre appareil.' },
         { t: 'checklist' },
         { t: 'note', h: '<b>Dates à retenir&nbsp;:</b> 19&nbsp;nov. — sortie de GTA&nbsp;6 (consoles) · <b>27&nbsp;nov. — Black Friday</b> · 30&nbsp;nov. — Cyber Monday · fin nov. — mon anniversaire · 25&nbsp;déc. — Noël.' },
-        { t: 'note', tone: 'good', h: 'Le Black Friday est le bon moment pour <b>l’écran</b> et <b>la manette</b>. Pas pour GTA&nbsp;6, sorti huit jours avant.' },
+        { t: 'note', tone: 'good', h: 'Le Black Friday est le bon moment pour <b>l’écran</b>. Pas pour GTA&nbsp;6, sorti huit jours avant.' },
         { t: 'p', h: 'Prix relevés début août 2026, à revérifier avant d’acheter. Pour un achat d’occasion, demander une photo de l’écran allumé sur fond blanc <em>et</em> sur fond noir&nbsp;: c’est ce qui révèle les pixels morts.' },
         { t: 'p', h: 'À très vite&nbsp;✦' },
       ],
@@ -319,8 +286,6 @@ export const CHECKLIST = [
     d: 'Ruban COB USB 2&nbsp;m, blanc chaud, avec gradateur. amazon.fr → «&nbsp;ruban LED COB USB 2m blanc chaud&nbsp;»' },
   { id: 'deco', t: 'Déco : poster + plantes', p: '≈ 20 €',
     d: 'Poster <i>Spider-Man : Brand New Day</i> en A2 (15–25&nbsp;€) · pothos ≈ 4 €, sansevieria 8–30 €. allposters.com · europosters.fr' },
-  { id: 'manette', t: 'Manette PC', p: '≈ 40 €',
-    d: 'GameSir Nova&nbsp;2 Lite (&lt; 40 €) ou 8BitDo Ultimate&nbsp;2C (≈ 30 €, sticks à effet Hall).' },
   { id: 'gta', t: 'GTA 6', p: '80 €',
     d: '<b>Attention :</b> sortie le 19&nbsp;novembre 2026 sur PS5 et Xbox Series seulement. Aucune version PC annoncée — prévoir une carte cadeau Steam ou Rockstar.' },
   { id: 'ecran', t: 'Écran 4K 120 Hz', p: '150 €',
