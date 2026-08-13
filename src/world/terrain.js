@@ -44,6 +44,8 @@ export class Relief {
     this._zDebut = this._echant[0].z;
     this._zFin = this._echant[N].z;
 
+    this._creuserLits(chemin, clairieres);
+
     this.groupe = new THREE.Group();
     this.groupe.name = 'relief';
     this._construire();
@@ -78,7 +80,100 @@ export class Relief {
         h = h + (c.h - h) * k * 0.94;
       }
     }
+
+    /* Le lit du ruisseau se creuse EN DERNIER, apres l'aplanissement du
+       couloir : applique avant, il serait rebouche par lui, puisque c'est
+       precisement dans le couloir de marche qu'on veut le voir. */
+    h += this._creux(x, z);
     return h;
+  }
+
+  /* --- le lit du ruisseau ------------------------------------------------
+     Antoine, sur la traversee : « on dirait que c'est bugge, ca ne ressemble
+     pas a de l'eau ». En mesurant, la cause etait sans appel : le ruban de
+     glace etait POSE A PLAT sur la neige, a la meme altitude qu'elle, et
+     j'avais essaye de lui fabriquer des berges avec un maillage a part. Le
+     resultat, mesure en eteignant les objets un a un : le ruban etait
+     purement invisible, et les berges — un materiau standard blanc a cote
+     d'un shader de neige avec diffusion sous-surface — traversaient l'image
+     en deux dalles grises. Du beton, pas de la neige.
+
+     La lecon est generale : rien de blanc ne peut cotoyer cette neige sans
+     etre fait de la meme matiere qu'elle. Donc on ne fabrique pas les berges,
+     ON CREUSE. Le lit devient un accident du terrain lui-meme ; les berges
+     sont alors de la vraie neige, eclairee par le vrai shader, et la glace
+     se retrouve d'office EN CONTREBAS — ce qui est la seule chose qui fasse
+     lire « de l'eau » plutot que « de la peinture ». Le cerf, qui echantillonne
+     la meme fonction de hauteur, descend et remonte vraiment. */
+  _creuserLits(chemin, clairieres) {
+    this.lits = [];
+    const p = new THREE.Vector3(), tan = new THREE.Vector3(), cot = new THREE.Vector3();
+
+    for (const vise of [0.24, 0.68]) {
+      /* Une traversee qui tombe dans une clairiere etait jusqu'ici purement
+         SUPPRIMEE — d'ou un ruisseau annonce deux fois et vu une seule. On
+         la decale plutot le long du chemin jusqu'a trouver de la place. */
+      let frac = -1;
+      for (let k = 0; k < 24 && frac < 0; k++) {
+        const essai = vise + (k % 2 ? -1 : 1) * Math.ceil(k / 2) * 0.012;
+        if (essai < 0.06 || essai > 0.94) continue;
+        chemin.point(chemin.longueur * essai, p);
+        let libre = true;
+        for (const cl of clairieres) {
+          if (Math.hypot(p.x - cl.x, p.z - cl.z) < cl.r * 1.35) { libre = false; break; }
+        }
+        if (libre) frac = essai;
+      }
+      if (frac < 0) continue;
+
+      const s = chemin.longueur * frac;
+      chemin.point(s, p);
+      chemin.tangente(s, tan);
+      chemin.cote(s, cot);
+      this.lits.push({
+        frac, s,
+        px: p.x, pz: p.z,
+        tx: tan.x, tz: tan.z,     // le long du chemin : la largeur du ruisseau
+        cx: cot.x, cz: cot.z,     // en travers : la longueur du ruisseau
+        demi: 27,                 // une traversee, pas un mur en travers du paysage
+      });
+    }
+  }
+
+  /* Profil en travers, applique a la fonction de hauteur. Un cours d'eau ne
+     se creuse pas en V : il a un lit plat, deux talus, et un bourrelet de
+     neige soufflee sur chaque levre — c'est ce bourrelet, plus que le creux,
+     qui dessine la rive quand on la regarde de haut. */
+  _creux(x, z) {
+    if (!this.lits || !this.lits.length) return 0;
+    let dh = 0;
+    /* Le lit doit etre assez LARGE pour se voir. Depuis le drone — 1,85 m de
+       haut, 6 m derriere — le rayon qui passe la levre descend d'environ 30 cm
+       par metre : les deux premiers metres au-dela de la rive sont caches par
+       la rive elle-meme. Un lit etroit ne montre donc que son talus, jamais sa
+       glace. On l'ouvre a 4,3 m de fond plat, et on aplatit le bourrelet qui
+       masquait le reste. */
+    const LIT = 2.15, TALUS = 1.55, PROFOND = 0.46, LEVEE = 0.10;
+
+    for (const l of this.lits) {
+      const dx = x - l.px, dz = z - l.pz;
+      const le = dx * l.cx + dz * l.cz;          // position le long du ruisseau
+      if (Math.abs(le) > l.demi + 8) continue;
+      const t = dx * l.tx + dz * l.tz;           // travers du ruisseau
+
+      const u = le / (2 * l.demi) + 0.5;
+      const derive = Math.sin(u * 6.1 + l.frac * 11) * 3.4 + Math.sin(u * 13.7) * 1.1;
+      const q = Math.abs(t - derive);
+
+      // Les extremites se referment, sinon le lit court a l'infini.
+      const bout = smoothstep(l.demi + 8, l.demi - 4, Math.abs(le));
+
+      const creux = -PROFOND * smoothstep(LIT + TALUS, LIT, q);
+      // Bourrelet, centre sur la levre du talus.
+      const b = Math.max(0, 1 - Math.abs(q - (LIT + TALUS + 0.55)) / 1.15);
+      dh += (creux + LEVEE * b * b * (3 - 2 * b)) * bout;
+    }
+    return dh;
   }
 
   /* Echantillon de chemin le plus proche. La courbe descend regulierement en

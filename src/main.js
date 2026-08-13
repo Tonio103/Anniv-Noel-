@@ -706,7 +706,14 @@ async function demarrer() {
          secondes de marche, et deux fois moins fort. On doit pouvoir douter
          de les avoir entendus. */
       if (Math.random() < 0.045) sfx.grelots(voixCerf?.entree, 0.3 + p.force * 0.25);
-      empreintes.ajouter(p.pos.x, p.pos.z, cerf.racine.rotation.y, p.force);
+      /* PAS D'EMPREINTE SUR LA GLACE. Un sabot ne creuse pas une surface
+         gelee — il glisse dessus. On continuait pourtant a y estampiller des
+         traces creusees et assombries, ce qui donnait, au moment precis ou le
+         cerf traverse, une piste de trous dans ce qui est cense etre de
+         l'eau : c'est une bonne part du « on dirait que c'est bugge » que
+         signale Antoine. Le son changeait deja a cet endroit (sabotGlace) ;
+         c'est la meme condition, elle sert maintenant aux deux. */
+      if (!surGlace) empreintes.ajouter(p.pos.x, p.pos.z, cerf.racine.rotation.y, p.force);
       /* La poudre part vers l'arriere de la marche. Le corps est modelise
          museau vers -Z, d'ou le signe : c'est la meme convention que dans
          placer(), et s'en ecarter enverrait la neige devant lui. */
@@ -840,11 +847,40 @@ async function demarrer() {
 
        Dix-neuf metres suffisent largement : on est au-dessus des cimes, donc
        on voit la foret d'en haut, et l'horizon reste ferme par les arbres. */
+    /* CE QUI N'ALLAIT PAS : LE PLAN DESCENDAIT EN LIGNE DROITE.
+
+       Les quatre reperes precedents etaient tous a peu pres sur le meme axe,
+       derriere le cerf, et ne faisaient que baisser. Trois choses en
+       decoulaient, visibles sur chaque image capturee :
+
+       — aucune parallaxe. Rien ne passait devant rien : les arbres restaient
+         a leur place dans le cadre et le decor se lisait comme un fond peint ;
+       — la lisiere est une clairiere de trente metres, et on la traversait
+         dans sa longueur. Le sujet du plan d'ouverture etait donc une plaine
+         blanche vide, avec trois sapins au bord ;
+       — le cerf etait la des la premiere image, gros comme un pouce, dans un
+         coin. Il n'etait ni un decor ni un sujet.
+
+       On remplace la descente par un CONTOURNEMENT. La camera part loin sur
+       le cote, au-dessus des cimes, et regarde la foret devant elle — pas le
+       cerf. Puis elle tourne, descend, et c'est ce mouvement qui AMENE le cerf
+       dans le cadre : il n'est pas montre, il est trouve. Le contournement
+       fait defiler les premiers plans, ce qui donne enfin de la profondeur, et
+       il traverse la clairiere en travers au lieu de la remonter, donc on voit
+       les arbres qui la bordent au lieu de son vide. */
     return [
-      { pos: V(-24, 7, 19), vise: V(40, 3.4, 13), duree: 4.2 },
-      { pos: V(-17, 5, 9.5), vise: V(15, 1.4, 4.6), duree: 5.0 },
-      { pos: V(-8.6, 1.9, 3.2), vise: V(3.4, 0, 1.5), duree: 2.8 },
-      { pos: V(-8.0, 1.7, 3.0), vise: V(4.0, 0, 1.4), duree: 0 },
+      // 1. Au-dessus des cimes, loin sur le cote. On regarde OU L'ON VA.
+      { pos: V(-26, 23, 17), vise: V(52, -2, 6.5), duree: 4.0, fov: 63, roll: 0.055 },
+      // 2. Le contournement : on tourne et on descend, le cerf entre dans le cadre.
+      { pos: V(-22, 12.5, 8.6), vise: V(17, 1.2, 3.0), duree: 4.4, fov: 59, roll: 0.038 },
+      // 3. On arrive derriere lui, a hauteur d'animal.
+      { pos: V(-12.5, 3.4, 3.4), vise: V(4.2, 0.3, 1.3), duree: 3.6, fov: 54, roll: 0.008 },
+      /* 4. Le raccord : exactement la ou la poursuite prendra la main. Duree
+            NULLE — chaque duree est celle du segment qui PART de ce repere,
+            donc la derniere doit valoir zero ; lui en donner une, c'est
+            terminer le plan sur une image arretee, et une image arretee au
+            moment ou la balade commence, c'est le contraire de ce qu'on veut. */
+      { pos: V(-8.0, 1.7, 3.0), vise: V(4.0, 0, 1.4), duree: 0, fov: 52, roll: 0 },
     ];
   }
 

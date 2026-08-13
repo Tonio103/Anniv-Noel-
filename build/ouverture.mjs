@@ -45,7 +45,10 @@ console.log('  plus grand saut d une image a l autre :', r.sautMax, 'm · phase 
 
 /* Et une image a deux moments du plan : les chiffres disent que le mouvement
    est continu, ils ne disent pas ce qu'on voit. */
-for (const [nom, t] of [['debut', 1.5], ['descente', 6.0]]) {
+const instants = process.env.T
+  ? process.env.T.split(',').map((v) => [String(v).replace('.', 'p'), Number(v)])
+  : [['debut', 1.5], ['descente', 6.0]];
+for (const [nom, t] of instants) {
   await page.evaluate(() => { location.reload(); });
   await page.waitForFunction('window.__scene !== undefined', { timeout: 120000 });
   await page.evaluate((sec) => {

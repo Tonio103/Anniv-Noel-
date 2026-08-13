@@ -271,8 +271,33 @@ export class Drone {
       this.pos.z + b3 * 0.30
     );
     this.camera.lookAt(this.vise);
-    this.camera.rotation.z += this.bruit(temps * 0.13, 2.2) * 0.006;
 
+    /* L'INCLINAISON DU VIRAGE, ET L'OUVERTURE QUI SE REFERME.
+
+       Le plan n'avait jusqu'ici qu'une trajectoire : une position, un point
+       vise, rien d'autre. C'est ce qui lui donnait son air de travelling sur
+       rail. Deux grandeurs manquaient, et ce sont exactement celles qu'un
+       operateur de drone manipule :
+
+       — l'inclinaison. Un drone qui contourne penche vers l'interieur de sa
+         courbe. Sans elle, un mouvement lateral se lit comme un glissement de
+         decor ; avec elle, on sent l'appareil ;
+       — la focale. On ouvre grand au depart — le grand angle exagere la
+         profondeur et fait defiler les bords, donc le mouvement se voit — puis
+         on se referme en approchant : le cadre se resserre sur le cerf en
+         meme temps que la camera, et l'arrivee derriere lui ne se lit plus
+         comme un simple rapprochement mais comme un choix de cadrage.
+
+       Les deux sont facultatives : un plan qui ne les precise pas se comporte
+       exactement comme avant. */
+    const roulis = a.roll !== undefined
+      ? a.roll + ((b.roll !== undefined ? b.roll : a.roll) - a.roll) * u : 0;
+    this.camera.rotation.z += roulis + this.bruit(temps * 0.13, 2.2) * 0.006;
+
+    if (a.fov !== undefined) {
+      this.fov = a.fov + ((b.fov !== undefined ? b.fov : a.fov) - a.fov) * u;
+      this.fovCible = this.fov;
+    }
     const fovVivant = (this.fov + Math.sin(temps * 0.19) * 0.4)
                     * (this.camera.userData.fovEchelle || 1);
     if (Math.abs(this.camera.fov - fovVivant) > 0.01) {

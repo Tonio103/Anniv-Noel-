@@ -452,7 +452,13 @@ export class Cerf {
          donne la priorite sur le sol partout ou les deux se frolent encore. */
       this.ombre.position.y = 0.15;
       const contact = this.membres.reduce((c, mb) => c + (this._auSol[mb.nom] ? 1 : 0), 0);
-      this.ombre.material.opacity = 0.16 + (contact / 4) * 0.26;
+      /* Plus dense — et deux fois moins la ou une vraie carte d'ombre existe
+         deja, sinon les deux s'additionnent et le cerf traine une flaque. Au
+         palier bas il n'y a AUCUNE ombre portee dans toute la scene : cette
+         tache est alors le seul lien entre l'animal et la neige, et c'est
+         justement le palier sur lequel la balade sera regardee. */
+      const k = this.palier?.ombres ? 0.55 : 1;
+      this.ombre.material.opacity = (0.26 + (contact / 4) * 0.30) * k;
     }
 
     this._majSouffle(dt, temps);
