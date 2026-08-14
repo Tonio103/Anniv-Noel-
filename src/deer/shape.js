@@ -105,6 +105,110 @@ function capsule(px, py, pz, c) {
 }
 
 /* --------------------------------------------------------------------------
+   COURBE MONOTONE — POURQUOI LE DOS FAISAIT DES BOSSES.
+
+   Le tronc etait une chaine de six capsules, chacune tracee d'un point de
+   controle au suivant par une simple DROITE. Mesure faite avec une sonde qui
+   suit la surface du champ (pas le maillage — le champ lui-meme) : la ligne
+   de dos qui en resultait comptait CINQ pics locaux entre la croupe et le
+   poitrail, la ou une seule bosse — le garrot — etait voulue. Chaque
+   segment droit change de pente a la jonction avec le suivant ; le minimum
+   adouci lisse l'angle mais ne peut pas effacer le changement de COURBURE
+   qu'il laisse derriere lui, et ce residu est exactement ce qui se lit comme
+   une succession de bosses.
+
+   La solution n'est pas de retoucher les chiffres a la main — c'est ce qui
+   avait ete tente, sans qu'on calcule jamais ce que ces chiffres produisent
+   reellement une fois passes dans le champ. On trace plutot la ligne de dos
+   et celle du ventre comme de vraies COURBES, par une spline cubique
+   monotone (Fritsch-Carlson) : elle passe exactement par les points de
+   controle choisis, et sa PROPRIETE MATHEMATIQUE est de ne jamais osciller
+   entre deux points qui montent ou descendent — aucune bosse ne peut
+   apparaitre qu'on n'ait pas explicitement dessinee. On echantillonne ensuite
+   cette courbe en une vingtaine de segments courts : assez pour que la
+   difference entre la courbe et son approximation en droites soit sous le
+   seuil de perception, meme a bout portant. */
+
+/* Tangente de Fritsch-Carlson en chaque point : la moyenne ponderee des
+   pentes voisines, RAMENEE A ZERO des qu'un point est un extremum local. Une
+   spline de Hermite classique (tangentes de Catmull-Rom) peut deborder au-
+   dela des points de controle entre deux segments de pentes tres differentes
+   — c'est exactement ce depassement qui cree une bosse non voulue. La
+   version monotone l'interdit par construction. */
+function tangentesMonotones(zs, vs) {
+  const n = zs.length;
+  const d = new Array(n - 1);       // pente de chaque intervalle
+  for (let i = 0; i < n - 1; i++) d[i] = (vs[i + 1] - vs[i]) / (zs[i + 1] - zs[i]);
+
+  const m = new Array(n);
+  m[0] = d[0];
+  m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    m[i] = (d[i - 1] * d[i] <= 0) ? 0 : (d[i - 1] + d[i]) / 2;
+  }
+  // Ecretage de Fritsch-Carlson : garantit qu'aucun segment ne depasse la
+  // pente locale, condition necessaire et suffisante de monotonie.
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+    const a = m[i] / d[i], b = m[i + 1] / d[i];
+    const s = Math.hypot(a, b);
+    if (s > 3) {
+      const t = 3 / s;
+      m[i] = t * a * d[i];
+      m[i + 1] = t * b * d[i];
+    }
+  }
+  return m;
+}
+
+/* Evalue la spline en z, par interpolation cubique d'Hermite entre les deux
+   points de controle qui encadrent z. */
+function splineMonotone(zs, vs, ms, z) {
+  let i = 0;
+  // `zs` est croissant : on avance tant qu'on n'a pas encore atteint
+  // l'intervalle qui contient z, c'est-a-dire tant que z a DEPASSE son bord
+  // droit. La condition inverse (avancer tant que z < bord droit) fait
+  // sauter la recherche jusqu'au tout dernier intervalle pour n'importe
+  // quelle valeur, et extrapole une cubique tres loin hors de sa plage —
+  // c'est ce qui a coupe le tronc en deux lors du premier essai. */
+  while (i < zs.length - 2 && z >= zs[i + 1]) i++;
+  const z0 = zs[i], z1 = zs[i + 1], h = z1 - z0;
+  const t = (z - z0) / h;
+  const t2 = t * t, t3 = t2 * t;
+  const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t;
+  const h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+  return h00 * vs[i] + h10 * h * ms[i] + h01 * vs[i + 1] + h11 * h * ms[i + 1];
+}
+
+/* Construit une chaine de capsules courtes le long d'une courbe monotone.
+   `points` : liste de {z, dos, ventre}, triee en z DECROISSANT (de la
+   croupe vers le poitrail). Le rayon et l'axe se deduisent de dos/ventre
+   exactement comme avant — seule la maniere de passer de l'un a l'autre
+   change, de la droite a la courbe. */
+function chaineLisse(C, points, n, opt) {
+  const zs = points.map((p) => p.z).slice().reverse();       // croissant pour la spline
+  const dos = points.map((p) => p.dos).slice().reverse();
+  const ventre = points.map((p) => p.ventre).slice().reverse();
+  const mDos = tangentesMonotones(zs, dos);
+  const mVentre = tangentesMonotones(zs, ventre);
+
+  const z0 = points[0].z, z1 = points[points.length - 1].z;
+  const echantillon = (z) => {
+    const d = splineMonotone(zs, dos, mDos, z);
+    const v = splineMonotone(zs, ventre, mVentre, z);
+    return { axe: (d + v) / 2, rayon: (d - v) / 2.6 };
+  };
+
+  let prec = echantillon(z0);
+  for (let i = 1; i <= n; i++) {
+    const z = z0 + (z1 - z0) * (i / n);
+    const cur = echantillon(z);
+    C(0, prec.axe, z0 + (z1 - z0) * ((i - 1) / n), 0, cur.axe, z, prec.rayon, cur.rayon, opt);
+    prec = cur;
+  }
+}
+
+/* --------------------------------------------------------------------------
    L'ANATOMIE.
 
    Tout le cerf tient dans cette liste. Les reperes sont ceux d'un cerf
@@ -162,14 +266,33 @@ export function anatomie() {
      d'ours.
 
      Ligne du ventre : elle plonge sous le coude au poitrail (0,70) et
-     remonte au flanc (0,80) — c'est le "creux du flanc" d'un cervide. */
+     remonte au flanc (0,80) — c'est le "creux du flanc" d'un cervide.
+
+     LES POINTS DE CONTROLE, REPENSES POUR N'AVOIR QU'UNE SEULE BOSSE.
+
+     L'ancienne suite de hauteurs (1,28 · 1,31 · 1,30 · 1,315 · 1,335 · 1,30 ·
+     1,20) semblait raisonnable lue comme une liste de chiffres, mais elle
+     dessine EN REALITE deux sommets presque egaux — un a la croupe (1,31),
+     un au garrot (1,335), separes de seulement deux centimetres et demi. A
+     l'echelle de l'animal, deux bosses aussi proches en hauteur se lisent
+     comme deux bosses, pas comme un dos et une croupe.
+
+     La nouvelle ligne ne garde qu'UN pic (le garrot, franchement le plus
+     haut) et UN creux (le rein, juste apres la croupe) — c'est la silhouette
+     d'un cervide en photo : une croupe pleine mais BASSE, un dos qui se
+     creuse legerement au rein, puis remonte franchement au garrot avant de
+     plonger vers le poitrail. */
   const tronc = { sy: 1.30, groupe: 'tronc' };
-  C(0, 1.090, 0.74, 0, 1.055, 0.54, 0.146, 0.196, tronc);   // bassin -> croupe
-  C(0, 1.055, 0.54, 0, 1.040, 0.26, 0.196, 0.200, tronc);   // croupe -> rein
-  C(0, 1.040, 0.26, 0, 1.028, -0.02, 0.200, 0.221, tronc);  // rein
-  C(0, 1.028, -0.02, 0, 1.018, -0.30, 0.221, 0.244, tronc); // garrot / thorax
-  C(0, 1.018, -0.30, 0, 1.005, -0.56, 0.244, 0.227, tronc); // poitrail profond
-  C(0, 1.005, -0.56, 0, 1.030, -0.78, 0.227, 0.131, tronc); // avant-poitrail
+  chaineLisse(C, [
+    { z: 0.76, dos: 1.272, ventre: 0.895 },   // base de la queue
+    { z: 0.56, dos: 1.298, ventre: 0.815 },   // croupe : pleine, mais SOUS le garrot
+    { z: 0.28, dos: 1.262, ventre: 0.780 },   // rein : le seul creux du dos
+    { z: -0.02, dos: 1.300, ventre: 0.742 },  // remontee vers le garrot
+    { z: -0.20, dos: 1.334, ventre: 0.716 },  // garrot : LE seul sommet
+    { z: -0.34, dos: 1.340, ventre: 0.700 },  // plateau du garrot
+    { z: -0.56, dos: 1.300, ventre: 0.712 },  // poitrail profond
+    { z: -0.78, dos: 1.198, ventre: 0.862 },  // avant-poitrail, vers l'encolure
+  ], 20, tronc);
 
   /* Les masses musculaires : ce sont elles qui donnent le galbe. Sans la
      cuisse et l'epaule, le tronc est un cylindre et les membres y sont
@@ -196,12 +319,22 @@ export function anatomie() {
   C(0, 0.82, -0.58, 0, 0.99, -0.80, 0.172, 0.142, { sx: 0.80, sy: 1.22, groupe: 'cou0' });
   C(0, 0.99, -0.80, 0, 1.14, -0.92, 0.142, 0.094, { sx: 0.80, sy: 1.14, groupe: 'cou1' });
 
-  /* --- tete : un coin court, front large, chanfrein epais ----------------
-     Un cerf n'a pas un museau pointu. Le chanfrein reste EPAIS jusqu'au
-     mufle, qui est large et carre. La version precedente s'effilait a cinq
-     centimetres de rayon : de profil, cela donnait un bec. */
-  C(0, 1.41, -0.90, 0, 1.37, -1.04, 0.132, 0.106, { groupe: 'tete' });
-  C(0, 1.37, -1.04, 0, 1.31, -1.19, 0.106, 0.080, { sy: 1.08, groupe: 'tete' });
+  /* --- tete : front large, chanfrein epais, museau ALLONGE ----------------
+     Un cerf n'a pas un museau pointu — la version d'avant celle-ci s'effilait
+     a cinq centimetres de rayon, et de profil cela donnait un bec. Mais en
+     corrigeant ce defaut, le museau etait aussi devenu TROP COURT : vingt-
+     neuf centimetres de la base du crane a la pointe, avec un mufle rond
+     colle au bout. Combine a une tete large, ca lit comme un museau de chien,
+     pas comme le chanfrein allonge d'un cervide.
+
+     La correction n'est pas de re-effiler — c'est de RALLONGER tout en
+     gardant le chanfrein plein. Trois segments au lieu de deux, portant la
+     longueur totale a trente-neuf centimetres (+34 %), avec un rayon qui ne
+     descend qu'a six centimetres a la pointe : le nez reste franc, jamais un
+     bec, mais le visage retrouve la ligne longue et noble d'un vrai cerf. */
+  C(0, 1.41, -0.90, 0, 1.375, -1.02, 0.132, 0.112, { groupe: 'tete' });
+  C(0, 1.375, -1.02, 0, 1.335, -1.16, 0.112, 0.088, { sy: 1.06, groupe: 'tete' });
+  C(0, 1.335, -1.16, 0, 1.300, -1.29, 0.088, 0.062, { sy: 1.04, groupe: 'tete' });
 
   /* LES JOUES. Sans elles la tete est un cone lisse et le raccord au cou se
      lit comme un emmanchement. Un cerf a une masse de machoire nette sous

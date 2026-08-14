@@ -709,13 +709,33 @@ export function creerCerf(palier) {
      volume cranien impose de reverifier ces trois blocs. */
   const rel = (x, y, z) => V(x, y - 1.40, z + 0.92);
 
+  /* LE MUFLE ETAIT UNE BILLE — c'est lui, plus que la longueur du museau,
+     qui faisait lire "chien" plutot que "cerf". Une sphere quasi entiere,
+     aplatie a peine (0,86 en hauteur), collee au bout d'un chanfrein court :
+     de face, c'est exactement la truffe ronde d'un labrador.
+
+     Un mufle de cervide est LARGE ET PLAT — une surface presque horizontale,
+     nettement plus etendue que haute, avec deux narines ovales bien
+     separees plutot qu'un seul bourrelet central. On l'aplatit franchement
+     (0,58 en hauteur, contre 0,86) et on l'elargit (1,12 en largeur), puis
+     on ajoute deux narines en creux : deux demi-spheres sombres, enfoncees,
+     qui donnent au mufle sa vraie lecture au lieu d'un galet lisse. */
   const mufle = new THREE.Mesh(
-    new THREE.SphereGeometry(0.052, 10, 8),
-    new THREE.MeshStandardMaterial({ color: 0x120E0A, roughness: 0.32 })
+    new THREE.SphereGeometry(0.056, 12, 8),
+    new THREE.MeshStandardMaterial({ color: 0x120E0A, roughness: 0.34 })
   );
-  mufle.scale.set(1, 0.86, 0.78);
-  mufle.position.copy(rel(0, 1.300, -1.285));
+  mufle.scale.set(1.12, 0.58, 0.68);
+  mufle.position.copy(rel(0, 1.286, -1.322));
   tete.add(mufle);
+
+  const matNarine = new THREE.MeshStandardMaterial({ color: 0x030202, roughness: 0.55 });
+  for (const cote of [-1, 1]) {
+    const narine = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), matNarine);
+    narine.scale.set(1.3, 0.7, 1.6);
+    narine.position.copy(rel(cote * 0.026, 1.284, -1.300));
+    narine.rotation.y = cote * 0.5;
+    tete.add(narine);
+  }
 
   /* Oreilles : grandes et bien ecartees. Chez un cerf elles sont enormes ;
      les faire timides suffit a rendre la tete quelconque.
