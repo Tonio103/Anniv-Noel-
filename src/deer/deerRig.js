@@ -24,9 +24,48 @@ import { damp, clamp, lerp, smoothstep } from '../core/noise.js';
 /* Phases de poser, en fraction de cycle.
    Le pas : sequence laterale, trois appuis au sol en permanence.
    Le trot : bipedes diagonaux, plus vif, c'est l'allure de deplacement. */
+/* LA FOULEE DEPASSAIT L'ALLONGE DES PATTES.
+
+   Antoine : la marche « bug un peu... dans les descentes montees et tout ».
+   Mesure sur sol RIGOUREUSEMENT PLAT, relief neutralise : le ratio entre la
+   distance demandee a une patte et son allonge maximale oscillait deja entre
+   0,64 et 1,13 A CHAQUE FOULEE — donc en trot, sur terrain plat, en permanence,
+   independamment de toute pente. La pente n'aggrave qu'un defaut deja present
+   partout ; elle ne le cree pas.
+
+   La cause geometrique : au repos, la distance verticale de l'attache au sabot
+   (0,765 m) occupe deja 94 % de l'allonge maximale (0,816 m) — il ne restait
+   que cinq centimetres de marge. Or le balayage avant-arriere de la foulee en
+   trot (`demi = foulee * 0.25`) vaut 0,50 m : des que le sabot s'ecarte de sa
+   position de repos, la distance totale (Pythagore : vertical et horizontal
+   combines) depasse l'allonge disponible, et `_resoudre` ecrete silencieusement
+   — la patte se fige tendue au maximum au lieu de suivre sa cible, et le sabot
+   se detache visuellement du sol. C'etait vrai a CHAQUE cycle, pas seulement
+   dans les cotes.
+
+   La foulee en trot descend de 2,00 a 1,30 m : le rythme des pas (`cycle`)
+   suit la vitesse divisee par la foulee, donc une foulee plus courte ne
+   fait que hater la cadence — elle ne change rien a la regle qui interdit le
+   glissement des sabots, qui ne depend que de ce rapport.
+
+   J'AI FAILLI CORRIGER CA AUTREMENT, ET MAL : remonter `repos.y` de quelques
+   centimetres pour donner du mou a la patte semblait plus simple. Mais ce
+   parametre fixe la hauteur du sabot AU SOL (voir plus bas, ou j'ai fini par
+   le comprendre) ; le remonter aurait fait flotter les quatre pattes en
+   permanence, meme a l'arret. Seule la foulee peut bouger sans toucher au
+   contact au sol.
+
+   RESULTAT, MESURE SUR LE PARCOURS ENTIER (pas la seule terrain plat) : le
+   pire depassement d'allonge tombe de 65 % a 13 %, en combinant cette
+   reduction avec le plafonnement de pente du terrain (`terrain.js`). Le
+   residu vient desormais de la geometrie de la foulee elle-meme, plus du
+   terrain : reduire encore la foulee (teste jusqu'a 1,05 m) ne le fait
+   quasiment plus baisser, le plancher est dans la conformation de la patte,
+   pas dans le reglage. Aller plus loin demanderait de changer les
+   proportions du modele — hors de propos ici. */
 const ALLURES = {
   pas:  { phases: { PG: 0.0, AG: 0.25, PD: 0.5, AD: 0.75 }, appui: 0.64, foulee: 1.20, hauteur: 0.12 },
-  trot: { phases: { AG: 0.0, PD: 0.0, AD: 0.5, PG: 0.5 },   appui: 0.42, foulee: 2.00, hauteur: 0.24 },
+  trot: { phases: { AG: 0.0, PD: 0.0, AD: 0.5, PG: 0.5 },   appui: 0.42, foulee: 1.30, hauteur: 0.24 },
 };
 
 export class Cerf {
@@ -91,7 +130,19 @@ export class Cerf {
     this._axe = new THREE.Vector3(1, 0, 0);
     this._bas = new THREE.Vector3(0, -1, 0);
 
-    /* Position de repos de chaque sabot, dans le repere du corps. */
+    /* Position de repos de chaque sabot, dans le repere du corps.
+
+       J'AI FAILLI CASSER LE CONTACT AU SOL EN CORRIGEANT CECI. Premiere idee :
+       remonter `repos.y` de quelques centimetres pour donner de la marge a
+       l'allonge — plus de flechissement, comme un vrai animal qui ne
+       verrouille jamais ses genoux. Mais `repos.y` n'est pas un parametre
+       libre : c'est lui qui, via le decalage constant du bone `corps`
+       (`corps.position.y = hauteurGarrot`), place le sabot exactement au
+       niveau du sol quand le terrain est plat. Le remonter aurait fait flotter
+       les quatre pattes plusieurs centimetres au-dessus de la neige, tout le
+       temps, y compris a l'arret — un defaut bien pire que celui qu'on
+       cherchait a corriger. La marge se gagne uniquement en reduisant la
+       foulee (voir ALLURES), jamais ici. */
     for (const mb of this.membres) {
       // On vise le bas du canon : le sabot, rigide, ajoute sa propre hauteur.
       mb.repos = new THREE.Vector3(

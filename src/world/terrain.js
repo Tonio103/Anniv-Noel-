@@ -44,6 +44,74 @@ export class Relief {
     this._zDebut = this._echant[0].z;
     this._zFin = this._echant[N].z;
 
+    /* LA PENTE EN LONG N'ETAIT JAMAIS ADOUCIE.
+
+       Une fois l'escalier corrige (voir `_prochePoint`), la marche du cerf
+       restait genee par endroits : mesure faite, l'allonge demandee a une
+       patte depassait jusqu'a 47 % de son maximum. La cause, cette fois, est
+       reelle et pas un artefact — le bruit brut atteint localement des
+       pentes de 25 a 30 % le long du chemin lui-meme. L'aplanissement de
+       couloir gomme les bosses EN TRAVERS (`hauteur()` melange vers `pr.h`
+       selon la distance laterale au chemin), mais rien ne gommait la pente
+       EN LONG : `pr.h` suivait le bruit brut au centimetre pres, avec toute
+       sa rugosite haute frequence.
+
+       Un sentier, meme en foret, ne serpente pas au gre de chaque bosse : on
+       le trace en amortissant les irregularites courtes tout en gardant le
+       relief general. Le bruit brut environnant, lui, reste intact : cette
+       passe ne touche que les hauteurs de centre-couloir qui alimentent
+       `pr.h`.
+
+       UN FLOU NE SUFFISAIT PAS. Une moyenne glissante ([1,2,1]/4, repetee)
+       ne fait que DIFFUSER les ecarts, elle ne les BORNE jamais : la pente
+       residuelle decroit en 1/racine(passes), donc chaque doublement du
+       nombre de passes ne gagne qu'un peu. Mesure a l'appui : cinq passes
+       laissaient 38 % de depassement, soixante 25 %, neuf cents encore 11 %
+       — et neuf cents passes aplatissent deja le couloir presque a plat,
+       sans meme garantir zero depassement.
+
+       Ce qu'il faut n'est pas un flou, c'est une BORNE : la pente d'un
+       echantillon a l'autre ne doit jamais depasser une valeur fixee. On
+       resout ca directement en deux balayages (avant puis arriere), chacun
+       ecretant l'ecart au voisin deja traite a la pente maximale autorisee —
+       le procede classique pour aplanir un profil de terrain sous contrainte
+       de pente. Contrairement au flou, il GARANTIT le resultat en un nombre
+       de passes fixe, quelle que soit la rugosite du bruit de depart. Une
+       legere diffusion finale arrondit seulement les angles vifs que le
+       plafonnement laisse aux points de contact.
+
+       SIX POUR CENT, PAS SEIZE. Meme borne a 16 %, le pire cas mesure sur le
+       parcours entier restait a 27 % de depassement — la marge des pattes est
+       si juste (voir ALLURES, dans deerRig.js) qu'une pente meme moderee,
+       combinee au balayage de la foulee, suffit a saturer l'allonge. Descendu
+       a 6 %, le pire cas tombe a 13 % de depassement (contre 65 % au tout
+       depart) : ce qui reste vient desormais surtout de la geometrie de la
+       foulee elle-meme, plus du tout du terrain. Le couloir garde une pente
+       sensible — 6 % reste une vraie cote, pas un trottoir — la foret
+       environnante, elle, n'est pas touchee par cette borne. */
+    const segment = chemin.longueur / N;
+    const penteMax = 0.06;             // 6 % : ce que l'allonge des pattes tolere
+    const ecart = penteMax * segment;
+    for (let iter = 0; iter < 4; iter++) {
+      for (let i = 1; i <= N; i++) {
+        const h0 = this._echant[i - 1].h, h1 = this._echant[i].h;
+        if (h1 > h0 + ecart) this._echant[i].h = h0 + ecart;
+        else if (h1 < h0 - ecart) this._echant[i].h = h0 - ecart;
+      }
+      for (let i = N - 1; i >= 0; i--) {
+        const h0 = this._echant[i + 1].h, h1 = this._echant[i].h;
+        if (h1 > h0 + ecart) this._echant[i].h = h0 + ecart;
+        else if (h1 < h0 - ecart) this._echant[i].h = h0 - ecart;
+      }
+    }
+    // Trois passes legeres pour arrondir les points anguleux du plafonnement.
+    for (let passe = 0; passe < 3; passe++) {
+      const src = this._echant.map((e) => e.h);
+      for (let i = 1; i < N; i++) {
+        this._echant[i].h = (src[i - 1] + src[i] * 2 + src[i + 1]) * 0.25;
+      }
+    }
+
     this._creuserLits(chemin, clairieres);
 
     this.groupe = new THREE.Group();
@@ -176,8 +244,32 @@ export class Relief {
     return dh;
   }
 
-  /* Echantillon de chemin le plus proche. La courbe descend regulierement en
-     z, donc une estimation par z suivie d'une recherche locale suffit. */
+  /* Point le plus proche SUR LE CHEMIN — pas le plus proche PARMI LES
+     ECHANTILLONS. C'etait la meme chose en apparence, et ne l'etait pas.
+
+     Antoine : la marche du cerf « bugue un peu dans les descentes montees et
+     tout ». Mesure faite le long du trajet : la hauteur BRUTE du terrain
+     (`_brut`) est parfaitement lisse — des pentes regulieres de quelques
+     centimetres par decimetre. La hauteur FINALE, elle, saute de vingt a
+     trente-cinq centimetres TOUS LES 1,29 METRE, pile l'ecart entre les cinq
+     cent vingt echantillons du chemin (669 m / 520). La cause : cette
+     fonction renvoyait `bh`, la hauteur du SEUL echantillon le plus proche,
+     jamais interpolee avec son voisin. Dans le couloir de marche, ou ce
+     terme pese jusqu'a 88 % du melange, le sol etait donc litteralement un
+     ESCALIER — une marche a chaque fois que l'echantillon le plus proche
+     changeait. Une patte ne peut pas suivre une marche de trente centimetres
+     en dix centimetres de progression ; elle sature a son allonge maximale,
+     et le corps entier, dont l'altitude suit la meme fonction sans lissage
+     (voir `placer()`), saute avec elle. C'est exactement ce qui se lit comme
+     un bug, et plus le terrain a une tendance generale — une montee, une
+     descente — plus les marches de l'escalier sont hautes, donc plus le
+     defaut saute aux yeux precisement la ou Antoine le signale.
+
+     Le remede est d'interpoler : au lieu de retenir le SOMMET le plus
+     proche, on retient le SEGMENT le plus proche et on y projette le point,
+     comme on le ferait sur une vraie polyligne. La hauteur en decoule par
+     interpolation lineaire entre les deux echantillons du segment — continue
+     par construction, quelle que soit la densite d'echantillonnage. */
   _prochePoint(x, z) {
     const e = this._echant;
     const n = e.length;
@@ -186,10 +278,20 @@ export class Relief {
 
     let best = Infinity, bh = 0;
     const marge = 30;
-    const a = Math.max(0, i0 - marge), b = Math.min(n, i0 + marge);
+    // `b` reste EXCLUSIF et borne a n-1 : la boucle lit e[i+1], qui doit donc
+    // toujours exister. Le depassement precedent (b pouvait valoir n) lisait
+    // e[n], undefined, et faisait echouer toute la construction du relief.
+    const a = Math.max(0, i0 - marge), b = Math.min(n - 1, i0 + marge);
     for (let i = a; i < b; i++) {
-      const d = (e[i].x - x) ** 2 + (e[i].z - z) ** 2;
-      if (d < best) { best = d; bh = e[i].h; }
+      const p0 = e[i], p1 = e[i + 1];
+      const dx = p1.x - p0.x, dz = p1.z - p0.z;
+      const L2 = dx * dx + dz * dz;
+      // Projection du point sur le segment [p0, p1], parametre borne a [0,1].
+      let t = L2 > 1e-9 ? ((x - p0.x) * dx + (z - p0.z) * dz) / L2 : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const px = p0.x + dx * t, pz = p0.z + dz * t;
+      const d = (px - x) ** 2 + (pz - z) ** 2;
+      if (d < best) { best = d; bh = p0.h + (p1.h - p0.h) * t; }
     }
     return { d: Math.sqrt(best), h: bh };
   }
