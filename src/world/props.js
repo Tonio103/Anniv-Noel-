@@ -285,12 +285,54 @@ export class Fouillis {
     const ech = new THREE.Vector3();
     const teinte = new THREE.Color();
 
+    /* --- LE FOUILLIS N'ETAIT PAS DECOUPE DU TOUT ----------------------------
+
+       Mesure : deux mille quatre-vingt-six instances dessinees a CHAQUE image,
+       partout, tout le temps — soit exactement la totalite du semis, du
+       premier metre du chemin au dernier. A la halte 5, cinquante-quatre
+       d'entre elles touchaient le cadre. Trois pour cent. Quatre-vingt-quinze
+       mille triangles par image pour trois mille utiles.
+
+       Ce n'etait pas un reglage trop genereux : il n'y avait aucun reglage. Un
+       seul maillage instancie par famille couvrait les six cent soixante-neuf
+       metres du parcours, donc sa sphere englobante contenait le monde entier
+       et ne pouvait jamais etre rejetee. Le commentaire d'origine disait « ils
+       coutent surtout des appels de dessin, deja groupes par famille » — c'est
+       vrai, et c'est precisement pour cela qu'on ne les avait pas decoupes.
+       L'arbitrage etait le bon en principe ; le chiffre dit qu'il etait faux
+       en pratique.
+
+       On range donc le semis dans une grille au sol. Memes objets, memes
+       positions, memes teintes, meme materiau : la grille ne sert qu'a donner
+       a la carte graphique des paquets assez petits pour qu'elle puisse en
+       refuser. Une case fait sensiblement la largeur du cadre a mi-distance,
+       ce qui est le bon compromis entre triangles economises et appels de
+       dessin ajoutes. */
+    /* Cases LARGES, et volontairement. Ces objets sont minuscules — une
+       quarantaine de triangles chacun — donc un decoupage fin y economise
+       peu de triangles et coute beaucoup d'appels de dessin : a soixante-
+       quatre metres, on obtenait quarante-cinq appels pour vingt-trois mille
+       triangles, soit cinq cents triangles par appel. C'est le mauvais bout
+       du compromis. Le decoupage doit ici seulement empecher qu'on dessine
+       le parcours entier ; au-dela, il se retourne contre nous. */
+    const CASE = 130;
+    const cle = (o) => `${Math.floor(o.x / CASE)},${Math.floor(o.z / CASE)}`;
+
     this.nb = 0;
     for (const f of familles) {
-      const liste = semis.filter((o) => o.type === f.clef);
-      if (!liste.length) continue;
-      this.nb += liste.length;
+      const tous = semis.filter((o) => o.type === f.clef);
+      if (!tous.length) continue;
+      this.nb += tous.length;
 
+      const cases = new Map();
+      for (const o of tous) {
+        const k = cle(o);
+        let l = cases.get(k);
+        if (!l) cases.set(k, (l = []));
+        l.push(o);
+      }
+
+      for (const liste of cases.values()) {
       const mesh = new THREE.InstancedMesh(f.geo, f.mat, liste.length);
       const coiffe = f.neige
         ? new THREE.InstancedMesh(f.neige, matNeige, liste.length) : null;
@@ -328,13 +370,23 @@ export class Fouillis {
 
       for (const im of [mesh, coiffe]) {
         if (!im) continue;
+        /* Nommer, maintenant qu'il y a plusieurs maillages par famille : les
+           outils de mesure les designaient par leur RANG dans le groupe, ce
+           qui ne veut plus rien dire des qu'on decoupe. Un rang n'est pas une
+           identite — la lecon a deja coute trois tests casses. */
+        im.name = im === coiffe ? `${f.clef}.neige` : f.clef;
         im.instanceMatrix.needsUpdate = true;
         im.castShadow = palier.ombres;
         im.receiveShadow = palier.ombres;
         im.computeBoundingSphere();
+        // Rien ne bouge ici : recalculer la matrice du monde a chaque image
+        // pour un caillou pose une fois pour toutes est du travail perdu.
+        im.matrixAutoUpdate = false;
+        im.updateMatrix();
         this.groupe.add(im);
       }
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      }
     }
   }
 

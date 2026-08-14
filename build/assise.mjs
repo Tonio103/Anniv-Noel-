@@ -25,6 +25,11 @@ await page.waitForFunction('window.__scene !== undefined', { timeout: 120000 });
 
 const r = await page.evaluate(() => {
   const s = window.__scene, THREE = window.__THREE;
+  /* Les familles se NOMMENT desormais elles-memes (voir props.js). Cette
+     liste ne servait que parce qu'il y avait exactement un maillage par
+     famille, dans un ordre connu ; le decoupage spatial en a fait plusieurs
+     dizaines, et l'ordre ne veut plus rien dire. On garde la liste comme
+     recours pour les maillages anonymes, rien de plus. */
   const noms = ['rocher', 'rocher.neige', 'souche', 'souche.neige',
                 'tronc', 'tronc.neige', 'buisson'];
   const m = new THREE.Matrix4(), p = new THREE.Vector3();
@@ -33,7 +38,7 @@ const r = await page.evaluate(() => {
   let i = 0;
   for (const im of s.fouillis.groupe.children) {
     if (!im.isInstancedMesh) { continue; }
-    const nom = noms[i++] || '?';
+    const nom = im.name || noms[i++] || '?';
     if (nom.endsWith('.neige')) continue;
     // Le bas de la geometrie dans son repere modele.
     im.geometry.computeBoundingBox();

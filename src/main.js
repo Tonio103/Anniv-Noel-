@@ -33,6 +33,8 @@ import { Chemin } from './camera/path.js';
 import { Drone } from './camera/droneRig.js';
 import { Cerf } from './deer/deerRig.js';
 import { Halte, PHASES } from './gifts/station.js';
+// Uniquement pour le prechauffage des nuanceurs : voir `prechauffer()`.
+import { creerCadeau } from './gifts/giftMesh.js';
 import { Son } from './audio/engine.js';
 import { Bruitages } from './audio/sfx.js';
 import { Carte } from './ui/card.js';
@@ -801,8 +803,112 @@ async function demarrer() {
     if (compteur) { compteur.maj(dt); compteur.apresRendu(); }
   });
 
+  /* --- PRECHAUFFAGE DES NUANCEURS ----------------------------------------
+
+     Antoine, deux fois : « les decors ont du mal a se generer ». J'avais lu
+     ca comme une portee de dessin trop courte, et corrige la portee. Le profil
+     dit autre chose : QUATRE PROGRAMMES sur trente-et-un se compilent encore
+     pendant les premieres haltes. Or three.js ne compile un materiau que la
+     premiere fois qu'il est REELLEMENT dessine : ce qui n'existe pas encore au
+     demarrage — le paquet, sa lueur — attend d'entrer en scene pour compiler,
+     et cette image-la dure le temps d'une compilation. Sur un telephone, c'est
+     une saccade franche, et elle tombe exactement quand un nouveau decor
+     apparait. Antoine decrivait tres precisement ce qu'il voyait.
+
+     DEUX FAUSSES PISTES, TOUTES DEUX MESUREES.
+
+     1. `renderer.compile()` en rendant toute la scene visible. Cinquante-quatre
+        programmes compiles au lieu de vingt-sept, et les quatre retardataires
+        toujours la : on fabriquait vingt-sept variantes inutiles — un materiau
+        vu dans un etat ou il ne sera jamais dessine donne un autre programme —
+        sans attraper celles qu'on visait.
+
+     2. `renderer.compile()` tout court. Toujours cinquante-quatre. La raison
+        est que `compile()` travaille contre la cible de rendu COURANTE, alors
+        que la scene est dessinee dans la cible lineaire du post-traitement :
+        chaque programme etait donc fabrique deux fois, une fois pour une
+        sortie sRGB qui ne sert jamais, une fois pour de vrai — plus tard.
+
+     La seule facon fiable de compiler exactement ce qui sera utilise est de le
+     DESSINER, dans les memes conditions. On fabrique donc un paquet temoin, on
+     le pose devant l'objectif, on dessine UNE image par la chaine normale, et
+     on le retire. Le materiau reste en vie — le liberer supprimerait le
+     programme qu'on vient d'obtenir — et il ne sera plus jamais dessine.
+
+     Rien de tout cela ne change une image : on avance un travail qui aurait eu
+     lieu de toute facon, a un moment ou personne ne regarde. */
+  function prechauffer() {
+    const modeleCadeau = STATIONS.find((st) => st.scene?.gift)?.scene?.gift;
+    let temoin = null;
+    const etats = [];
+    try {
+      /* TOUT VISIBLE, ET UNE VRAIE IMAGE. Les deux a la fois, et pas l'un sans
+         l'autre : le premier essai rendait tout visible mais compilait avec
+         `compile()`, donc dans le mauvais espace de sortie ; le second
+         dessinait pour de bon mais seulement ce qui etait deja dans le cadre,
+         donc il ratait tout ce que le champ de vision elimine au depart — les
+         clairieres a jalons, les cabanes, les niveaux lointains. */
+      scene.traverse((o) => { etats.push([o, o.visible]); o.visible = true; });
+
+      if (modeleCadeau) {
+        temoin = creerCadeau(modeleCadeau, palier);
+        // Devant l'objectif : ailleurs, il serait elimine et ne compilerait rien.
+        const devant = new THREE.Vector3(0, 0, -5).applyQuaternion(camera.quaternion);
+        temoin.groupe.position.copy(camera.position).add(devant);
+        scene.add(temoin.groupe);
+      }
+
+      /* Une camera a champ tres large, le temps d'une image : elle attrape ce
+         qui est autour sans qu'on ait a deplacer quoi que ce soit. */
+      const fov0 = camera.fov, loin0 = camera.far;
+      camera.fov = 110; camera.far = Math.max(loin0, 900);
+      camera.updateProjectionMatrix();
+
+      /* SUR QUATRE PIXELS.
+
+         Premiere tentative : une image complete, monde entier visible. Le
+         chargement de la page a expire au bout de trente secondes — evidemment,
+         puisque tout se recouvre et que le remplissage explose. Or la
+         compilation d'un nuanceur ne depend pas du NOMBRE de pixels dessines :
+         il suffit qu'un fragment passe. On limite donc le rendu a un carre de
+         deux pixels sur deux. Toute la geometrie est soumise, tous les
+         programmes sont donc fabriques, et il ne reste presque rien a peindre.
+
+         On reproduit exactement la cible de rendu de la chaine normale — c'est
+         la lecon de l'essai precedent : compiler contre une autre sortie ne
+         sert a rien, le vrai programme sera fabrique plus tard de toute
+         facon. */
+      /* ET LES OMBRES ETEINTES. Le decoupage en ciseaux ne s'applique pas a la
+         passe d'ombre : elle a son propre cadrage et redessine le monde entier
+         dans la carte d'ombre. Avec tous les objets rendus visibles, cela
+         suffisait a faire expirer le chargement de la page au palier moyen —
+         trente secondes, mesurees. Les programmes de profondeur, eux, se
+         compilent de toute facon a la premiere vraie image, qui a lieu
+         derriere l'ecran de demarrage. */
+      const ombres0 = renderer.shadowMap.enabled;
+      renderer.shadowMap.enabled = false;
+      renderer.setScissorTest(true);
+      renderer.setScissor(0, 0, 2, 2);
+      renderer.setRenderTarget(postfx.actif ? postfx.rtScene : null);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      renderer.setScissorTest(false);
+      renderer.shadowMap.enabled = ombres0;
+
+      camera.fov = fov0; camera.far = loin0;
+      camera.updateProjectionMatrix();
+    } catch (e) {
+      /* Le prechauffage est une optimisation, jamais une dependance : s'il
+         echoue, la balade doit demarrer exactement comme avant. */
+    }
+    if (temoin) scene.remove(temoin.groupe);
+    for (const [o, v] of etats) o.visible = v;
+    prechauffer.temoin = temoin;   // garde les materiaux — et leurs programmes
+  }
+
   /* ------------------------------------------------------------- le seuil */
   viser(0);
+  prechauffer();
   boot.classList.add('out');
   setTimeout(() => { boot.hidden = true; }, 900);
   document.getElementById('entry').hidden = false;

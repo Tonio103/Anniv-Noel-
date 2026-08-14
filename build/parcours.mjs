@@ -19,7 +19,11 @@ let erreurs = 0;
 page.on('pageerror', e=>{ erreurs++; console.log('  ERR PAGE:', e.message); });
 page.on('console', m=>{ if(m.type()==='error' && !/ERR_CONNECTION|fonts|favicon/.test(m.text())) { erreurs++; console.log('  ERR:', m.text().slice(0,140)); } });
 
-await page.goto('file://'+join(root,'dist/experience.html')+'?debug=1&q='+(process.env.Q||'moyen'),{waitUntil:'load'});
+await page.goto('file://'+join(root,'dist/experience.html')+'?debug=1&q='+(process.env.Q||'moyen'),{waitUntil:'load', timeout:180000});
+/* Le delai par defaut de Playwright est de trente secondes ; en rendu
+   logiciel, la page met de trente a quarante secondes a se charger, pour
+   l'essentiel a compiler ses nuanceurs. Le test echouait donc au chargement
+   selon la charge de la machine, ce qui n'apprend rien sur la balade. */
 await page.waitForFunction('window.__scene!==undefined',{timeout:180000});
 await page.click('#enterBtn');
 

@@ -236,6 +236,76 @@ export class Foret {
     this.groupe.name = 'foret';
     this.troncons = [];
 
+    /* --- DECOUPE LATERALE : LE VRAI GISEMENT DE PERFORMANCE -----------------
+
+       Mesure, a quatre haltes, sur un cadre de telephone : entre HUIT ET
+       QUINZE POUR CENT des triangles de foret envoyes a la carte graphique
+       touchaient reellement le champ de vision. Le reste — jusqu'a quatre
+       cent mille triangles par image — etait dessine, transforme, puis jete.
+
+       La cause n'est ni le nombre d'arbres ni leur detail : c'est la MAILLE
+       de la selection. Un `InstancedMesh` se garde ou se jette EN BLOC, sur
+       une seule sphere englobante. Or un tronçon fait trente metres le long
+       du chemin mais jusqu'a trois cent trente metres EN TRAVERS : sa sphere
+       a cent soixante-cinq metres de rayon. Il suffit qu'un arbre du bord
+       touche le cadre pour que les trois cents soient payes.
+
+       Et l'ecran d'Antoine est DEBOUT : en portrait, le champ horizontal fait
+       trente et un degres. A vingt metres, le cadre a onze metres de large ;
+       un tronçon en fait trois cents. On payait donc, litteralement, trente
+       fois la largeur utile.
+
+       On decoupe donc chaque tronçon en bandes paralleles au chemin. Rien
+       d'autre ne change : memes arbres, memes matrices, memes teintes, meme
+       materiau — et surtout MEME NIVEAU DE DETAIL, decide comme avant par la
+       distance au centre du tronçon, pas par celle de la bande. Une bande
+       n'est pas une unite de qualite, c'est une unite de selection. L'image
+       est donc identique au pixel pres ; seule change la finesse avec
+       laquelle la carte graphique peut refuser du travail.
+
+       (Le feuillage est opaque — pas d'alphaTest, pas de transparence — donc
+       l'ordre de dessin ne peut pas modifier le resultat. C'est ce qui rend
+       ce decoupage rigoureusement neutre.)
+
+       LA LARGEUR DES BANDES SUIT LA DISTANCE DU NIVEAU. Un decoupage n'est
+       rentable que la ou ce qu'il economise depasse ce qu'il coute, et les
+       trois niveaux ne sont pas dans la meme situation :
+
+       · le niveau PROCHE ne sert qu'en deça de quarante metres, ou le cone de
+         vision fait vingt metres de large — et c'est lui qui porte la lourde
+         geometrie a lames croisees. Bandes fines : chaque metre refuse coute
+         cher a dessiner ;
+       · le niveau INTERMEDIAIRE court jusqu'a cent trente-cinq metres, ou le
+         cone fait deja soixante-quinze metres. Des bandes fines n'y
+         refuseraient plus grand-chose et multiplieraient les appels ;
+       · le FOND, jusqu'a deux cent cinquante metres, couvre plus de cent
+         metres de large pour une geometrie six fois plus legere : on ne le
+         decoupe pas du tout.
+
+       Premiere version, une seule largeur pour tout : 436 000 triangles sont
+       tombes a 108 000, mais les appels de dessin sont montes de 96 a 164 —
+       on avait deplace le probleme sur le processeur. Avec la largeur
+       indexee sur le niveau, on garde l'essentiel du gain sans le payer. */
+    const BANDE_PRES = 26;      // metres — cone etroit, geometrie lourde
+    const BANDE_LOIN = 70;      // metres — cone large, geometrie moyenne
+    const _p = new THREE.Vector3(), _c = new THREE.Vector3();
+    const bandeDe = (a, large) => {
+      chemin.point(a.s, _p);
+      chemin.cote(a.s, _c);
+      const lat = (a.x - _p.x) * _c.x + (a.z - _p.z) * _c.z;
+      return Math.floor(lat / large);
+    };
+    const grouper = (liste, large) => {
+      const cases = new Map();
+      for (const a of liste) {
+        const b = bandeDe(a, large);
+        let l = cases.get(b);
+        if (!l) cases.set(b, (l = []));
+        l.push(a);
+      }
+      return cases;
+    };
+
     const parTroncon = Array.from({ length: TRONCONS }, () => []);
     for (const a of arbres) {
       const i = Math.min(TRONCONS - 1, Math.floor((a.s / chemin.longueur) * TRONCONS));
@@ -250,20 +320,82 @@ export class Foret {
     const teinte = new THREE.Color();
 
     for (let i = 0; i < TRONCONS; i++) {
-      const liste = parTroncon[i];
-      if (!liste.length) { this.troncons.push(null); continue; }
+      const tousDuTroncon = parTroncon[i];
+      if (!tousDuTroncon.length) { this.troncons.push(null); continue; }
 
+      /* Un tronçon rassemble desormais plusieurs bandes ; chacune porte le
+         jeu des maillages proches et intermediaires, et toutes obeissent au
+         meme niveau.
+
+         SAUF LE FOND, QUI RESTE D'UN SEUL TENANT. Decouper aussi la
+         silhouette lointaine etait un mauvais calcul : sa geometrie coute a
+         peu pres un sixieme du niveau intermediaire, donc la decouper
+         n'economise presque aucun triangle — mais c'est justement le niveau
+         qui couvre le plus large, entre cent trente-cinq et deux cent
+         cinquante metres, ou le cone de vision fait plus de cent metres de
+         large. On y payait donc quatre ou cinq appels de dessin par tronçon
+         pour economiser quelques centaines de triangles. Un decoupage ne se
+         justifie que la ou ce qu'il retire coute plus cher que ce qu'il
+         ajoute ; ici c'etait l'inverse. */
+      const tr = { pres: [], loin: [], fond: [], troncs: [], index: i };
+
+      const feuillageFond = new THREE.InstancedMesh(
+        modeleFond.feuillage, this.matFeuillage, tousDuTroncon.length);
+      for (let k = 0; k < tousDuTroncon.length; k++) {
+        const a = tousDuTroncon[k];
+        e.set(a.pencheX, a.rot, a.pencheZ);
+        q.setFromEuler(e);
+        v.set(a.x, a.y, a.z);
+        ech.set(a.h * a.large, a.h, a.h * a.large);
+        m.compose(v, q, ech);
+        feuillageFond.setMatrixAt(k, m);
+        teinte.setHSL(0.34 + a.teinte * 0.06, 0.22 + a.teinte * 0.16, 0.40 + a.teinte * 0.18);
+        feuillageFond.setColorAt(k, teinte);
+      }
+      feuillageFond.instanceMatrix.needsUpdate = true;
+      if (feuillageFond.instanceColor) feuillageFond.instanceColor.needsUpdate = true;
+      feuillageFond.castShadow = false;
+      feuillageFond.receiveShadow = palier.ombres && palier.nom === 'haut';
+      feuillageFond.computeBoundingSphere();
+      feuillageFond.matrixAutoUpdate = false;
+      this.groupe.add(feuillageFond);
+      tr.fond.push(feuillageFond);
+
+      /* Le niveau intermediaire : bandes larges. Il porte exactement les
+         memes matrices d'instance que le niveau proche ; seule change la
+         geometrie, et on n'en affiche jamais qu'une des deux. */
+      for (const liste of grouper(tousDuTroncon, BANDE_LOIN).values()) {
+        const feuillageLoin = new THREE.InstancedMesh(modeleLoin.feuillage, this.matFeuillage, liste.length);
+        const neigeLoin = new THREE.InstancedMesh(modeleLoin.neige, this.matNeige, liste.length);
+        for (let k = 0; k < liste.length; k++) {
+          const a = liste[k];
+          e.set(a.pencheX, a.rot, a.pencheZ);
+          q.setFromEuler(e);
+          v.set(a.x, a.y, a.z);
+          ech.set(a.h * a.large, a.h, a.h * a.large);
+          m.compose(v, q, ech);
+          feuillageLoin.setMatrixAt(k, m);
+          neigeLoin.setMatrixAt(k, m);
+          teinte.setHSL(0.34 + a.teinte * 0.06, 0.22 + a.teinte * 0.16, 0.40 + a.teinte * 0.18);
+          feuillageLoin.setColorAt(k, teinte);
+        }
+        for (const im of [feuillageLoin, neigeLoin]) {
+          im.instanceMatrix.needsUpdate = true;
+          im.castShadow = false;
+          im.receiveShadow = palier.ombres && palier.nom === 'haut';
+          im.computeBoundingSphere();
+          im.matrixAutoUpdate = false;
+          this.groupe.add(im);
+        }
+        if (feuillageLoin.instanceColor) feuillageLoin.instanceColor.needsUpdate = true;
+        tr.loin.push(feuillageLoin, neigeLoin);
+      }
+
+      // Le niveau proche : bandes fines.
+      for (const liste of grouper(tousDuTroncon, BANDE_PRES).values()) {
       const feuillage = new THREE.InstancedMesh(modele.feuillage, this.matFeuillage, liste.length);
       const neige = new THREE.InstancedMesh(modele.neige, this.matNeige, liste.length);
       const tronc = new THREE.InstancedMesh(modele.tronc, this.matTronc, liste.length);
-
-      /* La version grossiere du meme tronçon. Les deux portent exactement les
-         memes matrices d'instance ; seule change la geometrie, et on n'en
-         affiche jamais qu'une des deux. */
-      const feuillageLoin = new THREE.InstancedMesh(modeleLoin.feuillage, this.matFeuillage, liste.length);
-      const neigeLoin = new THREE.InstancedMesh(modeleLoin.neige, this.matNeige, liste.length);
-      // Arriere-plan : silhouette seule, ni neige ni lame croisee.
-      const feuillageFond = new THREE.InstancedMesh(modeleFond.feuillage, this.matFeuillage, liste.length);
 
       for (let k = 0; k < liste.length; k++) {
         const a = liste[k];
@@ -275,9 +407,6 @@ export class Foret {
         m.compose(v, q, ech);
         feuillage.setMatrixAt(k, m);
         neige.setMatrixAt(k, m);
-        feuillageLoin.setMatrixAt(k, m);
-        neigeLoin.setMatrixAt(k, m);
-        feuillageFond.setMatrixAt(k, m);
 
         /* LE TRONC A SA PROPRE ECHELLE HORIZONTALE.
 
@@ -305,11 +434,9 @@ export class Foret {
         // Releve pour compenser la modulation par sommet, de moyenne < 1.
         teinte.setHSL(0.34 + a.teinte * 0.06, 0.22 + a.teinte * 0.16, 0.40 + a.teinte * 0.18);
         feuillage.setColorAt(k, teinte);
-        feuillageLoin.setColorAt(k, teinte);
-        feuillageFond.setColorAt(k, teinte);
       }
 
-      for (const im of [feuillage, neige, tronc, feuillageLoin, neigeLoin, feuillageFond]) {
+      for (const im of [feuillage, neige, tronc]) {
         im.instanceMatrix.needsUpdate = true;
         im.castShadow = palier.ombres;
         im.receiveShadow = palier.ombres && palier.nom === 'haut';
@@ -317,20 +444,14 @@ export class Foret {
         im.matrixAutoUpdate = false;
         this.groupe.add(im);
       }
-      for (const im of [feuillage, feuillageLoin, feuillageFond]) {
-        if (im.instanceColor) im.instanceColor.needsUpdate = true;
-      }
-      // La version grossiere ne porte jamais d'ombre : elle n'est utilisee
-      // qu'au-dela de la portee de la carte d'ombre.
-      for (const im of [feuillageLoin, neigeLoin, feuillageFond]) im.castShadow = false;
+      if (feuillage.instanceColor) feuillage.instanceColor.needsUpdate = true;
 
-      const centre = chemin.point(((i + 0.5) / TRONCONS) * chemin.longueur, new THREE.Vector3());
-      this.troncons.push({
-        pres: [feuillage, neige, tronc],
-        loin: [feuillageLoin, neigeLoin],
-        fond: [feuillageFond],
-        centre, index: i,
-      });
+        tr.pres.push(feuillage, neige);
+        tr.troncs.push(tronc);
+      }
+
+      tr.centre = chemin.point(((i + 0.5) / TRONCONS) * chemin.longueur, new THREE.Vector3());
+      this.troncons.push(tr);
     }
 
     this.nbArbres = arbres.length;
@@ -553,13 +674,19 @@ export class Foret {
       const grossier = visible && !detaille && d < seuilFond;
       const silhouette = visible && d >= seuilFond;
 
+      /* Le niveau se decide TOUJOURS sur le centre du tronçon, jamais sur
+         celui d'une bande : c'est ce qui garantit qu'un arbre bascule
+         exactement quand il basculait avant le decoupage. Une bande sert a se
+         faire eliminer par le champ de vision, pas a changer de qualite. */
       if (tr.pres[0].visible !== detaille) {
         for (const m of tr.pres) m.visible = detaille;
       }
       /* Le tronc n'est plus dessine au fond : a cent metres il fait moins
          d'un pixel de large et il coute un appel de dessin par tronçon. */
       const troncVisible = visible && !silhouette;
-      if (tr.pres[2].visible !== troncVisible) tr.pres[2].visible = troncVisible;
+      if (tr.troncs[0].visible !== troncVisible) {
+        for (const m of tr.troncs) m.visible = troncVisible;
+      }
 
       if (tr.loin[0].visible !== grossier) {
         for (const m of tr.loin) m.visible = grossier;
@@ -576,6 +703,7 @@ export class Foret {
         const ombre = d < 60;
         if (tr.pres[0].castShadow !== ombre) {
           for (const m of tr.pres) m.castShadow = ombre;
+          for (const m of tr.troncs) m.castShadow = ombre;
         }
       }
     }
