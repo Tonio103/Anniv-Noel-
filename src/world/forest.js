@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import { rng } from '../core/noise.js';
 import { genererSapin, appliquerVent, eclairerAiguilles } from './treeGeometry.js';
+import { tacheDouce } from '../core/dot.js';
 
 /* Un bouleau nu : un fut cintre et quelques branches montantes. Il ne cherche
    pas le detail — a quinze metres et dans la brume, c'est sa SILHOUETTE
@@ -208,6 +209,24 @@ export class Foret {
       color: 0x2B2119, roughness: 0.96, metalness: 0,
     });
 
+    /* --- l'ombre de contact, sous chaque sapin proche ----------------------
+       « Je ne vois pas d'ombre sous les arbres. » La carte d'ombre reelle
+       (voir plus bas, le rayon de soixante metres) projette bien une ombre
+       PORTEE — celle qui s'etend au loin dans l'axe du soleil — mais rien ne
+       fonce jamais directement SOUS le houppier : c'est pourtant la ce que
+       l'oeil cherche en premier pour juger qu'un arbre touche le sol, et
+       c'est exactement le meme constat qui a mene a l'ombre de contact du
+       cerf (voir deerMesh.js). Meme cause, meme remede, meme texture — une
+       tache qui existe quel que soit l'angle du soleil ou le palier de
+       qualite, la carte d'ombre reelle venant s'y ajouter quand elle peut. */
+    this.geoOmbreArbre = new THREE.PlaneGeometry(2, 2);
+    this.geoOmbreArbre.rotateX(-Math.PI / 2);
+    this.matOmbreArbre = new THREE.MeshBasicMaterial({
+      map: tacheDouce(), transparent: true, opacity: 0.30,
+      depthWrite: false, color: 0x0A1622, fog: true,
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -14,
+    });
+
     /* LES TROIS PIECES D'UN ARBRE BOUGENT ENSEMBLE.
 
        Elles avaient des amplitudes differentes — 1,0 / 0,9 / 0,25 — ce qui
@@ -314,6 +333,7 @@ export class Foret {
 
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
+    const qId = new THREE.Quaternion();   // l'ombre de contact reste a plat
     const e = new THREE.Euler();
     const v = new THREE.Vector3();
     const ech = new THREE.Vector3();
@@ -337,7 +357,10 @@ export class Foret {
          pour economiser quelques centaines de triangles. Un decoupage ne se
          justifie que la ou ce qu'il retire coute plus cher que ce qu'il
          ajoute ; ici c'etait l'inverse. */
-      const tr = { pres: [], loin: [], fond: [], troncs: [], index: i };
+      const tr = {
+        pres: [], loin: [], fond: [], troncs: [],
+        ombrePres: [], ombreLoin: [], index: i,
+      };
 
       const feuillageFond = new THREE.InstancedMesh(
         modeleFond.feuillage, this.matFeuillage, tousDuTroncon.length);
@@ -395,6 +418,23 @@ export class Foret {
         }
         if (feuillageLoin.instanceColor) feuillageLoin.instanceColor.needsUpdate = true;
         tr.loin.push(feuillageLoin, neigeLoin);
+
+        const ombreLoin = new THREE.InstancedMesh(this.geoOmbreArbre, this.matOmbreArbre, liste.length);
+        for (let k = 0; k < liste.length; k++) {
+          const a = liste[k];
+          v.set(a.x, a.ySol + 0.03, a.z);
+          // Un peu moins large que le houppier rendu : ses bords epars ne
+          // touchent pas vraiment le sol.
+          const r = a.h * a.large * 0.55;
+          ech.set(r, 1, r);
+          m.compose(v, qId, ech);
+          ombreLoin.setMatrixAt(k, m);
+        }
+        ombreLoin.instanceMatrix.needsUpdate = true;
+        ombreLoin.computeBoundingSphere();
+        ombreLoin.matrixAutoUpdate = false;
+        this.groupe.add(ombreLoin);
+        tr.ombreLoin.push(ombreLoin);
       }
 
       // Le niveau proche : bandes fines.
@@ -454,6 +494,21 @@ export class Foret {
 
         tr.pres.push(feuillage, neige);
         tr.troncs.push(tronc);
+
+        const ombrePres = new THREE.InstancedMesh(this.geoOmbreArbre, this.matOmbreArbre, liste.length);
+        for (let k = 0; k < liste.length; k++) {
+          const a = liste[k];
+          v.set(a.x, a.ySol + 0.03, a.z);
+          const r = a.h * a.large * 0.55;
+          ech.set(r, 1, r);
+          m.compose(v, qId, ech);
+          ombrePres.setMatrixAt(k, m);
+        }
+        ombrePres.instanceMatrix.needsUpdate = true;
+        ombrePres.computeBoundingSphere();
+        ombrePres.matrixAutoUpdate = false;
+        this.groupe.add(ombrePres);
+        tr.ombrePres.push(ombrePres);
       }
 
       tr.centre = chemin.point(((i + 0.5) / TRONCONS) * chemin.longueur, new THREE.Vector3());
@@ -616,6 +671,11 @@ export class Foret {
 
       arbres.push({
         x, y: y - 0.15, z, s: pr.s,
+        // La vraie hauteur du sol, AVANT l'enfoncement du tronc : c'est
+        // elle qu'il faut pour poser une ombre de contact sur la neige,
+        // pas la base du tronc qui, elle, est volontairement sous la
+        // surface pour en cacher le raccord.
+        ySol: y,
         h,
         large: 0.82 + rand() * 0.42,
         rot: rand() * Math.PI * 2,
@@ -699,6 +759,14 @@ export class Foret {
       }
       if (tr.fond[0].visible !== silhouette) {
         for (const m of tr.fond) m.visible = silhouette;
+      }
+
+      // L'ombre de contact suit le meme niveau que le feuillage qu'elle ancre.
+      if (tr.ombrePres.length && tr.ombrePres[0].visible !== detaille) {
+        for (const m of tr.ombrePres) m.visible = detaille;
+      }
+      if (tr.ombreLoin.length && tr.ombreLoin[0].visible !== grossier) {
+        for (const m of tr.ombreLoin) m.visible = grossier;
       }
 
       /* Seuls les tronçons vraiment proches alimentent la carte d'ombre. Le

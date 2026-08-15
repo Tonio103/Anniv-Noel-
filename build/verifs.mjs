@@ -25,17 +25,12 @@ const nav = await chromium.launch({
 const ok = [], ko = [];
 const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
 
-/* Un vrai tap sur la scene 3D : pointerdown puis pointerup, comme un doigt
-   qui touche et relache aussitot. Depuis que maintenir l'appui recompense une
-   ouverture plus genereuse (voir main.js, « maintenir pour ouvrir »), un
-   pointerdown seul ne fait plus que DEMARRER la jauge — sans le pointerup qui
-   suit, le geste reste en suspens et rien ne s'ouvre, ce qui n'est vrai que
-   dans ce testeur : un doigt reel relache toujours. */
+/* Un vrai tap sur la scene 3D : un simple pointerdown, comme un doigt qui
+   touche l'ecran n'importe ou pendant l'attente. */
 async function toucher(page) {
   await page.evaluate(() => {
     const gl = document.getElementById('gl');
     gl.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1 }));
-    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
   });
 }
 

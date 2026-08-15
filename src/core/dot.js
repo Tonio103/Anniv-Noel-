@@ -85,3 +85,30 @@ export function lueurDiffuse() {
   cacheLueur = peindreLueur(160, 3.2, 3.4, 0.38);
   return cacheLueur;
 }
+
+let cacheTache = null;
+
+/* Tache radiale douce, pour une ombre de CONTACT — celle qui rattache un
+   objet au sol independamment de la carte d'ombre reelle (portee, palier de
+   qualite, angle du soleil). Partagee par le cerf et les sapins proches :
+   memes causes, meme remede. Le profil tient sa valeur pleine plus longtemps
+   qu'un degrade lineaire ne le ferait, pour rester visible sur ce qui depasse
+   du volume qu'elle ancre — voir l'usage sur le cerf pour la mesure qui l'a
+   etabli. */
+export function tacheDouce() {
+  if (cacheTache) return cacheTache;
+  const n = 64;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const c = cv.getContext('2d');
+  const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.42, 'rgba(255,255,255,0.88)');
+  g.addColorStop(0.70, 'rgba(255,255,255,0.44)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, n, n);
+  cacheTache = new THREE.CanvasTexture(cv);
+  cacheTache.colorSpace = THREE.SRGBColorSpace;
+  return cacheTache;
+}

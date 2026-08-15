@@ -105,8 +105,28 @@ const FRAG_FINAL = /* glsl */ `
     return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
   }
 
+  /* UN HASARD QUI SE BRISE EN BANDES SUR CERTAINS ECRANS.
+
+     Le classique hasard sin(dot(p, ...)) * grand nombre suppose un sinus
+     precis pour des angles enormes : le parametre vaut ici jusqu'a plus de
+     mille (uv * 1024), le produit scalaire monte donc a plusieurs dizaines
+     de milliers de radians. En precision reduite — mediump, celle que
+     beaucoup de telephones et de puces graphiques logicielles emploient par
+     defaut pour les nuanceurs de fragment, sans jamais le signaler — un
+     sinus a cette echelle ne reduit plus l'angle correctement et retombe
+     sur un motif REGULIER au lieu d'un bruit : des bandes qui balaient
+     l'image, ou des stries qui semblent rayonner depuis un point, exactement
+     ce qu'Antoine decrit comme « un vieil ecran » ou « des rayons de
+     soleil ». Ce n'etait donc pas un artefact du decor, mais du grain
+     cense le dissimuler.
+
+     Ce hasard-ci n'appelle jamais sin() : il ne fait que multiplier par de
+     petites constantes et reprendre la partie fractionnaire, une operation
+     stable quelle que soit la precision du materiel. */
   float bruit(vec2 p){
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
   }
 
   void main(){
@@ -258,6 +278,10 @@ export class PostFX {
     const complet = palier.postfx === 'complet';
     this.matFinal = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG_FINAL,
+      // Demande la plus grande precision disponible : le tampon de profondeur
+      // et le hasard du grain en dependent. Three.js la plafonne tout seul si
+      // le materiel ne l'offre pas — la demande ne coute donc rien.
+      precision: 'highp',
       uniforms: {
         uScene: { value: null }, uHalo: { value: null },
         uExpo: { value: 0.92 },

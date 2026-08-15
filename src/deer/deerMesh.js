@@ -17,7 +17,7 @@
 */
 
 import * as THREE from 'three';
-import { grainRond } from '../core/dot.js';
+import { grainRond, tacheDouce } from '../core/dot.js';
 import { anatomie, champ, polygoniser, normalesParGradient, orienterFaces } from './shape.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -419,8 +419,14 @@ function matierePelage() {
       .replace('#include <common>', `
         #include <common>
         varying vec3 vLiaison;
+        /* Pas de sin() : sur un sinus en precision reduite, un produit
+           scalaire de cette ampleur ne se reduit plus correctement et rend
+           des bandes regulieres au lieu d'un grain — voir postfx.js, ou le
+           meme defaut striait l'ecran entier. */
         float grain(vec3 p){
-          return fract(sin(dot(floor(p), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          vec3 p3 = fract(floor(p) * 0.1031);
+          p3 += dot(p3, p3.yzx + 33.33);
+          return fract((p3.x + p3.y) * p3.z);
         }
 
         /* Bruit continu par interpolation : le bruit par cellule donne un
@@ -554,39 +560,6 @@ function matierePelage() {
   };
   mat.customProgramCacheKey = () => 'pelage8';
   return mat;
-}
-
-/* Tache radiale douce, pour l'ombre de contact. */
-function tacheDouce() {
-  const n = 64;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = n;
-  const c = cv.getContext('2d');
-  /* LE DEGRADE ETAIT TROP MOU.
-
-     Mesure faite sur une capture, sous le cerf et a un metre de la : 177
-     contre 190 sur 255. Cinq pour cent. Autrement dit l'ombre de contact
-     etait presente, correctement placee, correctement inclinee — et ne
-     fonçait rien du tout. Un animal qu'aucune ombre ne rattache au sol a
-     beau etre pose au millimetre, il flotte ; c'est le seul indice que
-     l'oeil utilise pour juger d'un contact, et il n'y en avait pas.
-
-     La cause est le profil : la moitie de l'opacite etait deja perdue a 40 %
-     du rayon, donc tout ce qui depassait du corps de l'animal — c'est-a-dire
-     tout ce qu'on peut VOIR, puisque le reste est cache par lui — se trouvait
-     dans la queue du degrade. On tient donc la valeur pleine plus longtemps
-     et on l'eteint plus vite : la tache reste douce sur son bord, mais elle
-     a enfin un coeur. */
-  const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
-  g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.42, 'rgba(255,255,255,0.88)');
-  g.addColorStop(0.70, 'rgba(255,255,255,0.44)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = g;
-  c.fillRect(0, 0, n, n);
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }
 
 /* ==========================================================================

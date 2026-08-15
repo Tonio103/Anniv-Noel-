@@ -213,15 +213,8 @@ export class Bruitages {
   /* --- LE PAQUET S'OUVRE --------------------------------------------------
      Une floraison, pas un accord : les partiels sont volontairement sans
      rapport harmonique entre eux, et un souffle ascendant les enveloppe.
-     On entend de la lumiere, jamais une melodie.
-
-     `force` (0,55 a 1,30) vient de la poigne — combien le spectateur a
-     maintenu l'appui avant de relacher (voir `Halte.majOuverture`). Un tap
-     instantane garde un evenement complet ; un appui tenu jusqu'au bout
-     l'amplifie. Seuls le souffle et le scintillement en dependent : le
-     frottement du couvercle, lui, reste fixe — un couvercle ne frotte pas
-     plus fort parce qu'on a attendu plus longtemps pour l'ouvrir. */
-  ouverture(sortie, force = 1) {
+     On entend de la lumiere, jamais une melodie. */
+  ouverture(sortie) {
     if (!this.son.pret || !sortie) return;
     const ctx = this.ctx, t = ctx.currentTime;
 
@@ -243,7 +236,7 @@ export class Bruitages {
     f2.frequency.exponentialRampToValueAtTime(5200, t + 1.5);
     const g2 = ctx.createGain();
     g2.gain.setValueAtTime(0, t + 0.10);
-    g2.gain.linearRampToValueAtTime(0.20 * force, t + 0.45);
+    g2.gain.linearRampToValueAtTime(0.20, t + 0.45);
     g2.gain.exponentialRampToValueAtTime(0.0008, t + 1.9);
     s2.connect(f2); f2.connect(g2); g2.connect(sortie);
 
@@ -257,7 +250,7 @@ export class Bruitages {
       const dep = 0.14 + i * 0.075 + Math.random() * 0.05;
       const dur = 1.1 + Math.random() * 0.9;
       og.gain.setValueAtTime(0, t + dep);
-      og.gain.linearRampToValueAtTime((0.038 / (1 + i * 0.35)) * force, t + dep + 0.05);
+      og.gain.linearRampToValueAtTime(0.038 / (1 + i * 0.35), t + dep + 0.05);
       og.gain.exponentialRampToValueAtTime(0.0002, t + dep + dur);
       o.connect(og); og.connect(sortie);
       o.start(t + dep); o.stop(t + dep + dur + 0.1);

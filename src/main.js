@@ -300,7 +300,6 @@ async function demarrer() {
   let index = 0;              // halte 0 = le seuil, on vise la 1
   let horloge = 0;            // temps ecoule dans la phase courante
   let demarree = false;
-  let indiceCerfMontre = false;   // l'invite « Dites-lui bonjour », une fois
   const ancre = new THREE.Vector3();
   // Teinte de travail pour la lueur des cadeaux, allouee une fois.
   const teinteLueur = new THREE.Color();
@@ -337,11 +336,6 @@ async function demarrer() {
         break;
 
       case PHASES.APPROCHE:
-        /* Filet de securite : si l'indice de la caresse est encore a l'ecran
-           quand on entre en approche (une premiere halte tres proche du
-           depart, par exemple), on le retire au lieu de le laisser fige a
-           une position qu'on ne met plus a jour. */
-        if (!indiceCerfMontre) { invite.cacher(); indiceCerfMontre = true; }
         cerf.vitesseCible = 2.3;
         drone.cadrer('approche');
         /* L'arc commence des l'approche, doucement, et son SENS ALTERNE d'une
@@ -399,7 +393,7 @@ async function demarrer() {
       }
 
       case PHASES.OUVERTURE:
-        sfx.ouverture(voixCadeau?.entree, 0.55 + halte.appui * 0.75);
+        sfx.ouverture(voixCadeau?.entree);
         cerf.regard = 0.5;
         // L'ouverture se regarde de face : l'arc se calme le temps du geste.
         drone.arc(sensArc() * 0.030, 0.25);
@@ -471,63 +465,7 @@ async function demarrer() {
     entrerPhase(st.scene?.gift ? PHASES.OUVERTURE : PHASES.LECTURE);
   }
 
-  /* MAINTENIR POUR OUVRIR — et pas seulement toucher.
-
-     Un tap instantane ouvrait tout, d'un coup, sans qu'on ait rien a faire
-     soi-meme : la seule chose que la balade demandait au spectateur, c'etait
-     de constater. On garde ce geste minimal — il doit toujours marcher,
-     personne ne doit rester bloque a se demander comment continuer — mais on
-     recompense maintenant celui qui prend le temps d'appuyer : l'anneau se
-     remplit pendant l'appui, le paquet tremble un peu plus fort et sa lueur
-     bat plus vite a mesure qu'on approche du plein — et l'ouverture qui suit
-     est proportionnellement plus genereuse (voir `Halte.majOuverture`, le
-     parametre `poigne`). Relacher — a n'importe quel instant — ouvre
-     toujours : la seule chose que la duree change, c'est l'ampleur du
-     geste, jamais la possibilite d'avancer. */
-  let appuiCadeau = false;
-  let appuiId = null;
-  const DUREE_APPUI = 0.85;
-
-  /* TOUCHER LE CERF — la seule interaction que rien n'explique par un texte.
-     Pas de raycasting contre le maillage : le paquet, lui aussi, se touche
-     « n'importe ou », et la coherence veut la meme tolerance ici. On projette
-     son point d'ancrage a l'ecran et on mesure la distance au doigt — un
-     disque genereux, puisqu'un rond invisible autour d'un animal en
-     mouvement est deja assez difficile a viser. */
-  const ancreCerf = new THREE.Vector3();
-  let prochaineCaresse = 0;
-  function toucherCerf(x, y) {
-    if (prochaineCaresse > 0) return false;
-    cerf.ancre(ancreCerf);
-    const p = ancreCerf.clone().project(camera);
-    if (p.z > 1 || p.z < -1) return false;
-    const L = window.innerWidth || 1, H = window.innerHeight || 1;
-    const sx = (p.x * 0.5 + 0.5) * L, sy = (-p.y * 0.5 + 0.5) * H;
-    return Math.hypot(x - sx, y - sy) < 96;
-  }
-
-  function surPointerDown(e) {
-    if (phase === PHASES.ATTENTE) {
-      appuiCadeau = true;
-      appuiId = e.pointerId;
-      halte.appui = 0;
-      return;
-    }
-    if (phase === PHASES.FIN || !demarree) return;
-    if (toucherCerf(e.clientX, e.clientY)) {
-      cerf.caresser();
-      prochaineCaresse = 2.4;   // on ne relance pas une reaction en cours
-    }
-  }
-  function surPointerFin(e) {
-    if (!appuiCadeau) return;
-    if (appuiId !== null && e.pointerId !== appuiId) return;
-    appuiCadeau = false;
-    ouvrirCadeau();
-  }
-  canvas.addEventListener('pointerdown', surPointerDown);
-  window.addEventListener('pointerup', surPointerFin);
-  window.addEventListener('pointercancel', surPointerFin);
+  canvas.addEventListener('pointerdown', ouvrirCadeau);
   window.addEventListener('keydown', (e) => {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); ouvrirCadeau(); }
   });
@@ -537,42 +475,10 @@ async function demarrer() {
     uniformsVent.uTemps.value = t;
     horloge += dt;
 
-    // Le delai avant qu'une nouvelle caresse puisse redeclencher une reaction.
-    if (prochaineCaresse > 0) prochaineCaresse -= dt;
-    if (cerf.caresseFraiche) {
-      cerf.caresseFraiche = false;
-      sfx.naseaux(voixCerf?.entree);
-      // Un tintement discret du collier, comme un sursaut : jamais systematique,
-      // sinon on entend un signal de confirmation plutot qu'un animal surpris.
-      if (Math.random() < 0.6) sfx.grelots(voixCerf?.entree, 0.55);
-    }
-
     const cible = chemin.haltes[index];
 
     switch (phase) {
       case PHASES.ROUTE:
-        /* L'INDICE DE LA CARESSE — une seule fois, tot, et jamais un texte
-           d'aide.
-
-           Rien ne dit qu'on peut toucher le cerf : ni panneau, ni bulle
-           d'aide, ce serait exactement le chrome que cette experience refuse
-           partout ailleurs. Mais sans rien du tout, l'interaction n'existe
-           que pour qui la devine — et personne ne devine qu'un animal 3D
-           reagit au toucher. On reprend donc le SEUL element d'invite qui
-           existe deja, celui du paquet, pour un unique et bref message sur
-           le premier trajet : le meme anneau, la meme grammaire visuelle,
-           donc rien de nouveau a apprendre — juste une chose de plus qui
-           s'anime a l'ecran. */
-        if (index === 1 && !indiceCerfMontre) {
-          if (horloge > 4.0 && horloge < 8.2) {
-            invite.montrer('Dites-lui bonjour');
-            cerf.ancre(ancre); ancre.y += 0.30;
-            invite.ancrer(ancre, camera);
-          } else if (horloge >= 8.2) {
-            invite.cacher();
-            indiceCerfMontre = true;
-          }
-        }
         if (demarree && cible && cerf.s > cible.s - 24) entrerPhase(PHASES.APPROCHE);
         break;
 
@@ -684,24 +590,14 @@ async function demarrer() {
 
       case PHASES.ATTENTE:
         halte.majEmergence(dt, 1, t);
-        /* La montee de l'appui vit ICI et nulle part ailleurs : c'est le
-           seul endroit qui sait qu'on est bien dans cette phase-la, sur
-           cette halte-la. Au maximum, on ouvre tout seul — l'appui recompense
-           qui patiente, il ne punit jamais qui relache avant. */
-        if (appuiCadeau && halte.cadeau) {
-          halte.appui = Math.min(1, halte.appui + dt / DUREE_APPUI);
-          if (halte.appui >= 1) { appuiCadeau = false; ouvrirCadeau(); }
-        }
         if (halte.cadeau) {
           drone.regarder(halte.ancre(ancre), 0.75);
           invite.ancrer(halte.ancre(ancre), camera);
-          invite.jauger(halte.appui);
         } else {
           // Sans paquet, l'anneau se pose sur le cerf lui-meme.
           cerf.ancre(ancre); ancre.y += 0.35;
           drone.regarder(ancre, 0.35);
           invite.ancrer(ancre, camera);
-          invite.jauger(0);
         }
         break;
 

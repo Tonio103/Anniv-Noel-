@@ -60,12 +60,6 @@ export class Halte {
     this.centre = new THREE.Vector3();
     this.t = 0;
     this.ouvert = 0;
-    /* Combien le spectateur a maintenu l'appui avant de relacher, de 0 (un
-       tap instantane) a 1 (les 0,85 s pleines). Lue par `majEmergence`
-       pendant l'attente pour un fremissement plus vif, et par
-       `majOuverture` pour une ouverture plus genereuse — voir la ou elle
-       est produite, dans main.js. */
-    this.appui = 0;
   }
 
   /* Prepare la halte : place le paquet a cote du chemin, du cote ou la
@@ -86,7 +80,7 @@ export class Halte {
     /* Les clairieres n'ont rien a deterrer. On garde quand meme un centre a
        jour : sans lui, la camera et l'invite viseraient le paquet de la
        halte precedente, reste en arriere sur le chemin. */
-    if (!g) { this.enfoui = false; this.t = 0; this.ouvert = 0; this.appui = 0; return false; }
+    if (!g) { this.enfoui = false; this.t = 0; this.ouvert = 0; return false; }
 
     this.cadeau = creerCadeau(g, this.palier);
     this.groupeCadeau.add(this.cadeau.groupe);
@@ -113,7 +107,6 @@ export class Halte {
 
     this.t = 0;
     this.ouvert = 0;
-    this.appui = 0;
     return true;
   }
 
@@ -163,21 +156,7 @@ export class Halte {
 
     // La lueur enfermee monte avec l'emergence.
     const l = smoothstep(0.45, 0.9, avance);
-    if (this.ouvert <= 0) {
-      /* L'APPUI SE VOIT AVANT DE SE ENTENDRE.
-
-         Pendant qu'on maintient, le paquet doit deja promettre ce que
-         l'ouverture va liberer — sinon l'appui n'est qu'une attente, pas un
-         geste. La lueur bat plus vite et plus fort, et le paquet tremble
-         legerement sur place, comme quelque chose qui cherche a sortir.
-         Les deux s'annulent au relachement (appui retombe a 0 des la halte
-         suivante), donc rien ne reste accroche entre deux visites. */
-      const pulse = Math.sin(temps * 9.5) * 0.5 + 0.5;
-      this.cadeau.matLueur.opacity = l * 0.16 + this.appui * (0.09 + pulse * 0.15);
-      const tremble = this.appui * 0.014 * this.cadeau.taille;
-      this.cadeau.groupe.position.x = this.centre.x + Math.sin(temps * 37) * tremble;
-      this.cadeau.groupe.position.z = this.centre.z + Math.cos(temps * 41) * tremble;
-    }
+    if (this.ouvert <= 0) this.cadeau.matLueur.opacity = l * 0.16;
   }
 
   /* L'OUVERTURE, EN QUATRE TEMPS.
@@ -211,17 +190,6 @@ export class Halte {
     this.ouvert = Math.min(1, this.ouvert + dt * 0.62);
     const t = this.ouvert;
     const c = this.cadeau;
-
-    /* LA POIGNE : combien on a maintenu l'appui avant de relacher.
-
-       Un tap instantane (`appui` proche de 0) doit rester un evenement
-       satisfaisant — ce geste-la doit continuer de marcher pour tout le
-       monde, tout le temps. Mais un appui tenu jusqu'au bout se recompense
-       d'une ouverture plus genereuse : la lumiere deborde davantage, la
-       boite reagit plus fort. Le plancher (0,45) garantit que le tap reste
-       un vrai moment ; le plafond (1,25) garde l'ecart perceptible sans
-       jamais faire disparaitre le paquet dans son propre eclat. */
-    const poigne = 0.45 + this.appui * 0.80;
 
     /* --- 1. le noeud se defait --------------------------------------- */
     const denoue = smoothstep(0.0, 0.22, t);
@@ -259,15 +227,15 @@ export class Halte {
     /* --- 4. la lumiere sort, deborde, puis se pose --------------------- */
     const sort = smoothstep(0.28, 0.52, t);
     // Depassement : elle monte au-dela de sa valeur finale puis redescend.
-    const eclat = sort * (1 + Math.sin(clamp((t - 0.30) / 0.34, 0, 1) * Math.PI) * 1.15 * poigne);
+    const eclat = sort * (1 + Math.sin(clamp((t - 0.30) / 0.34, 0, 1) * Math.PI) * 1.15);
     c.matLueur.opacity = 0.16 + eclat * 0.46;
     c.lueur.scale.setScalar(c.taille * 3.4 * (1 + eclat * 1.05));
     // Elle monte un peu en sortant, comme quelque chose qui s'echappe.
     c.lueur.position.y = c.hauteur * 0.6 + sort * c.taille * 0.35;
 
     /* --- la boite reagit ---------------------------------------------- */
-    const enfonce = Math.sin(clamp((t - 0.15) / 0.25, 0, 1) * Math.PI) * 0.035 * poigne;
-    const rebond = Math.sin(clamp((t - 0.62) / 0.28, 0, 1) * Math.PI) * 0.05 * poigne;
+    const enfonce = Math.sin(clamp((t - 0.15) / 0.25, 0, 1) * Math.PI) * 0.035;
+    const rebond = Math.sin(clamp((t - 0.62) / 0.28, 0, 1) * Math.PI) * 0.05;
     c.caisse.scale.set(1 + enfonce - rebond * 0.5, 1 - enfonce + rebond, 1 + enfonce - rebond * 0.5);
 
     void temps;

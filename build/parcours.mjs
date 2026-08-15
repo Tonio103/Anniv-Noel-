@@ -48,15 +48,10 @@ for (let i = 0; i < 400 && vues.length < attendues; i++) {
   });
   secondes += 1.5;
   if (etat.phase === 'attente') {
-    /* Un vrai tap : pointerdown IMMEDIATEMENT suivi de pointerup, comme un
-       doigt qui touche et relache l'ecran sans s'attarder. C'est desormais
-       le chemin le plus emprunte (voir main.js, « maintenir pour ouvrir ») —
-       un appui bref doit continuer d'ouvrir tout de suite, sans avoir a
-       attendre que la jauge se remplisse toute seule. */
+    // Un vrai tap : un simple pointerdown, comme un doigt qui touche l'ecran.
     await page.evaluate(() => {
       const gl = document.getElementById('gl');
       gl.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1 }));
-      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
     });
   } else if (etat.phase === 'lecture' && etat.carte && etat.titre) {
     if (vues[vues.length-1] !== etat.titre) {
