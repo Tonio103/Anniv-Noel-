@@ -20,14 +20,139 @@ function halo() {
   return lueurDiffuse();
 }
 
+/* --------------------------------------------------------------------------
+   LA BOITE ETAIT UN PAVE NU.
+
+   `BoxGeometry` toute seule donne huit aretes a quatre-vingt-dix degres
+   parfaits — exactement ce qu'aucun carton emballe ne montre jamais : le
+   papier plie et le ruban tendu arrondissent toujours un peu les bords.
+   Vu de pres, au moment precis ou la balade s'arrete pour qu'on le regarde,
+   ce pave nu se lisait comme une primitive de moteur 3D, pas comme un objet
+   du monde.
+
+   On arrondit les QUATRE ARETES VERTICALES — celles qui dominent la
+   silhouette de face et de trois-quarts, les deux angles de vue ou le
+   paquet est effectivement regarde. Les arrondir toutes (les douze aretes,
+   avec des conges spheriques aux huit coins) demanderait un algorithme
+   nettement plus lourd pour un gain qui ne se voit presque plus une fois le
+   couvercle en place. On extrude donc un rectangle aux coins coupes au lieu
+   d'un simple rectangle — la meme technique qu'un boitier de savon ou une
+   housse rembourree, ou seuls les bords lateraux sont adoucis. */
+function formeArrondie(largeur, profondeur, rayon) {
+  const s = new THREE.Shape();
+  const hw = largeur / 2, hd = profondeur / 2;
+  const r = Math.min(rayon, hw * 0.9, hd * 0.9);
+  s.moveTo(-hw + r, -hd);
+  s.lineTo(hw - r, -hd);
+  s.quadraticCurveTo(hw, -hd, hw, -hd + r);
+  s.lineTo(hw, hd - r);
+  s.quadraticCurveTo(hw, hd, hw - r, hd);
+  s.lineTo(-hw + r, hd);
+  s.quadraticCurveTo(-hw, hd, -hw, hd - r);
+  s.lineTo(-hw, -hd + r);
+  s.quadraticCurveTo(-hw, -hd, -hw + r, -hd);
+  return s;
+}
+
+/* Boite aux aretes verticales arrondies, centree sur son origine comme le
+   serait une `BoxGeometry(largeur, hauteur, profondeur)` — c'est ce
+   centrage que tout le reste du fichier suppose (`position.y = H/2`, etc.),
+   donc le remplacement est transparent pour le montage et pour l'animation
+   d'ouverture. */
+function boiteArrondie(largeur, hauteur, profondeur, rayon, segments = 3) {
+  const forme = formeArrondie(largeur, profondeur, rayon);
+  const geo = new THREE.ExtrudeGeometry(forme, {
+    depth: hauteur, bevelEnabled: false, curveSegments: segments, steps: 1,
+  });
+  // L'extrusion part en +Z depuis le plan XY de la forme ; on la redresse en
+  // +Y et on la recentre pour retrouver la convention d'une boite centree.
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(0, -hauteur / 2, 0);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/* --------------------------------------------------------------------------
+   LE PAPIER ETAIT UNE COULEUR PLATE — ET LE PREMIER MOTIF NE SURVIVAIT PAS
+   A LA NUIT.
+
+   Un carton cadeau porte presque toujours un motif imprime — c'est ce qui
+   dit "papier" plutot que "plastique teinte". Le premier essai peignait un
+   semis de petits losanges a 16-22 % d'opacite : correct extrait a plat,
+   INVISIBLE une fois pose sur la boite — la scene se passe de nuit, sous un
+   eclairage deja faible, et la courbe ACES ecrase encore ce qui reste dans
+   les tons sombres. Mesure faite en extrayant la texture brute : le motif
+   existait bel et bien, il ne restait tout simplement rien de lui a l'ecran.
+
+   Deux corrections, pas une seule : DES BANDES, pas des petits pois — un
+   motif a grande echelle survit a l'ecrasement tonal la ou un detail fin
+   disparait purement et simplement — et un ECART DE TEINTE beaucoup plus
+   large, pousse au-dela de ce qui semblerait raisonnable sur une capture en
+   plein jour, exactement par le meme raisonnement que la lueur du paquet et
+   le pelage du cerf ailleurs dans ce projet : ce qui doit survivre a la
+   compression doit partir plus loin qu'il n'en a l'air necessaire. */
+function papierCadeau(teinte) {
+  const n = 256;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const c = cv.getContext('2d');
+
+  const base = new THREE.Color(teinte);
+  const clair = base.clone().offsetHSL(0.01, -0.05, 0.16);
+  const sombre = base.clone().offsetHSL(-0.01, 0.05, -0.14);
+  c.fillStyle = `#${base.getHexString()}`;
+  c.fillRect(0, 0, n, n);
+
+  // Larges bandes diagonales, un motif classique de papier cadeau — assez
+  // grand pour rester lisible meme reduit a quelques pixels a l'ecran.
+  c.save();
+  c.translate(n / 2, n / 2);
+  c.rotate(Math.PI / 4);
+  c.translate(-n, -n);
+  const large = 2 * n, pas = 46;
+  for (let x = -pas; x < large + pas; x += pas * 2) {
+    c.fillStyle = `#${clair.getHexString()}`;
+    c.globalAlpha = 0.34;
+    c.fillRect(x, -n * 0.5, pas * 0.62, large * 2);
+  }
+  c.restore();
+
+  // Un semis de petits losanges par-dessus, plus sombres : la variation
+  // fine qui empeche chaque bande de se lire comme un aplat uniforme.
+  const grain = 30;
+  for (let y = -grain; y < n + grain; y += grain) {
+    for (let x = -grain; x < n + grain; x += grain) {
+      const decale = (Math.round(y / grain) % 2) * (grain / 2);
+      const cx = x + decale, cy = y, r = grain * 0.26;
+      c.beginPath();
+      c.moveTo(cx, cy - r); c.lineTo(cx + r, cy); c.lineTo(cx, cy + r); c.lineTo(cx - r, cy);
+      c.closePath();
+      c.fillStyle = `#${sombre.getHexString()}`;
+      c.globalAlpha = 0.30;
+      c.fill();
+    }
+  }
+  c.globalAlpha = 1;
+
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.repeat.set(1.6, 1.6);
+  t.anisotropy = 4;
+  return t;
+}
+
 export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow = 0xFFC98A }, palier) {
   const g = new THREE.Group();
   g.name = 'cadeau';
 
   const L = size, H = size * 0.78, P = size * 0.86;
+  // Rayon du chanfrein vertical : assez pour se voir, jamais assez pour
+  // que la boite ait l'air d'un savon — cinq pour cent de sa largeur.
+  const rArrondi = size * 0.05;
 
   const matBoite = new THREE.MeshStandardMaterial({
-    color: box, roughness: 0.68, metalness: 0.04,
+    map: papierCadeau(box), color: 0xFFFFFF, roughness: 0.70, metalness: 0.02,
     emissive: box, emissiveIntensity: 0.22,
   });
   const matRuban = new THREE.MeshStandardMaterial({
@@ -44,7 +169,7 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
   });
 
   /* --- la caisse --------------------------------------------------------- */
-  const caisse = new THREE.Mesh(new THREE.BoxGeometry(L, H, P), matBoite);
+  const caisse = new THREE.Mesh(boiteArrondie(L, H, P, rArrondi), matBoite);
   caisse.position.y = H / 2;
   caisse.castShadow = palier.ombres;
   caisse.receiveShadow = palier.ombres;
@@ -64,7 +189,7 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
   g.add(couvercle);
 
   const hc = size * 0.16;
-  const dessus = new THREE.Mesh(new THREE.BoxGeometry(L * 1.07, hc, P * 1.07), matBoite);
+  const dessus = new THREE.Mesh(boiteArrondie(L * 1.07, hc, P * 1.07, rArrondi * 1.1), matBoite);
   dessus.position.y = hc / 2;
   dessus.castShadow = palier.ombres;
   couvercle.add(dessus);
@@ -96,8 +221,11 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
   centre.position.y = size * 0.09;
   noeud.add(centre);
 
-  /* --- la neige posee dessus, qui glissera a l'ouverture ------------------ */
-  const calotte = new THREE.Mesh(new THREE.BoxGeometry(L * 1.03, size * 0.075, P * 1.03), matNeige);
+  /* --- la neige posee dessus, qui glissera a l'ouverture ------------------
+     La neige tassee arrondit toujours plus que le carton en dessous —
+     jamais d'arete vive dans la nature. Un rayon nettement plus genereux
+     que celui de la boite. */
+  const calotte = new THREE.Mesh(boiteArrondie(L * 1.03, size * 0.075, P * 1.03, rArrondi * 2.2), matNeige);
   calotte.position.y = hc + size * 0.03;
   couvercle.add(calotte);
 
