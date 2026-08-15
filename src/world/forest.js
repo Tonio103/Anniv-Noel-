@@ -354,6 +354,9 @@ export class Foret {
       }
       feuillageFond.instanceMatrix.needsUpdate = true;
       if (feuillageFond.instanceColor) feuillageFond.instanceColor.needsUpdate = true;
+      // Ce niveau n'apparait qu'au-dela de cent trente-cinq metres (voir
+      // maj()) : toujours hors du rayon de soixante metres de la carte
+      // d'ombre. Le faire projeter ne changerait donc jamais rien a l'image.
       feuillageFond.castShadow = false;
       feuillageFond.receiveShadow = palier.ombres && palier.nom === 'haut';
       feuillageFond.computeBoundingSphere();
@@ -381,6 +384,9 @@ export class Foret {
         }
         for (const im of [feuillageLoin, neigeLoin]) {
           im.instanceMatrix.needsUpdate = true;
+          /* Valeur de depart seulement : `maj()` l'allume tronçon par
+             tronçon des qu'il entre dans le rayon de la carte d'ombre — voir
+             plus bas, « le niveau intermediaire ombrait aussi ». */
           im.castShadow = false;
           im.receiveShadow = palier.ombres && palier.nom === 'haut';
           im.computeBoundingSphere();
@@ -698,12 +704,28 @@ export class Foret {
       /* Seuls les tronçons vraiment proches alimentent la carte d'ombre. Le
          rayon tombe a soixante metres : au-dela l'ombre portee d'un sapin
          couvre moins d'un pixel de la carte, et elle coute pourtant un
-         second passage complet de sa geometrie. */
-      if (detaille && this.palier.ombres) {
+         second passage complet de sa geometrie. Le fond (au-dela de cent
+         trente-cinq metres) ne rentre jamais dans ce rayon : inutile de lui
+         donner le meme traitement, il ne ferait jamais rien. */
+      /* LE NIVEAU INTERMEDIAIRE OMBRAIT AUSSI, MAIS N'OMBRAIT JAMAIS.
+         `detaille` — donc l'admissibilite a l'ombre — bascule a quarante
+         metres, avant meme d'atteindre ce rayon de soixante : le controle
+         ne concernait donc en pratique que le niveau proche, qui l'aurait
+         de toute facon. Un sapin entre quarante et soixante metres — le
+         niveau « grossier » — restait pourtant bel et bien dans le rayon de
+         la carte d'ombre, et ne projetait jamais rien. C'etait visible en
+         longeant une rangee d'arbres : l'ombre s'arretait net a quarante
+         metres, comme sectionnee, alors que rien ne changeait a l'oeil sur
+         l'arbre lui-meme a cette distance — seul son niveau de detail
+         changeait. */
+      if (this.palier.ombres) {
         const ombre = d < 60;
-        if (tr.pres[0].castShadow !== ombre) {
+        if (detaille && tr.pres[0].castShadow !== ombre) {
           for (const m of tr.pres) m.castShadow = ombre;
           for (const m of tr.troncs) m.castShadow = ombre;
+        }
+        if (grossier && tr.loin.length && tr.loin[0].castShadow !== ombre) {
+          for (const m of tr.loin) m.castShadow = ombre;
         }
       }
     }
