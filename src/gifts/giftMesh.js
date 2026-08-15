@@ -180,6 +180,10 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
   for (const [sx, sz, w, d] of [[0, 0, ep, P * 1.005], [0, 0, L * 1.005, ep]]) {
     const r = new THREE.Mesh(new THREE.BoxGeometry(w || ep, H * 1.004, d || ep), matRuban);
     r.position.set(sx, H / 2, sz);
+    // Le ruban est SATINE (voir le materiau) : sans ombre propre, ce reflet
+    // net flotte au-dessus du papier au lieu de s'y attacher.
+    r.castShadow = palier.ombres;
+    r.receiveShadow = palier.ombres;
     g.add(r);
   }
 
@@ -192,6 +196,7 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
   const dessus = new THREE.Mesh(boiteArrondie(L * 1.07, hc, P * 1.07, rArrondi * 1.1), matBoite);
   dessus.position.y = hc / 2;
   dessus.castShadow = palier.ombres;
+  dessus.receiveShadow = palier.ombres;
   couvercle.add(dessus);
 
   for (const vert of [true, false]) {
@@ -200,6 +205,8 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
       matRuban
     );
     r.position.y = hc / 2;
+    r.castShadow = palier.ombres;
+    r.receiveShadow = palier.ombres;
     couvercle.add(r);
   }
 
@@ -215,10 +222,16 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
     boucle.position.set(cote * size * 0.13, size * 0.10, 0);
     boucle.rotation.set(Math.PI / 2, 0, cote * 0.5);
     boucle.scale.set(1, 0.72, 1);
+    // C'est la piece la plus proche de l'oeil pendant l'attente : sans
+    // ombre propre entre ses deux boucles, le noeud se lit a plat.
+    boucle.castShadow = palier.ombres;
+    boucle.receiveShadow = palier.ombres;
     noeud.add(boucle);
   }
   const centre = new THREE.Mesh(new THREE.SphereGeometry(size * 0.055, 8, 6), matRuban);
   centre.position.y = size * 0.09;
+  centre.castShadow = palier.ombres;
+  centre.receiveShadow = palier.ombres;
   noeud.add(centre);
 
   /* --- la neige posee dessus, qui glissera a l'ouverture ------------------
@@ -227,6 +240,8 @@ export function creerCadeau({ size = 1, box = 0x8E2B3A, ribbon = 0xF2C14E, glow 
      que celui de la boite. */
   const calotte = new THREE.Mesh(boiteArrondie(L * 1.03, size * 0.075, P * 1.03, rArrondi * 2.2), matNeige);
   calotte.position.y = hc + size * 0.03;
+  calotte.castShadow = palier.ombres;
+  calotte.receiveShadow = palier.ombres;
   couvercle.add(calotte);
 
   // Poussee au-dela du blanc pour franchir le seuil du halo.

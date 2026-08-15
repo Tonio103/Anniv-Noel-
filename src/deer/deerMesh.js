@@ -683,7 +683,10 @@ export function creerCerf(palier) {
   const mat = matierePelage();
   const peau = new THREE.SkinnedMesh(geo, mat);
   peau.castShadow = palier.ombres;
-  peau.receiveShadow = false;
+  // Les jambes ombrent le poitrail, les bois ombrent le front : sans
+  // reception, la robe restait uniformement eclairee malgre son propre
+  // relief, et le passage sous un couvert d'arbres ne se voyait jamais.
+  peau.receiveShadow = palier.ombres;
   peau.frustumCulled = false;
   peau.add(bones[0]);
   peau.bind(skeleton);
@@ -834,6 +837,7 @@ export function creerCerf(palier) {
   const ramure = new THREE.Mesh(boisGeo(rand), mat);
   ramure.position.copy(rel(0, 1.478, -0.915));
   ramure.castShadow = palier.ombres;
+  ramure.receiveShadow = palier.ombres;
   tete.add(ramure);
 
   /* --- 8. ombre de contact ----------------------------------------------- */

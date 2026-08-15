@@ -187,6 +187,7 @@ function sapinDeFete(modele, matFeuillage, matNeige, texHalo, rand, palier) {
   const f = new THREE.Mesh(modele.feuillage, matFete);
   f.scale.set(H * 1.18, H, H * 1.18);      // trapu, comme un vrai sapin de Noel
   f.castShadow = palier.ombres;
+  f.receiveShadow = palier.ombres;
   g.add(f);
   const n = new THREE.Mesh(modele.neige, matNeige);
   n.scale.copy(f.scale);
@@ -283,6 +284,7 @@ function sapinDeFete(modele, matFeuillage, matNeige, texHalo, rand, palier) {
     boite.position.set(Math.cos(a) * r, c * 0.32, Math.sin(a) * r);
     boite.rotation.y = rand() * 3;
     boite.castShadow = palier.ombres;
+    boite.receiveShadow = palier.ombres;
     g.add(boite);
 
     // Un ruban clair en croix : sans lui c'est un carton, pas un cadeau.
@@ -292,6 +294,8 @@ function sapinDeFete(modele, matFeuillage, matNeige, texHalo, rand, palier) {
     );
     ruban.position.copy(boite.position);
     ruban.rotation.copy(boite.rotation);
+    ruban.castShadow = palier.ombres;
+    ruban.receiveShadow = palier.ombres;
     g.add(ruban);
   }
 

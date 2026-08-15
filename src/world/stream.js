@@ -368,6 +368,7 @@ export class Ruisseau {
       }
       pierres.instanceMatrix.needsUpdate = true;
       pierres.castShadow = palier.ombres;
+      pierres.receiveShadow = palier.ombres;
       this.groupe.add(pierres);
 
       this.passages.push({ s, y: plusBas });
