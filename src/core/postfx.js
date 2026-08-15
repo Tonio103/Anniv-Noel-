@@ -189,10 +189,19 @@ const FRAG_FINAL = /* glsl */ `
 
     /* Grain. Il vient en dernier et se renforce dans les ombres : c'est la
        que le bruit d'un vrai capteur se voit, et c'est aussi la que les
-       degrades de ciel ont besoin d'etre casses pour ne pas se strier. */
+       degrades de ciel ont besoin d'etre casses pour ne pas se strier.
+
+       LE RENFORT DANS LES OMBRES SE CUMULAIT AVEC CELUI DU GAMMA. Ce qui
+       suit s'ajoute en lineaire, AVANT l'encodage sRGB de la ligne du bas —
+       une courbe concave, qui amplifie deja fortement tout ecart pres du
+       noir. Le sapin sombre, dont la luminance tombe pres de zero, recevait
+       donc l'ecart le plus fort de la formule ET l'amplification la plus
+       forte de la courbe : le sable qu'Antoine signale encore, meme apres la
+       correction du hasard casse. Le renfort est adouci et plafonne — il
+       reste present, mais n'atteint plus le cumul des deux effets. */
     float g = bruit(uv * 1024.0 + fract(uTemps) * 91.7) - 0.5;
     float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    col += g * uGrain * (1.25 - lum);
+    col += g * uGrain * (1.0 - lum * 0.6);
 
     // Passage a l'espace d'affichage.
     col = clamp(col, 0.0, 1.0);
@@ -290,8 +299,9 @@ export class PostFX {
         /* Le grain casse les degrades de ciel, il ne doit pas les texturer.
            A 0,028 releve de moitie dans les ombres, il montait a huit niveaux
            sur deux cent cinquante-cinq dans la nuit — un sable visible sur
-           toute la voute. */
-        uGrain: { value: 0.017 },
+           toute la voute. Redescendu une seconde fois : voir plus bas, ou
+           le renfort dans les ombres est lui aussi adouci. */
+        uGrain: { value: 0.010 },
         uAberr: { value: complet ? 0.007 : 0.0 },
         uTemps: { value: 0 },
         uFlou: { value: null }, uProfondeur: { value: null },
