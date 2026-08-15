@@ -107,7 +107,18 @@ function construireCabane(rand, palier, texHalo) {
   for (const sgn of [1, -1]) {
     const t = new THREE.Mesh(new THREE.BoxGeometry(L + debord * 1.6, 0.10, pan * 2 * 0.5), boisSombre);
     t.position.set(0, H + hp / 2, sgn * (P / 2 + debord) / 2);
-    t.rotation.x = sgn * Math.atan2(hp, P / 2 + debord) * -1;
+    /* LE TOIT ETAIT A L'ENVERS.
+       Le `* -1` en trop inversait le sens de bascule des DEUX pans : chacun
+       montait vers son avant-toit au lieu d'y descendre, et redescendait
+       vers le faitage au lieu d'y culminer — un pan qui plonge vers le bas
+       la ou il devrait crever le sommet du pignon, et qui remonte la ou il
+       devrait s'abaisser vers le debord. Le resultat n'etait pas un toit a
+       deux pans qui se rejoignent en pointe, mais une seule plaque penchee
+       qui plonge vers la neige d'un cote. Sans le `* -1`, l'angle retrouve
+       le bon signe des deux cotes a la fois — c'est la MEME formule qui
+       positionne deja correctement le pignon (le triangle plein) juste
+       au-dessus, et elle n'avait jamais ete revue en meme temps que lui. */
+    t.rotation.x = sgn * Math.atan2(hp, P / 2 + debord);
     t.castShadow = palier.ombres;
     g.add(t);
 
