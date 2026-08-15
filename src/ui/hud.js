@@ -22,6 +22,8 @@ export class Invite {
     this.el.hidden = false;
     this.el.classList.remove('out');
     this.visible = true;
+    // Jamais d'anneau deja plein sur une invite qui vient d'apparaitre.
+    this.jauger(0);
   }
 
   cacher() {
@@ -69,6 +71,18 @@ export class Invite {
 
     document.documentElement.style.setProperty('--card-x', (x / L * 100).toFixed(2) + '%');
     document.documentElement.style.setProperty('--card-y', (y / H * 100).toFixed(2) + '%');
+  }
+
+  /* MAINTENIR POUR OUVRIR — l'anneau devient sa propre jauge.
+
+     Rien n'a ete ajoute a l'ecran : le cercle qui invitait deja a toucher le
+     paquet se remplit maintenant pendant qu'on maintient, d'un filet d'or qui
+     fait tout le tour a l'appui plein. C'est le meme element, une seule
+     variable CSS de plus — pas une barre de progression separee, qui aurait
+     ete exactement le genre de chrome que cette interface refuse partout
+     ailleurs. */
+  jauger(v) {
+    this.el.style.setProperty('--appui', String(Math.max(0, Math.min(1, v))));
   }
 }
 

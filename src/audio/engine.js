@@ -149,6 +149,7 @@ export class Son {
     f2.type = 'bandpass'; f2.frequency.value = 900; f2.Q.value = 1.5;
     this._source().connect(f2); f2.connect(g2); g2.connect(this.vent);
     this._f2 = f2;
+    this._gVentCime = g2;
 
     // rafales : un oscillateur tres lent module les deux couches
     const lfo = ctx.createOscillator();
@@ -179,6 +180,12 @@ export class Son {
     this.foret.connect(this.maitre);
     this.foret.connect(this.departVerb);
     this._prochainCraquement = 6 + Math.random() * 12;
+    /* La chouette manquait a l'appel : le plan la promettait, le code ne
+       l'avait jamais tenue. Rare — une toutes les vingt-cinq a soixante-dix
+       secondes — pour rester un detail qu'on remarque a peine consciemment,
+       jamais une boucle. Le premier appel est retarde davantage : la toute
+       premiere minute appartient au depart, pas a la faune. */
+    this._prochaineHulotte = 32 + Math.random() * 40;
   }
 
   _craquement() {
@@ -211,7 +218,43 @@ export class Son {
     s.stop(t + 1.0);
   }
 
-  maj(dt, vitesseDrone) {
+  /* Un hululement a deux notes, grave et souffle plutot que tenu — un vrai
+     hibou n'a rien d'un sifflet. Le bruit filtre (la meme matiere que le
+     craquement et la chute de neige) donne ce grain respire qu'une
+     sinusoide pure ne peut pas avoir ; le passage bref d'une frequence a
+     l'autre a chaque note fait le "hou" descendant. Un panoramique
+     aleatoire le place tantot a gauche, tantot a droite — assez pour
+     suggerer une foret autour, sans vraie source 3D a entretenir. */
+  _hulotte() {
+    const ctx = this.ctx, t = ctx.currentTime;
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = (Math.random() - 0.5) * 1.5;
+    pan.connect(this.foret);
+
+    for (const [dep, f0, f1, duree, amp] of [
+      [0.00, 470, 330, 0.40, 0.095],
+      [0.52, 430, 300, 0.60, 0.125],
+    ]) {
+      const s = this._source(false);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.Q.value = 3.4;
+      f.frequency.setValueAtTime(f0, t + dep);
+      f.frequency.exponentialRampToValueAtTime(f1, t + dep + duree);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t + dep);
+      g.gain.linearRampToValueAtTime(amp, t + dep + 0.06);
+      g.gain.exponentialRampToValueAtTime(0.0006, t + dep + duree);
+      s.connect(f); f.connect(g); g.connect(pan);
+      s.stop(t + dep + duree + 0.1);
+    }
+  }
+
+  /* `altitude` : hauteur du drone au-dessus du sol, en metres. Le plan
+     promettait un vent « module par la vitesse et l'altitude » ; seule la
+     vitesse l'etait. Plus haut, le sifflement de cime domine — on est dans
+     les branches hautes ; plus bas, c'est le corps grave qui porte le son —
+     on est pres du sol, ou l'air est plus calme et plus etouffe. */
+  maj(dt, vitesseDrone, altitude = 6) {
     if (!this.pret) return;
     const ctx = this.ctx;
 
@@ -219,12 +262,22 @@ export class Son {
     if (this._gVentCorps) {
       const cible = this.couches.vent ? 0.62 + Math.min(vitesseDrone / 9, 1) * 0.5 : 0;
       this.vent.gain.setTargetAtTime(cible * 0.34, ctx.currentTime, 0.4);
+
+      const h = Math.max(0, Math.min(1, altitude / 18));
+      this._gVentCorps.gain.setTargetAtTime(0.85 * (1 - h * 0.35), ctx.currentTime, 0.7);
+      this._gVentCime.gain.setTargetAtTime(0.30 * (0.55 + h * 0.85), ctx.currentTime, 0.7);
     }
 
     this._prochainCraquement -= dt;
     if (this._prochainCraquement <= 0) {
       this._prochainCraquement = 9 + Math.random() * 18;
       if (Math.random() < 0.55) this._craquement(); else this._chuteNeige();
+    }
+
+    this._prochaineHulotte -= dt;
+    if (this._prochaineHulotte <= 0) {
+      this._prochaineHulotte = 25 + Math.random() * 45;
+      this._hulotte();
     }
   }
 

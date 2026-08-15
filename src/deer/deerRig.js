@@ -118,6 +118,16 @@ export class Cerf {
     this._flick = 0;                           // coup de queue
     this._prochainFlick = 3 + Math.random() * 5;
 
+    /* --- LA CARESSE : la seule reaction que le spectateur declenche lui-meme.
+       Un cerf qu'on touche leve la tete d'un coup et dresse les DEUX
+       oreilles vers l'avant — c'est le geste d'alerte, pas le balayage
+       paresseux et asymetrique de l'ecoute ambiante. Elle est distincte des
+       gestes automatiques (`_geste`) plutot que branchee dessus : ceux-ci
+       ne se declenchent qu'« en route » et un a la fois, alors qu'une
+       caresse doit repondre a l'instant, quelle que soit l'allure. */
+    this._caresseRestant = 0;
+    this.caresseFraiche = false;   // consomme une fois par le son
+
     /* Evenements de poser, consommes par le son pour les crissements. */
     this.posers = [];
     this._auSol = { AG: true, AD: true, PG: true, PD: true };
@@ -327,6 +337,34 @@ export class Cerf {
       this._flick = 1;
     }
     if (this._flick > 0) this._flick = Math.max(0, this._flick - dt / 0.42);
+
+    /* --- CARESSE : domine l'ecoute ambiante par une alerte symetrique ------
+       Placee ici, apres le tirage aleatoire et avant le rendu des oreilles :
+       elle ne remplace pas le systeme ambiant, elle le DOMINE le temps de sa
+       duree (Math.max, jamais une affectation — une oreille deja plus
+       dressee que l'alerte ne doit pas redescendre pour elle). L'enveloppe
+       monte vite (120 ms — un sursaut), tient, puis retombe sur un tiers de
+       seconde : une oreille qui revient au repos brutalement se lit comme un
+       bug, pas comme un animal. */
+    if (this._caresseRestant > 0) {
+      this._caresseRestant -= dt;
+      const passe = this._caresseDuree - this._caresseRestant;
+      const env = smoothstep(0, 0.12, passe) * smoothstep(this._caresseDuree, this._caresseDuree - 0.35, passe);
+      this._oreilleG = Math.max(this._oreilleG, env * 0.62);
+      this._oreilleD = Math.max(this._oreilleD, env * 0.62);
+      // Il jette aussi un oeil en arriere, vers celui qui l'a touche.
+      this.regardAuto = Math.max(this.regardAuto, env * 0.80);
+    }
+  }
+
+  /* Declenchee par le spectateur : il a touche le cerf. Reactive quelle que
+     soit l'allure — contrairement aux gestes ambiants (`_vivre`), qui ne se
+     tirent qu'« en route » et jamais plus d'un a la fois, celle-ci doit
+     repondre a l'instant ou elle a lieu, pas attendre son tour. */
+  caresser() {
+    this._caresseDuree = 1.3;
+    this._caresseRestant = this._caresseDuree;
+    this.caresseFraiche = true;
   }
 
   maj(dt, temps) {

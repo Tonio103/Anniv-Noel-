@@ -25,6 +25,20 @@ const nav = await chromium.launch({
 const ok = [], ko = [];
 const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
 
+/* Un vrai tap sur la scene 3D : pointerdown puis pointerup, comme un doigt
+   qui touche et relache aussitot. Depuis que maintenir l'appui recompense une
+   ouverture plus genereuse (voir main.js, « maintenir pour ouvrir »), un
+   pointerdown seul ne fait plus que DEMARRER la jauge — sans le pointerup qui
+   suit, le geste reste en suspens et rien ne s'ouvre, ce qui n'est vrai que
+   dans ce testeur : un doigt reel relache toujours. */
+async function toucher(page) {
+  await page.evaluate(() => {
+    const gl = document.getElementById('gl');
+    gl.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+  });
+}
+
 /* ============================ 1. NETTETE ================================= */
 {
   const page = await nav.newPage({ viewport: { width: 900, height: 600 } });
@@ -65,7 +79,7 @@ const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
       (st) => st.card?.blocks?.some((b2) => b2.t === 'countdown'));
     s2.aller(i, 'attente');
   });
-  await page.evaluate(() => document.getElementById('gl').dispatchEvent(new PointerEvent('pointerdown')));
+  await toucher(page);
   await page.evaluate(() => window.__scene.simuler(3));
   await page.waitForTimeout(1600);
 
@@ -102,7 +116,7 @@ const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
       (st) => st.card?.blocks?.some((b2) => b2.t === 'checklist'));
     s2.aller(i, 'attente');
   });
-  await page.evaluate(() => document.getElementById('gl').dispatchEvent(new PointerEvent('pointerdown')));
+  await toucher(page);
   await page.evaluate(() => window.__scene.simuler(3));
   await page.waitForTimeout(1400);
 
@@ -129,7 +143,7 @@ const dire = (bon, quoi) => (bon ? ok : ko).push(quoi);
       (st) => st.card?.blocks?.some((b2) => b2.t === 'checklist'));
     s2.aller(i, 'attente');
   });
-    await page.evaluate(() => document.getElementById('gl').dispatchEvent(new PointerEvent('pointerdown')));
+    await toucher(page);
     await page.evaluate(() => window.__scene.simuler(3));
     await page.waitForTimeout(1400);
     const revenue = await page.evaluate(() => document.querySelector('.c-ck input')?.checked === true);
