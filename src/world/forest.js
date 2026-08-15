@@ -541,6 +541,26 @@ export class Foret {
     });
     appliquerVent(mat, { amplitude: 0.85, uniforms: uniformsVent });
 
+    /* SA SPHERE ENGLOBANTE NE REFLETAIT PAS LE SEMIS.
+       `computeBoundingSphere()` n'etait jamais appele : la sphere par defaut
+       reste celle de la GEOMETRIE DE BASE (un seul bouleau, a l'origine),
+       bien plus petite que l'etalement reel des instances sur le corridor.
+       Avec elle, le rejet par frustum aurait ete FAUX — des bouleaux
+       pourtant a l'ecran auraient disparu — d'ou `frustumCulled = false` :
+       un correctif qui evitait le mauvais rejet en renonçant a tout rejet,
+       et qui dessinait donc les bouleaux integralement a chaque image, ou
+       que soit la camera.
+
+       Essai fait de decouper aussi les bouleaux en un maillage par bosquet,
+       comme le fouillis : les appels de dessin montaient de pres de moitie
+       a certains points du parcours, pour une economie de triangles
+       negligeable — le meme mauvais bout du compromis deja identifie plus
+       haut, pour un budget bien plus petit (quelques dizaines de milliers
+       de triangles en tout). La bonne correction ici est plus simple :
+       calculer la VRAIE sphere englobante et laisser le rejet par defaut
+       faire son travail — un seul appel de dessin quand un bouleau est
+       proche, aucun quand tous sont hors champ. */
+    const geo = geoBouleau(rand);
     const p = new THREE.Vector3();
     const c = new THREE.Vector3();
     const liste = [];
@@ -567,7 +587,6 @@ export class Foret {
     }
     if (!liste.length) return;
 
-    const geo = geoBouleau(rand);
     const mesh = new THREE.InstancedMesh(geo, mat, liste.length);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -588,7 +607,8 @@ export class Foret {
     mesh.instanceMatrix.needsUpdate = true;
     mesh.castShadow = false;
     mesh.receiveShadow = false;
-    mesh.frustumCulled = false;
+    mesh.computeBoundingSphere();
+    mesh.matrixAutoUpdate = false;
     this.groupe.add(mesh);
     this.bouleaux = mesh;
     this.nbBouleaux = liste.length;
