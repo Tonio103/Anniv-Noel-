@@ -184,12 +184,25 @@ export class Cerf {
          positive autour de X amene le genou vers l'arriere » est donc faux,
          et c'est ce raisonnement qui avait fixe cette valeur.
 
-         Chez un cervide, le carpe de l'anterieur se plie VERS L'ARRIERE — la
-         patte avant se replie comme un bras, jamais vers l'avant. Le jarret du
-         posterieur se plie lui aussi vers l'arriere. Les deux membres vont
-         donc dans le meme sens ; c'est le decalage des masses, pas le sens de
-         pliure, qui les distingue a l'oeil. */
-      mb.sens = 1;
+         LES DEUX MEMBRES NE VONT PAS DANS LE MEME SENS. C'est ce que disait
+         cette note, et c'etait faux — Antoine : « ses pattes arriere sont a
+         l'envers ». Chez un cervide, comme chez tous les ongules :
+
+         · l'ANTERIEUR se replie comme un bras, le carpe ressortant vers
+           l'AVANT — un cheval qui leve un anterieur monte le genou devant lui
+           et le canon pend en arriere ;
+         · le POSTERIEUR a son jarret qui ressort franchement vers
+           l'ARRIERE. C'est le zigzag caracteristique de la patte arriere, et
+           c'est l'un des rares traits qu'on identifie sans savoir pourquoi :
+           quand il manque, l'animal ne parait pas approximatif, il parait
+           CASSE.
+
+         Le signe ne se derive pas au tableau — la rotation se fait autour
+         d'un axe du repere LOCAL de l'os, lui-meme deja pivote vers la
+         cible — donc il se MESURE. Voir build/genou.mjs, qui releve de quel
+         cote tombe l'articulation par rapport a la corde attache→sabot : avec
+         le meme sens partout, les quatre genoux pointaient vers l'avant. */
+      mb.sens = mb.avant ? 1 : -1;
     }
 
     this.placer(this.s);

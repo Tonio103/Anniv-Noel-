@@ -496,7 +496,25 @@ function matierePelage() {
             float m = bruitDoux(pm);
             // Une seconde passe, deux fois plus fine, pour l'irregularite.
             m = m * 0.68 + bruitDoux(pm * 2.3 + 17.0) * 0.32;
-            meche *= 0.86 + m * 0.28;
+            meche *= 0.80 + m * 0.40;
+
+            /* LES STRIES, a l'echelle ou l'on voit encore quelque chose.
+
+               Antoine, deux fois de suite : « il n'a toujours pas de poils ».
+               Les deux echelles ci-dessus sont l'une trop fine (deux
+               centimetres — sous le pixel des que le cerf s'eloigne) et
+               l'autre trop large (des plages, qui disent « robe » et non
+               « poil »). Il manquait celle du milieu : des STRIES de cinq a
+               huit centimetres, couchees le long du corps.
+
+               C'est cette echelle-la qui se lit comme de la fourrure sur un
+               ecran de telephone, parce que c'est la seule qui fasse encore
+               plusieurs pixels tout en restant assez serree pour qu'on lise
+               un peigne plutot qu'une tache. Le bruit est tres etire selon
+               Z — le poil est couche d'avant en arriere — et serre selon Y :
+               un bruit isotrope donnerait des nuages, pas des stries. */
+            float stries = bruitDoux(vLiaison * vec3(7.0, 21.0, 2.6) + 63.0);
+            meche *= 0.82 + stries * 0.36;
 
             /* UNE ECHELLE PLUS LARGE, qui survit a la distance.
 
@@ -604,7 +622,7 @@ function matierePelage() {
         #include <opaque_fragment>
       `);
   };
-  mat.customProgramCacheKey = () => 'pelage9';
+  mat.customProgramCacheKey = () => 'pelage10';
   return mat;
 }
 
