@@ -23,6 +23,7 @@ import { Neige } from './world/snowfall.js';
 import { Brume } from './world/mist.js';
 import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
+import { Apparitions } from './world/apparitions.js';
 import { Cabanes } from './world/cabins.js';
 import { Fouillis } from './world/props.js';
 import { Poudre } from './world/puffs.js';
@@ -133,6 +134,10 @@ async function demarrer() {
   const brume = new Brume(scene, palier);
   const details = new Details(scene, palier);
   const cabanes = new Cabanes(scene, chemin, relief, palier, clairieres);
+  /* Les clins d'oeil semes le long du trajet. Ils ne dependent d'aucune
+     phase : ils se declenchent a la distance parcourue, donc ils marchent
+     aussi bien pendant un trajet que pendant une halte. */
+  const apparitions = new Apparitions(scene, chemin, relief, palier);
 
   /* Les traces de sabots : une texture en coordonnees monde, echantillonnee
      par le shader de neige pour assombrir et creuser la surface. */
@@ -757,6 +762,7 @@ async function demarrer() {
     brume.maj(dt, t, camera, relief, ciel.actuel);
     details.maj(dt, t, camera, relief);
     cabanes.maj(dt);
+    apparitions.maj(dt, t, cerf.s, camera);
     habitants.maj(t);
     relief.majEmpreintes();
 
@@ -1044,7 +1050,7 @@ async function demarrer() {
     // Expose pour que les controles designent une halte par son CONTENU et
     // non par son rang : un rang change des qu'on ajoute ou retire une idee.
     stations: STATIONS,
-    brume, details, cabanes, empreintes, fouillis, habitants, postfx, boucle, palier,
+    brume, details, cabanes, apparitions, empreintes, fouillis, habitants, postfx, boucle, palier,
     son, sfx, ruisseau,
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
