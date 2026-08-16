@@ -1190,7 +1190,12 @@ function duelSabres() {
   /* Les deux camps se font face le long de X, donc de part et d'autre du
      chemin. Le personnage regarde vers -Z : viser +X demande un quart de
      tour negatif, viser -X un quart de tour positif. */
-  const ECART = 1.55;
+  /* Un metre trente-cinq entre eux, pas davantage : le duel est une scene
+     LARGE, et en portrait chaque metre d'envergure coute un degre de champ
+     qu'on n'a pas. Serres, ils tiennent tous les deux dans le cadre — et un
+     duel a bout portant est de toute facon plus tendu qu'un duel a distance
+     respectueuse. */
+  const ECART = 1.35;
   const gauche = duelliste();
   gauche.position.x = -ECART;
   gauche.rotation.y = -Math.PI / 2;
@@ -1680,19 +1685,40 @@ export class Apparitions {
        genre d'erreur qu'on ne peut pas commettre deux fois — on verifie au
        format de l'appareil, pas au sien.
 
-       Les ecarts ci-dessous gardent chaque scene sous les douze degres a la
-       distance ou elle doit se lire. Le prix a payer est qu'elles frolent le
+       ET LE DRONE N'EST PAS DANS L'AXE DU CHEMIN. Il vole de cote, et le
+       cadrage vise a cote du cerf par-dessus le marche. La mesure est sans
+       appel : les trainees de la DeLorean sont posees EXACTEMENT sur le
+       chemin — ecart nul — et leur centre tombe a plus zero virgule
+       soixante-quinze de l'ecran. Tout le cadre est donc decale d'environ
+       les trois quarts d'un demi-ecran vers la droite, en permanence.
+
+       Consequence : un cote est utilisable, l'autre pas. Une apparition
+       posee du cote « plus un » part vers le bord droit et n'en revient
+       jamais ; du cote « moins un », l'ecart la ramene vers le milieu, a
+       raison d'environ un dixieme d'ecran par metre. Tout est donc du meme
+       cote, et la variete se fait sur la DISTANCE au chemin — de trois a
+       sept metres — plutot que sur la gauche et la droite, alternance que
+       personne ne remarquerait de toute facon et qui coutait ici la moitie
+       des apparitions.
+
+       (J'avais d'abord cru a un simple biais a compenser, sur la foi de deux
+       mesures qui se contredisaient. Le banc lui-meme etait en cause : il
+       passait au drone une heure figee et differente a chaque execution, si
+       bien que son tremblement de main levee changeait le cadrage d'un demi-
+       ecran d'un essai a l'autre. Une horloge fixe a rendu le banc
+       reproductible, et les chiffres ci-dessus sont les premiers auxquels on
+       puisse se fier.) Le prix a payer est qu'elles frolent le
        chemin ; c'est sans consequence, aucune n'est au sol devant le cerf —
        Spider-Man pend en hauteur, le patronus est un fantome, et le duel se
        tient assez loin pour qu'on n'ait pas a le contourner. */
     const plan = [
-      { nom: 'police',   s: L * 0.09, cote: -1, ecart: 5.5, avant: 42, apres: 10, faire: () => voiturePolice(), tourne: 0.6 },
-      { nom: 'spider1',  s: L * 0.21, cote:  1, ecart: 3.0, avant: 30, apres: 8,  faire: () => spiderSuspendu() },
+      { nom: 'police',   s: L * 0.09, cote: -1, ecart: 6.5, avant: 42, apres: 10, faire: () => voiturePolice(), tourne: 0.6 },
+      { nom: 'spider1',  s: L * 0.21, cote: -1, ecart: 3.5, avant: 30, apres: 8,  faire: () => spiderSuspendu() },
       { nom: 'et',       s: L * 0.33, cote:  0, ecart: 0,   avant: 34, apres: 24, faire: () => etDevantLaLune() },
-      { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 6.5, avant: 40, apres: 10, faire: () => duelSabres() },
-      { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 5.0, avant: 34, apres: 10, faire: () => trioSpider(), tourne: 0.4 },
-      { nom: 'patronus', s: L * 0.68, cote:  1, ecart: 4.5, avant: 38, apres: 12, faire: () => patronus() },
-      { nom: 'spider2',  s: L * 0.79, cote:  1, ecart: 2.5, avant: 28, apres: 8,  faire: () => spiderBalance(9) },
+      { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 4.5, avant: 40, apres: 10, faire: () => duelSabres() },
+      { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 7.0, avant: 34, apres: 10, faire: () => trioSpider(), tourne: 0.4 },
+      { nom: 'patronus', s: L * 0.68, cote: -1, ecart: 5.5, avant: 38, apres: 12, faire: () => patronus() },
+      { nom: 'spider2',  s: L * 0.79, cote: -1, ecart: 3.0, avant: 28, apres: 8,  faire: () => spiderBalance(9) },
       { nom: 'delorean', s: L * 0.90, cote:  0, ecart: 0,   avant: 34, apres: 8,  faire: () => traineesDeFeu(26) },
     ];
 

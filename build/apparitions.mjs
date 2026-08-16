@@ -50,17 +50,30 @@ for (const a of liste) {
     let secours = 0;
     while (s.drone.enCinematique && secours++ < 900) s.simuler(1 / 60);
 
+    /* UNE HORLOGE A NOUS, ET C'EST INDISPENSABLE.
+
+       Le drone porte un tremblement de main levee pilote par le temps. Ce
+       banc lui passait `s.boucle.t` — l'heure qu'il etait au chargement de
+       la page, donc une valeur differente a chaque execution, et de surcroit
+       FIGEE pendant les quatre-vingt-dix images de convergence. Resultat :
+       le meme decor, mesure deux fois de suite, donnait des positions a
+       l'ecran ecartees de presque un demi-cadre — et j'en avais tire une
+       conclusion sur un pretendu decentrage du drone qui n'existait pas.
+
+       Une horloge fixe, qui avance d'un soixantieme par image, rend le banc
+       reproductible. Sans reproductibilite, aucun reglage de cadrage ne veut
+       rien dire. */
+    const T0 = 120;
     const cible = ap.s - ap.avant * 0.45;
     s.cerf.s = cible;
     s.cerf.placer(cible);
-    s.drone.poser(s.cerf, s.boucle.t);
+    s.drone.poser(s.cerf, T0);
     for (let i = 0; i < 90; i++) {
       s.cerf.placer(cible);
-      s.drone.maj(1 / 60, s.boucle.t, s.cerf);
+      s.drone.maj(1 / 60, T0 + i / 60, s.cerf);
       s.relief.maj(s.camera, s.ciel.actuel);
       s.foret.maj(s.camera);
-      s.apparitions.maj(1 / 60, s.boucle.t + i / 60, cible, s.camera);
-      void 0;
+      s.apparitions.maj(1 / 60, T0 + i / 60, cible, s.camera);
     }
     s.boucle.pause();
 
@@ -71,12 +84,19 @@ for (const a of liste) {
       new THREE.Matrix4().multiplyMatrices(s.camera.projectionMatrix, s.camera.matrixWorldInverse));
     const b = new THREE.Box3().setFromObject(o);
     const centre = b.getCenter(new THREE.Vector3());
-    s.postfx.rendre(s.scene, s.camera, s.boucle.t);
+    s.postfx.rendre(s.scene, s.camera, T0 + 1.5);
     /* OU, PRECISEMENT, DANS LE CADRE ? « Dans le champ » est une reponse par
        oui ou par non, et elle ne dit rien de la MARGE : une apparition qui
        frole le bord passe le test et se rate a l'oeil. On releve donc la
-       position normalisee du centre — zero au milieu, un sur chaque bord. */
-    const p = centre.clone().project(s.camera);
+       position normalisee — zero au milieu, un sur chaque bord.
+
+       ON MESURE LE POINT D'ANCRAGE, PAS LE CENTRE DE LA BOITE. La voiture de
+       police porte deux faisceaux de vingt et un metres qui TOURNENT : le
+       centre de sa boite englobante se promene d'une image a l'autre et
+       donnait des releves incoherents pour un objet parfaitement immobile.
+       L'ancrage, lui, est le sujet de la scene. */
+    const ancrage = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+    const p = ancrage.project(s.camera);
     return {
       visible: o.visible,
       dansLeChamp: o.visible ? fr.intersectsBox(b) : false,
