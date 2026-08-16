@@ -182,12 +182,46 @@ export class Vigie {
        Le pas de descente est aussi adouci — 8 % au lieu de 14 % — pour qu'un
        appareil qui frole la limite n'y perde qu'un cran, pas deux. */
     this.dprMin = 1.0;
+
+    /* --- LA REMONTEE NE POUVAIT PAS SE PRODUIRE -----------------------------
+
+       Le seuil de remontee etait un nombre absolu : 13,5 ms, soit 74 images
+       par seconde. Or `dt` n'est pas le temps de TRAVAIL d'une image, c'est
+       l'intervalle entre deux images livrees — et cet intervalle est cale sur
+       la synchronisation verticale de l'ecran. Sur un ecran 60 Hz, il vaut
+       16,7 ms quoi qu'il arrive, meme sur une machine qui n'utilise qu'un
+       dixieme de son budget. La condition etait donc INATTEIGNABLE sur la
+       quasi-totalite des appareils : la plupart des telephones et presque
+       tous les moniteurs sont en 60 Hz.
+
+       Consequence concrete : il suffisait d'un hoquet passager — la
+       compilation des nuanceurs au demarrage, un onglet qui repasse au
+       premier plan, une seconde de chauffe — pour que la densite de pixels
+       baisse, et elle ne remontait PLUS JAMAIS. La visite entiere se
+       deroulait alors en dessous de ce que l'appareil savait faire, sans que
+       rien ne le signale. C'est la qualite d'image la plus facile a rendre :
+       elle n'a jamais ete perdue faute de puissance, mais faute d'une mesure
+       exprimee dans la bonne unite.
+
+       On mesure donc la PERIODE D'AFFICHAGE elle-meme — la trame la plus
+       courte que l'appareil sache livrer — et « confortable » devient « on
+       tient la cadence de l'ecran avec de la marge », ce qui a un sens a
+       60 comme a 120 Hz. */
+    this.periode = 16.7;
+
+    /* Un aller-retour suffit a trancher : si une remontee est suivie d'une
+       baisse, c'est que le palier d'avant etait le bon. On s'y tient et on
+       cesse d'essayer, pour ne pas osciller — une oscillation se voit
+       beaucoup plus qu'un cran de densite en moins. */
+    this.remontees = 0;
+    this.figee = false;
   }
 
   _appliquer(grace = 2.5) {
     this.mauvais = 0;
     this.bon = 0;
-    this.moy = 16.7;
+    // On repart de la cadence de l'ecran, pas d'un 60 Hz suppose.
+    this.moy = this.periode;
     this.grace = grace;
     this.surBaisse(this.palier);
   }
@@ -198,10 +232,23 @@ export class Vigie {
     const ms = dt * 1000;
     this.moy += (ms - this.moy) * 0.06;
 
+    /* La periode d'affichage, suivie par le bas : on descend vite vers une
+       trame plus courte (c'est une borne physique, pas du bruit) et on ne
+       remonte qu'a pas comptes, pour qu'une periode de rame ne fasse pas
+       passer un ecran 120 Hz pour un 60 Hz. Les trames aberrantes — sous
+       4 ms, soit plus de 250 images par seconde — sont ignorees. */
+    if (ms > 4) {
+      this.periode += (ms - this.periode) * (ms < this.periode ? 0.20 : 0.0015);
+    }
+
     if (this.moy > 20) {
       this.bon = 0;
       this.mauvais += dt;
       if (this.mauvais < 2) return;
+
+      // Une baisse qui suit une remontee tranche la question : on ne remonte
+      // plus. Le niveau d'avant etait le bon.
+      if (this.remontees > 0) this.figee = true;
 
       // 1. tant qu'il reste un palier au-dessous, c'est lui qu'on prend :
       //    il rend bien plus que la densite, et il se voit moins.
@@ -229,12 +276,25 @@ export class Vigie {
 
     this.mauvais = Math.max(0, this.mauvais - dt * 0.5);
 
-    // Confortable et de la densite en reserve : on la rend, doucement.
-    if (this.moy < 13.5 && this.palier.dpr < this.dprPlein - 0.01) {
+    /* Confortable et de la densite en reserve : on la rend, doucement.
+
+       « Confortable » se juge maintenant PAR RAPPORT A L'ECRAN : on tient sa
+       cadence avec quinze pour cent de marge. A 60 Hz cela vaut 19,2 ms, a
+       120 Hz 9,6 — la meme phrase dans les deux cas, alors qu'un seuil fixe
+       n'avait de sens dans aucun des deux.
+
+       On ne depasse jamais `dprPlein`, la densite nominale du palier : il
+       s'agit de RENDRE ce qu'un incident passager avait pris, pas de miser
+       sur une marge qu'on ne peut pas mesurer. Tenir la synchronisation
+       verticale prouve qu'on suit l'ecran ; cela ne prouve pas qu'on
+       pourrait dessiner deux fois plus de pixels. */
+    if (!this.figee && this.moy < this.periode * 1.15
+        && this.palier.dpr < this.dprPlein - 0.01) {
       this.bon += dt;
       if (this.bon > 4) {
         this.palier = { ...this.palier,
           dpr: Math.min(this.dprPlein, this.palier.dpr * 1.10) };
+        this.remontees++;
         this._appliquer(3.5);
       }
     } else {
