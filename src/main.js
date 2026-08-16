@@ -38,6 +38,7 @@ import { Halte, PHASES } from './gifts/station.js';
 import { creerCadeau } from './gifts/giftMesh.js';
 import { Son } from './audio/engine.js';
 import { Bruitages } from './audio/sfx.js';
+import { ApparitionsSon } from './audio/apparitionsSon.js';
 import { Carte } from './ui/card.js';
 import { Invite, Trace, PanneauSon, Fin, brancherSeuil } from './ui/hud.js';
 
@@ -277,6 +278,12 @@ async function demarrer() {
   /* ------------------------------------------------------------------ son */
   const son = new Son();
   const sfx = new Bruitages(son);
+  /* Le son des apparitions. Il se branche ici et non a la construction des
+     apparitions, parce que le contexte audio n'existe qu'apres le premier
+     geste du visiteur : tant qu'il n'est pas ouvert, chaque appel se contente
+     de ne rien faire. */
+  const apparitionsSon = new ApparitionsSon(son, sfx);
+  apparitions.brancherSon(apparitionsSon);
   const ancreCadeau = new THREE.Object3D();
   scene.add(ancreCadeau);
   let voixCerf = null, voixSabots = null, voixCadeau = null;
@@ -453,6 +460,11 @@ async function demarrer() {
     boutonRevoir.hidden = true;
     halte.nettoyer();
     trace.effacer();
+    /* Une sirene laissee derriere soi tournerait pour toujours : le cerf
+       revient a la lisiere, mais les fenetres, elles, ne se referment pas
+       toutes seules quand on saute en arriere. */
+    apparitionsSon.toutFermer();
+    for (const sc of apparitions.scenes) sc.ouverte = false;
     cerf.s = DEPART;
     cerf.regard = 0;
     cerf.grattage = 0;

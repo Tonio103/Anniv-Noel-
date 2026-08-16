@@ -25,7 +25,7 @@
 */
 
 import * as THREE from 'three';
-import { lueurDiffuse } from '../core/dot.js';
+import { lueurDiffuse, grainRond } from '../core/dot.js';
 import { smoothstep, clamp } from '../core/noise.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
@@ -457,6 +457,11 @@ function duelSabres() {
   eclat.position.set(0, 1.5, 0);
   g.add(eclat);
 
+  /* Le numero de la passe d'armes en cours : il sert a ne declencher le
+     choc sonore QU'UNE FOIS par passe. Le pic dure cinq images environ, et
+     sans ce garde-fou on entendrait cinq chocs colles bout a bout. */
+  let dernierePasse = -1;
+
   g.userData.jouer = (u, t) => {
     const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
     g.visible = vis > 0.01;
@@ -465,6 +470,12 @@ function duelSabres() {
        batons qui bougent ». */
     const passe = (t * 1.25) % 1;
     const choc = Math.pow(Math.max(0, 1 - Math.abs(passe - 0.5) * 5), 2);
+    const numero = Math.floor(t * 1.25);
+    if (choc > 0.55 && numero !== dernierePasse) {
+      dernierePasse = numero;
+      // Le son part au moment ou les lames se touchent, pas avant.
+      if (vis > 0.2) g.userData.emettre?.('choc');
+    }
     vert.rotation.z = -0.55 + Math.sin(t * 3.9) * 0.42 - choc * 0.35;
     rouge.rotation.z = Math.PI + 0.55 - Math.sin(t * 3.7 + 1.1) * 0.42 + choc * 0.35;
     vert.position.x = -1.15 + choc * 0.55;
@@ -503,15 +514,203 @@ function traineesDeFeu(longueur) {
   front.position.set(0, 0.7, -longueur / 2);
   g.add(front);
 
+  /* Le bang n'arrive qu'une fois par passage. On le remet a zero quand la
+     fenetre se referme, pour qu'il claque a nouveau si l'on refait la
+     balade. */
+  let bangFait = false;
+  g.userData.reinit = () => { bangFait = false; };
+
   g.userData.jouer = (u, t) => {
     /* Elles s'allument d'un coup, tiennent, puis s'eteignent par l'arriere.
        Un fondu symetrique donnerait une lampe ; ici on doit lire un
        PASSAGE. */
     const allume = smoothstep(0, 0.06, u) * smoothstep(1, 0.55, u);
+    /* LE BANG ARRIVE APRES LES TRAINEES, ET C'EST VOULU. La voiture est
+       deja passee : le son la rattrape. C'est physiquement juste — et
+       dramatiquement bien meilleur, parce que l'oeil a le temps de lire les
+       deux traits de feu avant que l'oreille ne dise ce que c'etait. */
+    if (!bangFait && u > 0.14) { bangFait = true; g.userData.emettre?.('bang'); }
     const scint = 0.82 + Math.sin(t * 27) * 0.18;
     for (const b of bandes) b.material.opacity = allume * 0.78 * scint;
     front.material.opacity = smoothstep(0, 0.04, u) * smoothstep(0.34, 0.10, u) * 0.9;
     g.visible = allume > 0.01;
+  };
+  return g;
+}
+
+/* ==========================================================================
+   7. LE PATRONUS
+
+   Un second cerf, mais de lumiere : translucide, bleu-blanc, il surgit du
+   sous-bois, court un moment a hauteur du notre, puis se defait.
+
+   C'est la seule apparition qui DIALOGUE avec le sujet de la balade au lieu
+   de simplement passer a cote — et c'est pour cela qu'elle est la premiere
+   de cette serie. Un cerf de lumiere a cote d'un cerf de chair, c'est une
+   image qui se passe de legende.
+
+   Il est bati en capsules additives, sans eclairage : un fantome ne recoit
+   pas la lumiere, il en emet. La silhouette suffit largement — a cette
+   distance et a cette vitesse, personne ne cherchera le detail d'un bois.
+   ========================================================================== */
+function cerfDeLumiere() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xBFE4FF, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
+  });
+  const pieces = [];
+  const P = (r, l, x, y, z, rx, rz) => {
+    const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 3, 7), mat);
+    m.position.set(x, y, z);
+    if (rx) m.rotation.x = rx;
+    if (rz) m.rotation.z = rz;
+    g.add(m); pieces.push(m);
+    return m;
+  };
+
+  // Le tronc, l'encolure, la tete : trois capsules, pas une de plus.
+  P(0.30, 1.05, 0, 1.02, 0.05, Math.PI / 2, 0);
+  P(0.17, 0.52, 0, 1.28, -0.72, 0.75, 0);
+  P(0.12, 0.28, 0, 1.56, -1.06, 1.15, 0);
+
+  // Les quatre membres.
+  for (const sx of [-1, 1]) {
+    P(0.055, 0.62, sx * 0.16, 0.52, -0.42);
+    P(0.058, 0.66, sx * 0.17, 0.50, 0.58);
+  }
+
+  /* LA RAMURE. Deux eventails de segments qui montent et s'ecartent : c'est
+     la seule partie ou l'on met du detail, parce que c'est elle qui NOMME
+     l'animal. Sans bois, un cerf de lumiere est un chien de lumiere. */
+  for (const sx of [-1, 1]) {
+    const base = new THREE.Group();
+    base.position.set(sx * 0.09, 1.66, -1.00);
+    base.rotation.z = sx * 0.42;
+    g.add(base);
+    let x = 0, y = 0;
+    for (let i = 0; i < 4; i++) {
+      const l = 0.30 - i * 0.045;
+      const b = new THREE.Mesh(new THREE.CapsuleGeometry(0.022 - i * 0.003, l, 3, 6), mat);
+      b.position.set(x, y + l / 2, 0);
+      b.rotation.z = sx * (-0.12 - i * 0.06);
+      base.add(b); pieces.push(b);
+      // Un andouiller sur deux part vers l'avant.
+      if (i % 2 === 0) {
+        const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.16, 3, 6), mat);
+        a.position.set(x + sx * 0.05, y + l * 0.7, -0.06);
+        a.rotation.set(-0.9, 0, sx * 0.5);
+        base.add(a); pieces.push(a);
+      }
+      y += l * 0.86;
+      x += sx * 0.03;
+    }
+  }
+
+  // Le halo qui l'enveloppe : c'est lui qui porte a distance.
+  const aura = halo([0.55, 1.15, 1.9], 5.4);
+  aura.position.set(0, 1.15, -0.1);
+  g.add(aura);
+
+  g.userData.pieces = pieces;
+  g.userData.aura = aura;
+  return g;
+}
+
+function patronus() {
+  const g = new THREE.Group();
+  const bete = cerfDeLumiere();
+  g.add(bete);
+
+  /* Une trainee de particules derriere lui : un patronus laisse toujours
+     derriere soi un sillage qui se dissipe. Des points suffisent, la
+     texture ronde partagee evite le carre disgracieux. */
+  const N = 60;
+  const pos = new Float32Array(N * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const ptsMat = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02, color: 0xAEDCFF, size: 0.16,
+    transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true,
+    blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, ptsMat);
+  pts.frustumCulled = false;
+  g.add(pts);
+  const vies = new Float32Array(N).map(() => Math.random());
+
+  g.userData.jouer = (u, t) => {
+    /* Il surgit vite et se defait lentement : une apparition surnaturelle
+       ne s'installe pas en fondu, elle EST la d'un coup. */
+    const vis = smoothstep(0, 0.06, u) * smoothstep(1, 0.62, u);
+    const scint = 0.78 + Math.sin(t * 5.5) * 0.12 + Math.sin(t * 13.1) * 0.10;
+    for (const p of bete.userData.pieces) p.material.opacity = vis * 0.52 * scint;
+    bete.userData.aura.material.opacity = vis * 0.34 * scint;
+    ptsMat.opacity = vis * 0.7;
+    g.visible = vis > 0.01;
+
+    // Il avance le long de son axe local, et bondit.
+    const av = (u - 0.5) * 26;
+    bete.position.z = av;
+    bete.position.y = Math.abs(Math.sin(t * 3.4)) * 0.22;
+    bete.rotation.x = Math.sin(t * 3.4) * 0.06;
+
+    for (let i = 0; i < N; i++) {
+      vies[i] += 0.016;
+      if (vies[i] > 1) vies[i] -= 1;
+      const k = vies[i];
+      // Le sillage nait au niveau du corps et retombe en s'etalant.
+      pos[i * 3] = (Math.random() - 0.5) * 0.5 * k;
+      pos[i * 3 + 1] = 1.0 + Math.sin(i * 2.1) * 0.35 - k * 0.7;
+      pos[i * 3 + 2] = av + 0.6 + k * 5.5;
+    }
+    geo.attributes.position.needsUpdate = true;
+  };
+  return g;
+}
+
+/* ==========================================================================
+   8. LES TROIS SPIDER-MAN QUI SE POINTENT DU DOIGT
+
+   Il fallait bien la faire. Trois Spider-Man en triangle, chacun le bras
+   tendu vers un autre, immobiles au milieu de la neige — c'est l'image la
+   plus citee du personnage, et elle ne demande rien d'autre que trois copies
+   du modele qu'on a deja et trois bras leves.
+
+   Le sel de la chose tient a l'IMMOBILITE : ils ne bougent pas d'un pouce
+   pendant qu'on passe. Une animation les rendrait rigolos ; leur raideur les
+   rend inquietants, ce qui est bien plus drole.
+   ========================================================================== */
+function trioSpider() {
+  const g = new THREE.Group();
+  const R = 1.35;                       // rayon du triangle
+  const persos = [];
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const p = spiderMan();
+    p.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
+    /* Chacun regarde le suivant : c'est cet alignement, et lui seul, qui
+       fait lire la scene. Un triangle de personnages qui regardent ailleurs
+       n'est qu'un attroupement. */
+    const b = ((i + 1) / 3) * Math.PI * 2;
+    p.rotation.y = Math.atan2(Math.cos(b) * R - Math.cos(a) * R,
+                              Math.sin(b) * R - Math.sin(a) * R) + Math.PI / 2;
+    // Le bras tendu vers lui, l'autre le long du corps.
+    const m = p.userData.membres;
+    m.brasHG.rotation.z = -1.45;
+    m.brasHG.position.set(0.20, 0.47, -0.06);
+    m.brasBG.rotation.z = -1.55;
+    m.brasBG.position.set(0.38, 0.50, -0.10);
+    m.brasHD.rotation.z = 0.28;
+    g.add(p);
+    persos.push(p);
+  }
+
+  g.userData.jouer = (u) => {
+    const vis = smoothstep(0, 0.12, u) * smoothstep(1, 0.86, u);
+    g.visible = vis > 0.01;
+    // Aucune animation. C'est le sujet.
+    void persos;
   };
   return g;
 }
@@ -535,20 +734,80 @@ export class Apparitions {
        coquetterie de reglage — une fenetre centree sur l'objet l'allume au
        moment ou on le depasse, donc quand il est deja derriere la camera.
        Le drone regarde DEVANT : tout doit s'ouvrir largement en amont. */
+    /* SEIZE APPARITIONS, UNE TOUS LES QUARANTE METRES ENVIRON — soit une
+       toutes les douze ou treize secondes au rythme de marche du cerf.
+
+       L'ordre n'est pas aleatoire. On alterne :
+
+       · les PROCHES (le tuyau, le bonhomme de neige, Spider-Man) et les
+         LOINTAINES (le T-Rex derriere les arbres, la fusee a l'horizon) ;
+       · les BRUYANTES (le chasseur qui passe en rase-mottes, la soucoupe)
+         et les SILENCIEUSES (le tuyau vert planté là sans un mot, le trio
+         qui ne bouge pas d'un cil) ;
+       · et l'on garde le traineau et la DeLorean pour la fin, quand on
+         approche de la clairiere de Noel.
+
+       Sans cette alternance, six gags spectaculaires d'affilee s'annulent
+       les uns les autres : c'est le silence entre deux qui fait la
+       surprise du suivant.
+
+       `avant` / `apres` : de combien de metres AVANT l'objet la scene
+       s'allume, et combien de metres APRES elle s'eteint. Une fenetre
+       centree sur l'objet l'allumerait au moment ou on le depasse, donc
+       quand il est deja derriere la camera : tout s'ouvre largement en
+       amont. Les scenes du ciel, elles, peuvent s'ouvrir plus tot encore,
+       puisque rien ne les masque. */
+    /* HUIT APPARITIONS, ET PAS SEIZE.
+
+       J'en avais ajoute dix d'un coup ; Antoine en a coupe la moitie, et il
+       a eu raison : au-dela, elles se marchent dessus. Six gags
+       spectaculaires d'affilee s'annulent les uns les autres — c'est le
+       silence entre deux qui fait la surprise du suivant. Mieux vaut huit
+       scenes travaillees qu'une brocante.
+
+       Les huit retenues collent a ce qui etait demande : une voiture de
+       police, du Spider-Man (trois fois — c'est assume, il l'aime beaucoup)
+       et du cinema. Une toutes les quatre-vingts metres environ, soit une
+       toutes les vingt-cinq secondes au rythme de marche du cerf.
+
+       L'ordre alterne les proches et les lointaines, les bruyantes et les
+       silencieuses : le trio qui ne bouge pas d'un cil tombe entre le duel
+       de sabres et le balancement, et c'est cette respiration qui les rend
+       toutes lisibles.
+
+       `avant` / `apres` : de combien de metres AVANT l'objet la scene
+       s'allume, et combien de metres APRES elle s'eteint. Une fenetre
+       centree sur l'objet l'allumerait au moment ou on le depasse, donc
+       quand il est deja derriere la camera. */
     const plan = [
-      { nom: 'police',   s: L * 0.11, cote: -1, ecart: 10,  avant: 42, apres: 10, faire: () => voiturePolice(), tourne: 0.6 },
-      { nom: 'spider1',  s: L * 0.27, cote:  1, ecart: 5.5, avant: 30, apres: 8,  faire: () => spiderSuspendu() },
-      { nom: 'et',       s: L * 0.42, cote:  0, ecart: 0,   avant: 34, apres: 24, faire: () => etDevantLaLune() },
-      { nom: 'sabres',   s: L * 0.57, cote: -1, ecart: 11,  avant: 40, apres: 10, faire: () => duelSabres() },
-      { nom: 'spider2',  s: L * 0.72, cote:  1, ecart: 5.5, avant: 28, apres: 8,  faire: () => spiderBalance(9) },
-      { nom: 'delorean', s: L * 0.87, cote:  0, ecart: 0,   avant: 34, apres: 8,  faire: () => traineesDeFeu(26) },
+      { nom: 'police',   s: L * 0.09, cote: -1, ecart: 10,  avant: 42, apres: 10, faire: () => voiturePolice(), tourne: 0.6 },
+      { nom: 'spider1',  s: L * 0.21, cote:  1, ecart: 5.5, avant: 30, apres: 8,  faire: () => spiderSuspendu() },
+      { nom: 'et',       s: L * 0.33, cote:  0, ecart: 0,   avant: 34, apres: 24, faire: () => etDevantLaLune() },
+      { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 11,  avant: 40, apres: 10, faire: () => duelSabres() },
+      { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 7,   avant: 34, apres: 10, faire: () => trioSpider(), tourne: 0.4 },
+      { nom: 'patronus', s: L * 0.68, cote:  1, ecart: 8,   avant: 38, apres: 12, faire: () => patronus() },
+      { nom: 'spider2',  s: L * 0.79, cote:  1, ecart: 5.5, avant: 28, apres: 8,  faire: () => spiderBalance(9) },
+      { nom: 'delorean', s: L * 0.90, cote:  0, ecart: 0,   avant: 34, apres: 8,  faire: () => traineesDeFeu(26) },
     ];
 
     const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
     this.scenes = [];
+    /* Le son est branche plus tard : le contexte audio n'existe qu'apres le
+       premier geste du visiteur, et les apparitions, elles, sont construites
+       au chargement. Tant que rien n'est branche, tout se joue en silence
+       sans qu'aucune scene n'ait a le savoir. */
+    this.son = null;
     for (const d of plan) {
       const o = d.faire();
       if (!o) continue;
+      /* Le canal par lequel une scene declenche un bruit ponctuel — le choc
+         des lames, le bang de la DeLorean. Les scenes ne connaissent ni le
+         moteur audio ni leur propre nom : elles disent seulement « ceci vient
+         de se produire », et c'est ici qu'on sait a qui l'adresser. */
+      o.userData.emettre = (quoi) => {
+        const s = this.son;
+        if (s && typeof s[quoi] === 'function') s[quoi](d.nom);
+      };
       if (!o.userData.suitCamera) {
         chemin.point(d.s, p);
         chemin.cote(d.s, c);
@@ -561,17 +820,36 @@ export class Apparitions {
       }
       o.visible = false;
       this.groupe.add(o);
-      this.scenes.push({ ...d, objet: o });
+      this.scenes.push({ ...d, objet: o, ouverte: false });
     }
     void palier;
   }
+
+  /* Le moteur audio des apparitions, branche une fois le contexte ouvert. */
+  brancherSon(son) { this.son = son; }
 
   /* On ouvre la fenetre BIEN AVANT d'arriver : une apparition qu'on decouvre
      au moment ou on la depasse est deja finie. */
   maj(dt, t, s, camera) {
     for (const sc of this.scenes) {
       const u = (s - (sc.s - sc.avant)) / (sc.avant + sc.apres);
-      if (u <= 0 || u >= 1) {
+      const dedans = u > 0 && u < 1;
+
+      /* LES DEUX BASCULES. On ne se contente pas de regarder si la scene est
+         dans sa fenetre : on repere l'INSTANT ou elle y entre et celui ou
+         elle en sort. C'est la seule facon d'allumer une sirene une fois et
+         de la couper proprement — la tester a chaque image en rallumerait
+         une par image. */
+      if (dedans !== sc.ouverte) {
+        sc.ouverte = dedans;
+        if (dedans) this.son?.ouvrir(sc.nom, sc.objet);
+        else {
+          this.son?.fermer(sc.nom);
+          sc.objet.userData.reinit?.();
+        }
+      }
+
+      if (!dedans) {
         if (sc.objet.visible) sc.objet.visible = false;
         continue;
       }
