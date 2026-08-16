@@ -445,11 +445,36 @@ function matierePelage() {
       `)
       .replace('#include <opaque_fragment>', `
         {
+          /* LE POIL SE CALCULE ICI, MAIS NE S'APPLIQUE QU'A LA FIN.
+
+             Il etait applique tout de suite, en multipliant la lumiere sortante
+             — et c'etait juste tant qu'elle etait toute la
+             lumiere sortante. Ce n'est plus le cas : deux termes s'AJOUTENT
+             plus bas, le plancher ambiant et le lisere de lune, et aucun des
+             deux ne passait par le poil.
+
+             Or ces deux termes-la font l'essentiel de la clarte du cerf. La
+             scene le tient en contre-jour permanent — lune devant, camera
+             derriere — donc l'eclairage direct qu'il recoit est minuscule,
+             et c'est bien pour cela que le plancher et le lisere existent.
+             Le poil ne modulait donc qu'une petite part de ce qu'on voit, et
+             la grande part sortait parfaitement unie : le flanc se lisait
+             comme du cuir cire, sans une meche, a n'importe quelle distance.
+
+             On garde donc le facteur de cote et on le passe sur le TOTAL,
+             une fois tout additionne. La colorimetrie et le rehaut chaud qui
+             suivent sont lineaires en cette lumiere : les traverser ne
+             change rien pour eux, et le plancher comme le lisere portent
+             enfin le grain du poil — ce qui est aussi ce qu'ils font dans la
+             nature, un contre-jour sur de la fourrure etant precisement ce
+             qui la donne a voir. */
+          float meche;
+          {
           /* Grain de pelage, tres retenu. Une version precedente cumulait
              deux echelles a 0,11 et 0,06 : sur une robe sombre, ca ressortait
              en mouchetis blanc sur tout le corps au lieu d'un velours. */
           float g1 = grain(vLiaison * 34.0);
-          outgoingLight *= 0.97 + g1 * 0.05;
+          meche = 0.97 + g1 * 0.05;
 
           /* LES MECHES, ICI ET PAS AILLEURS.
 
@@ -471,7 +496,20 @@ function matierePelage() {
             float m = bruitDoux(pm);
             // Une seconde passe, deux fois plus fine, pour l'irregularite.
             m = m * 0.68 + bruitDoux(pm * 2.3 + 17.0) * 0.32;
-            outgoingLight *= 0.86 + m * 0.28;
+            meche *= 0.86 + m * 0.28;
+
+            /* UNE ECHELLE PLUS LARGE, qui survit a la distance.
+
+               Les meches ci-dessus font deux centimetres : superbes de pres,
+               elles tombent sous le pixel des que le cerf s'eloigne de
+               quelques metres — c'est-a-dire pendant presque toute la
+               balade — et il n'en reste alors qu'une teinte moyenne, donc
+               une surface unie. Un pelage se lit aussi de loin, par des
+               PLAGES : l'echine plus sombre, les flancs plus clairs, des
+               nuances larges de dix a vingt centimetres. On ajoute donc une
+               octave basse, seule capable de tenir a distance. */
+            float large = bruitDoux(vLiaison * vec3(3.2, 6.5, 2.4) + 41.0);
+            meche *= 0.90 + large * 0.20;
 
             /* La bourre d'hiver de l'encolure : poil plus long, donc meches
                plus larges et plus contrastees. Le cou occupe z < -0,5 dans la
@@ -479,8 +517,9 @@ function matierePelage() {
             float col = smoothstep(-0.46, -0.78, vLiaison.z);
             if (col > 0.001) {
               float b = bruitDoux(vLiaison * vec3(9.0, 26.0, 9.0) + 5.0);
-              outgoingLight *= 1.0 + (b - 0.5) * 0.34 * col;
+              meche *= 1.0 + (b - 0.5) * 0.34 * col;
             }
+          }
           }
 
           /* LA FOURRURE NE BLEUIT PAS.
@@ -554,11 +593,18 @@ function matierePelage() {
             outgoingLight += vec3(1.00, 0.78, 0.52) * tranche * versLune * 0.85;
           }
           #endif
+
+          /* ET C'EST SEULEMENT ICI QUE LE POIL S'APPLIQUE — sur tout ce qui
+             sort, plancher ambiant et lisere de lune compris. C'est le
+             lisere qui y gagne le plus : une tranche de contre-jour hachee
+             par le poil, c'est la lecture meme de « fourrure », la ou une
+             tranche lisse ne dit que « volume ». */
+          outgoingLight *= meche;
         }
         #include <opaque_fragment>
       `);
   };
-  mat.customProgramCacheKey = () => 'pelage8';
+  mat.customProgramCacheKey = () => 'pelage9';
   return mat;
 }
 
