@@ -124,6 +124,18 @@ body{
 }
 .entry-occasion b{font-weight:500;color:var(--gold-lt)}
 .entry-occasion i{font-style:normal;color:var(--ink-3);font-size:.9em}
+/* « et » EST DANS LE SECOND GROUPE, pas entre les deux.
+
+   Quand il formait un troisieme element de la rangee, le retour a la ligne
+   le laissait seul en bout de premiere ligne sur TOUS les formats
+   telephone — mesure faite a 360, 390 et 414 px : « Mes 16 ans · fin
+   novembre  et » puis « Noel · 25 decembre ». Une conjonction orpheline,
+   detachee de ce qu'elle relie, sur le premier ecran que voit la famille.
+
+   Rattache au groupe qu'il introduit, et ce groupe etant insecable, il
+   part a la ligne avec lui. Aucun point de rupture a choisir : au-dela de
+   500 px les deux groupes tiennent cote a cote et la phrase se lit d'un
+   trait, exactement comme avant. */
 .entry-occasion span{white-space:nowrap}
 
 .entry-lead{
@@ -904,7 +916,24 @@ body{
   -webkit-mask-image:linear-gradient(to top,#000 0%,#000 58%,rgba(0,0,0,.3) 82%,transparent 100%);
   mask-image:linear-gradient(to top,#000 0%,#000 58%,rgba(0,0,0,.3) 82%,transparent 100%);
 }
-.card-scroll,.card-next,.c-suite{position:relative;z-index:1}
+/* `.c-suite` NE DOIT PAS ENTRER ICI.
+
+   Cette regle existe pour faire passer le contenu devant le voile
+   (`.card-in::before`, z-index 0) : il faut pour cela un contexte
+   d'empilement, donc une position non statique. `.card-scroll` et
+   `.card-next` sont dans le flux et n'en avaient aucune — `relative` leur
+   convient et ne les deplace pas.
+
+   Mais `.c-suite` etait deja `position:absolute` avec son propre z-index
+   (voir plus haut), et son `bottom` designe le bas de la CARTE. En la
+   repassant en `relative`, ce meme `bottom:60px` cessait d'etre un
+   ancrage pour devenir un DECALAGE : la pastille « faites defiler »
+   remontait de soixante pixels depuis sa place dans le flux et se posait
+   sur les seize derniers pixels du texte — les deux devenaient illisibles,
+   sur la derniere carte comme sur les autres. La reserve de 42 px menagee
+   sous la zone de texte ne pouvait rien y faire, puisque la pastille avait
+   quitte l'endroit qu'elle reservait. */
+.card-scroll,.card-next{position:relative;z-index:1}
 
 /* --- les liens perdent leur boite eux aussi ------------------------------ */
 /* Trois rectangles empiles au milieu d'une mise en page sans cadre, c'est la
