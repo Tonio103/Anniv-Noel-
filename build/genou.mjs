@@ -8,10 +8,13 @@
    · l'ANTERIEUR se replie comme un bras : le carpe ressort vers l'AVANT
      (un cheval qui leve un anterieur monte le genou en avant, le canon pend
      en arriere) ;
-   · le POSTERIEUR a son jarret qui ressort vers l'ARRIERE, franchement — le
-     fameux zigzag de la patte arriere des ongules.
+   · le POSTERIEUR, lui, ne plie PAS a l'inverse dans ce rig, contrairement a
+     ce que l'anatomie laisse croire : sa chaine n'a que deux segments, et le
+     pli qu'elle porte est le GRASSET — qui ressort vers l'avant — et non le
+     jarret, qui n'existe pas dans le modele. Verifie a l'image par Antoine,
+     apres que je l'ai inverse a tort.
 
-   Ils sont donc OPPOSES. Mais le signe ne se derive pas au tableau : la
+   Le signe ne se derive pas au tableau : la
    rotation se fait autour d'un axe du repere LOCAL de l'os, lui-meme deja
    pivote vers la cible. On mesure donc, au lieu de raisonner : pour chaque
    membre on releve ou tombe l'articulation par rapport a la corde qui va de
@@ -82,7 +85,18 @@ const lire = (o) => {
   console.log(`\n${o.etiquette}`);
   for (const [nom, z] of Object.entries(o.ecartsZ)) {
     const ou = z < -0.002 ? 'AVANT' : z > 0.002 ? 'ARRIERE' : 'aligne';
-    const attendu = nom[0] === 'A' ? 'AVANT' : 'ARRIERE';
+    /* L'ATTENDU A ETE TRANCHE A L'IMAGE, PAS AU RAISONNEMENT ANATOMIQUE.
+
+       J'avais mis ici « ARRIERE » pour les posterieurs, au motif que le
+       jarret d'un ongule ressort vers l'arriere. Antoine a regarde le
+       resultat : c'est faux a l'ecran, deux fois plutot qu'une. La raison
+       est que l'articulation modelisee n'est PAS le jarret — la patte
+       arriere d'un cerf est un zigzag a trois segments, et une chaine a
+       deux n'en porte qu'un seul pli : le GRASSET, qui ressort vers
+       l'avant. Ce banc verifie donc que les quatre membres plient vers
+       l'avant, et son role est d'empecher qu'on re-inverse cela par un
+       raisonnement de plus. */
+    const attendu = 'AVANT';
     console.log(`   ${nom}  ecart z = ${String(z).padStart(8)}  → pointe vers ${ou.padEnd(7)} (attendu ${attendu}) ${ou === attendu ? 'OK' : 'KO'}`);
   }
 };

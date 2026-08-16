@@ -432,6 +432,40 @@ function matierePelage() {
         /* Bruit continu par interpolation : le bruit par cellule donne un
            mouchetis, pas des meches. C'est l'interpolation qui fait qu'on lit
            des touffes de poil et non du sable. */
+        /* LES BRINS DE POIL, SANS AUCUN HACHAGE.
+
+           Trois fois de suite : « il n'a toujours pas de poils ». Le bruit
+           utilise jusqu'ici a deux defauts pour cet usage.
+
+           D'abord il est SOURD : un bruit lisse fait des taches, or ce qui se
+           lit comme de la fourrure, ce sont des BRINS — des traits fins,
+           paralleles, serres, couches dans le sens du poil. Une tache ne dit
+           jamais « poil », quelle que soit son amplitude.
+
+           Ensuite il est FRAGILE : le hachage passe par des produits de
+           l'ordre de dix mille avant d'en prendre la partie fractionnaire.
+           En precision reduite — celle que beaucoup de telephones donnent
+           par defaut aux nuanceurs de fragment, sans jamais le signaler — il
+           ne reste plus assez de chiffres significatifs et le resultat
+           degenere. Je ne peux pas le reproduire ici, je rends en logiciel
+           et tout y est en pleine precision ; c'est precisement pourquoi il
+           faut cesser d'en dependre.
+
+           Ces brins-ci ne sont que des sinus d'arguments modestes, sommes a
+           des periodes sans rapport entre elles. Aucune precision
+           particuliere n'est requise, le motif ne se repete pas a l'oeil, et
+           il est FRANCHEMENT directionnel : on compte les brins EN TRAVERS
+           du poil (selon y et x) tandis qu'ils ondulent lentement le long du
+           corps (selon z). */
+        float brins(vec3 p, float finesse){
+          float u = (p.y * 1.00 + p.x * 0.42) * finesse;   // en travers du poil
+          float v = p.z * 2.7;                             // le long du poil
+          float a = sin(u          + sin(v * 1.7) * 1.20);
+          float b = sin(u * 1.63   + 2.1 + sin(v * 1.13 + 0.7) * 0.95);
+          float c = sin(u * 0.47   + 4.7 + v * 0.55);
+          return a * 0.46 + b * 0.34 + c * 0.20;           // dans [-1, 1]
+        }
+
         float bruitDoux(vec3 p){
           vec3 i = floor(p);
           vec3 f = p - i;
@@ -476,45 +510,19 @@ function matierePelage() {
           float g1 = grain(vLiaison * 34.0);
           meche = 0.97 + g1 * 0.05;
 
-          /* LES MECHES, ICI ET PAS AILLEURS.
+          /* DEUX FINESSES DE BRIN, ET C'EST TOUT.
 
-             Elles etaient calculees par sommet, a une finesse de deux
-             centimetres et demi — plus fine que l'espacement des sommets du
-             maillage. Le motif se repliait donc en un battement regulier, et
-             le cerf portait des bourrelets en accordeon sur le dos.
-
-             Evaluees par PIXEL, la question ne se pose plus : il n'y a pas de
-             sous-echantillonnage possible, on peut descendre aussi fin qu'on
-             veut. C'est le bon endroit pour le detail fin, et le sommet reste
-             le bon endroit pour les grandes plages.
-
-             Elles sont ETIREES SELON LE POIL — allongees le long du corps,
-             serrees en hauteur — parce que c'est ainsi que le poil se couche.
-             Un bruit isotrope donnerait une eponge. */
+             Une serree (le poil lui-meme, quelques millimetres : elle donne
+             la matiere en gros plan) et une large (des meches de cinq a huit
+             centimetres, la seule echelle qui fasse encore plusieurs pixels
+             quand le cerf est a dix metres — donc la seule qui compte
+             pendant la balade). L'amplitude est volontairement forte : sur
+             une robe sombre, en contre-jour, sous une courbe ACES qui
+             comprime tout, ce qui semble excessif ici arrive discret a
+             l'ecran. */
           {
-            vec3 pm = vLiaison * vec3(11.0, 46.0, 8.0);
-            float m = bruitDoux(pm);
-            // Une seconde passe, deux fois plus fine, pour l'irregularite.
-            m = m * 0.68 + bruitDoux(pm * 2.3 + 17.0) * 0.32;
-            meche *= 0.80 + m * 0.40;
-
-            /* LES STRIES, a l'echelle ou l'on voit encore quelque chose.
-
-               Antoine, deux fois de suite : « il n'a toujours pas de poils ».
-               Les deux echelles ci-dessus sont l'une trop fine (deux
-               centimetres — sous le pixel des que le cerf s'eloigne) et
-               l'autre trop large (des plages, qui disent « robe » et non
-               « poil »). Il manquait celle du milieu : des STRIES de cinq a
-               huit centimetres, couchees le long du corps.
-
-               C'est cette echelle-la qui se lit comme de la fourrure sur un
-               ecran de telephone, parce que c'est la seule qui fasse encore
-               plusieurs pixels tout en restant assez serree pour qu'on lise
-               un peigne plutot qu'une tache. Le bruit est tres etire selon
-               Z — le poil est couche d'avant en arriere — et serre selon Y :
-               un bruit isotrope donnerait des nuages, pas des stries. */
-            float stries = bruitDoux(vLiaison * vec3(7.0, 21.0, 2.6) + 63.0);
-            meche *= 0.82 + stries * 0.36;
+            meche *= 1.0 + brins(vLiaison, 78.0) * 0.15;   // le poil
+            meche *= 1.0 + brins(vLiaison, 23.0) * 0.26;   // les meches
 
             /* UNE ECHELLE PLUS LARGE, qui survit a la distance.
 
@@ -622,7 +630,7 @@ function matierePelage() {
         #include <opaque_fragment>
       `);
   };
-  mat.customProgramCacheKey = () => 'pelage10';
+  mat.customProgramCacheKey = () => 'pelage11';
   return mat;
 }
 

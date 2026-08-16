@@ -184,25 +184,25 @@ export class Cerf {
          positive autour de X amene le genou vers l'arriere » est donc faux,
          et c'est ce raisonnement qui avait fixe cette valeur.
 
-         LES DEUX MEMBRES NE VONT PAS DANS LE MEME SENS. C'est ce que disait
-         cette note, et c'etait faux — Antoine : « ses pattes arriere sont a
-         l'envers ». Chez un cervide, comme chez tous les ongules :
+         LE MEME SENS POUR LES QUATRE, ET C'EST L'OEIL QUI TRANCHE.
 
-         · l'ANTERIEUR se replie comme un bras, le carpe ressortant vers
-           l'AVANT — un cheval qui leve un anterieur monte le genou devant lui
-           et le canon pend en arriere ;
-         · le POSTERIEUR a son jarret qui ressort franchement vers
-           l'ARRIERE. C'est le zigzag caracteristique de la patte arriere, et
-           c'est l'un des rares traits qu'on identifie sans savoir pourquoi :
-           quand il manque, l'animal ne parait pas approximatif, il parait
-           CASSE.
+         J'ai cru voir ici une erreur : chez un ongule le jarret ressort vers
+         l'arriere, donc les posterieurs devraient plier a l'inverse des
+         anterieurs. J'ai inverse, Antoine a regarde, et c'est FAUX a
+         l'ecran — deux fois plutot qu'une.
 
-         Le signe ne se derive pas au tableau — la rotation se fait autour
-         d'un axe du repere LOCAL de l'os, lui-meme deja pivote vers la
-         cible — donc il se MESURE. Voir build/genou.mjs, qui releve de quel
-         cote tombe l'articulation par rapport a la corde attache→sabot : avec
-         le meme sens partout, les quatre genoux pointaient vers l'avant. */
-      mb.sens = mb.avant ? 1 : -1;
+         La raison est que l'articulation modelisee ici n'est pas le jarret.
+         La patte arriere d'un cerf est un zigzag a TROIS segments — femur en
+         avant jusqu'au grasset, tibia en arriere jusqu'au jarret, metatarse
+         en avant — et une chaine a deux segments ne peut en representer
+         qu'un seul pli. Celui que porte ce rig est le GRASSET, qui ressort
+         bel et bien vers l'avant. Le jarret, lui, n'existe pas dans le
+         modele ; le chercher menait a plier la patte a l'envers.
+
+         Note pour plus tard : ce n'est pas un reglage a re-tester au
+         jugement anatomique. Il a ete tranche a l'image, par celui qui
+         regarde. */
+      mb.sens = 1;
     }
 
     this.placer(this.s);
