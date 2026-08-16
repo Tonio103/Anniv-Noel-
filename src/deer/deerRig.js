@@ -55,17 +55,42 @@ import { damp, clamp, lerp, smoothstep } from '../core/noise.js';
    permanence, meme a l'arret. Seule la foulee peut bouger sans toucher au
    contact au sol.
 
-   RESULTAT, MESURE SUR LE PARCOURS ENTIER (pas la seule terrain plat) : le
-   pire depassement d'allonge tombe de 65 % a 13 %, en combinant cette
-   reduction avec le plafonnement de pente du terrain (`terrain.js`). Le
-   residu vient desormais de la geometrie de la foulee elle-meme, plus du
-   terrain : reduire encore la foulee (teste jusqu'a 1,05 m) ne le fait
-   quasiment plus baisser, le plancher est dans la conformation de la patte,
-   pas dans le reglage. Aller plus loin demanderait de changer les
-   proportions du modele — hors de propos ici. */
+   RESULTAT, MESURE SUR LE PARCOURS ENTIER : le pire depassement d'allonge
+   tombe de 65 % a 13 % — mais en combinant cette reduction avec le
+   plafonnement de pente du terrain (`terrain.js`), et c'est ce dernier qui
+   a fait presque tout le travail. Voir ci-dessous : je m'en etais attribue
+   le merite a tort. */
+/* CE QUE J'AVAIS MAL ATTRIBUE, ET LA CADENCE QUE CA A COUTE.
+
+   Antoine : « le cerf marche trop vite, ses pattes bougent trop vite ». Il a
+   raison, et la cause est la reduction de foulee ci-dessus. Le cycle avance
+   en `vitesse / foulee` — c'est cette relation, et elle seule, qui empeche
+   les sabots de patiner — donc a vitesse egale, une foulee deux fois plus
+   courte, c'est deux fois plus de pas par seconde. A 4,2 m/s pour 1,30 m,
+   cela faisait 3,2 cycles par seconde, plus de six posers de sabot par
+   seconde. Un cerf elaphe en trotte deux.
+
+   En remesurant le depassement d'allonge foulee par foulee, sur le parcours
+   entier, la conclusion precedente ne tient pas :
+
+       foulee 1,30 → 1,128      foulee 1,80 → 1,185
+       foulee 1,55 → 1,148      foulee 2,00 → 1,215
+
+   Passer de 2,00 a 1,30 n'avait donc rien fait tomber de 65 % a 13 % : cela
+   n'a gagne que neuf centiemes de ratio. Tout le reste venait du plafonnement
+   de pente du terrain, fait dans le meme lot. Le plancher est dans la
+   CONFORMATION DE LA PATTE — au repos elle occupe deja 94 % de son allonge —
+   et aucun reglage de foulee ne l'abaisse. J'avais donc paye la cadence
+   entiere pour un gain marginal, et je ne l'avais pas verifie.
+
+   On rend donc l'essentiel de la foulee (1,55 m, deux centiemes de ratio
+   au-dessus du plancher) et l'on baisse l'allure en meme temps (voir main.js,
+   4,2 → 3,3 m/s), ce qu'Antoine demande aussi. La cadence revient a 2,13
+   cycles par seconde, exactement celle d'avant ma correction — celle dont
+   personne ne s'etait jamais plaint. */
 const ALLURES = {
   pas:  { phases: { PG: 0.0, AG: 0.25, PD: 0.5, AD: 0.75 }, appui: 0.64, foulee: 1.20, hauteur: 0.12 },
-  trot: { phases: { AG: 0.0, PD: 0.0, AD: 0.5, PG: 0.5 },   appui: 0.42, foulee: 1.30, hauteur: 0.24 },
+  trot: { phases: { AG: 0.0, PD: 0.0, AD: 0.5, PG: 0.5 },   appui: 0.42, foulee: 1.55, hauteur: 0.24 },
 };
 
 export class Cerf {

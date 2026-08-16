@@ -509,7 +509,7 @@ function matierePelage() {
                nuances larges de dix a vingt centimetres. On ajoute donc une
                octave basse, seule capable de tenir a distance. */
             float large = bruitDoux(vLiaison * vec3(3.2, 6.5, 2.4) + 41.0);
-            meche *= 0.90 + large * 0.20;
+            meche *= 0.84 + large * 0.32;
 
             /* La bourre d'hiver de l'encolure : poil plus long, donc meches
                plus larges et plus contrastees. Le cou occupe z < -0,5 dans la
@@ -618,7 +618,29 @@ export function creerCerf(palier) {
   /* --- 1. la peau, extraite du champ ------------------------------------- */
   const caps = anatomie();
   const f = champ(caps, 0.024);
-  const pas = palier.nom === 'bas' ? 0.046 : palier.nom === 'moyen' ? 0.036 : 0.029;
+  /* LE PAS DE LA GRILLE — et l'erreur de methode qui l'avait laisse trop gros.
+
+     Antoine, capture d'iPhone a l'appui : « il est pixelise ». Il l'est. Et
+     je ne pouvais pas le voir, parce que TOUTES mes verifications de pres se
+     faisaient en `q=haut` — un palier que son telephone ne recoit jamais.
+     Le cerf que je regardais n'etait pas celui qu'il regardait.
+
+     Ce pas decide de deux choses, pas d'une seule :
+
+     · la SILHOUETTE. A 0,046 les facettes font pres de cinq centimetres, soit
+       cinq a six pixels sur un ecran de telephone : elles se voient une par
+       une sur le dos et la croupe ;
+     · la ROBE. Les taches — croupe claire, ligne dorsale, membres sombres —
+       sont peintes PAR SOMMET (voir robeAu). Leur nettete est donc celle du
+       maillage, et a pas grossier leurs bords deviennent des escaliers. C'est
+       ce qui se voit le plus sur sa capture, bien plus que les facettes.
+
+     Le cout est mesure, pas suppose : au palier moyen le cerf ne pese que
+     4,8 % des triangles de la scene (32 000 sur 672 000). L'affiner d'un
+     tiers lui en ajoute quelques milliers — trois pour cent du total — pour
+     le SUJET de toute la balade. C'est le meilleur endroit du projet ou
+     depenser un triangle, et c'etait le moins bien servi. */
+  const pas = palier.nom === 'bas' ? 0.040 : palier.nom === 'moyen' ? 0.028 : 0.024;
 
   /* La boite doit contenir TOUT le champ, criniere et poitrail compris : un
      volume qui deborde se fait trancher net par le bord de la grille, ce qui

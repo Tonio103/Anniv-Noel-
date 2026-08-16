@@ -326,8 +326,16 @@ async function demarrer() {
            le temps de rien regarder, et l'ensemble se lisait comme une
            course. On redescend a une allure ou l'on peut suivre des yeux ce
            qui passe, et l'ecart entre les haltes a ete raccourci d'autant
-           pour que la duree d'un trajet ne change pas. */
-        cerf.vitesseCible = 4.2;
+           pour que la duree d'un trajet ne change pas.
+
+           SECOND PALIER, 4,2 → 3,5. Antoine : « ses pattes bougent trop
+           vite ». Le rythme des pas vaut la vitesse divisee par la foulee, et
+           cette relation ne se negocie pas — c'est elle qui empeche les
+           sabots de patiner. La foulee ayant du etre raccourcie pour que les
+           pattes cessent de sur-tendre, la cadence s'etait envolee. On rend
+           donc la moitie du chemin sur la foulee (voir deerRig) et l'autre
+           moitie ici. */
+        cerf.vitesseCible = 3.3;
         cerf.regard = 0;
         drone.cadrer('route');
         drone.regarder(null, 0);
@@ -414,7 +422,7 @@ async function demarrer() {
       case PHASES.REPRISE:
         trace.marquer(index - 1);
         cerf.regard = 0;
-        cerf.vitesseCible = 4.2;
+        cerf.vitesseCible = 3.3;
         drone.cadrer('route');
         drone.arc(0, 0);
         panneau.attenuer(false);
@@ -1025,7 +1033,7 @@ async function demarrer() {
        Le parcours complet est passe de neuf cartes a zero sans qu'aucune
        erreur ne soit levee. Une seule chose fait autorite sur l'etat, et c'est
        la fin du plan ; ce minuteur ne touche qu'a la vitesse. */
-    setTimeout(() => { if (demarree && drone.enCinematique) cerf.vitesseCible = 4.2; }, 10800);
+    setTimeout(() => { if (demarree && drone.enCinematique) cerf.vitesseCible = 3.3; }, 10800);
   });
 
   boucle.demarrer();
