@@ -14,7 +14,13 @@ await build();
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
          '--no-sandbox', '--disable-dev-shm-usage'] });
-const page = await nav.newPage({ viewport: { width: 900, height: 620 }, deviceScaleFactor: 2 });
+/* LE FORMAT DU TELEPHONE, PAS CELUI DE MON ECRAN.
+
+   Antoine regarde cela en portrait sur un iPhone. En paysage large, le ciel
+   occupe le haut du cadre et tout y tient ; en portrait, le drone pique
+   vers le cerf et il ne reste qu'un bandeau de ciel — la silhouette d'E.T.
+   frolait le bord haut sans que j'en sache rien. On cadre donc comme lui. */
+const page = await nav.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 page.on('pageerror', (e) => console.log('  [ERREUR PAGE]', e.message));
 await page.goto('file://' + join(root, 'dist/experience.html') + '?debug=1&q=moyen',
                 { waitUntil: 'load', timeout: 180000 });
@@ -66,15 +72,23 @@ for (const a of liste) {
     const b = new THREE.Box3().setFromObject(o);
     const centre = b.getCenter(new THREE.Vector3());
     s.postfx.rendre(s.scene, s.camera, s.boucle.t);
+    /* OU, PRECISEMENT, DANS LE CADRE ? « Dans le champ » est une reponse par
+       oui ou par non, et elle ne dit rien de la MARGE : une apparition qui
+       frole le bord passe le test et se rate a l'oeil. On releve donc la
+       position normalisee du centre — zero au milieu, un sur chaque bord. */
+    const p = centre.clone().project(s.camera);
     return {
       visible: o.visible,
       dansLeChamp: o.visible ? fr.intersectsBox(b) : false,
       distance: +s.camera.position.distanceTo(centre).toFixed(1),
+      x: +p.x.toFixed(2), y: +p.y.toFixed(2),
     };
   }, a);
   await page.waitForTimeout(200);
   await page.screenshot({ path: join(root, `shots/app-${a.nom}.png`) });
   const ok = etat.visible && etat.dansLeChamp;
-  console.log(`  ${ok ? 'OK ' : 'KO '} ${a.nom.padEnd(9)} allumee=${etat.visible} dans le champ=${etat.dansLeChamp} a ${etat.distance} m`);
+  const centre = Math.abs(etat.x) < 0.75 && Math.abs(etat.y) < 0.85;
+  const marque = !ok ? 'KO ' : centre ? 'OK ' : 'BORD';
+  console.log(`  ${marque.padEnd(4)} ${a.nom.padEnd(9)} a ${String(etat.distance).padStart(5)} m · centre a l'ecran x=${String(etat.x).padStart(5)} y=${String(etat.y).padStart(5)}`);
 }
 await nav.close();

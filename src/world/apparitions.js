@@ -57,13 +57,25 @@ const boite = (l, h, p, coul, opts = {}) => new THREE.Mesh(
 
    Elle est legerement surelevee : posee pile au sol, elle se battrait avec
    le terrain en combat de profondeur et clignoterait. */
-function flaque(couleur, taille) {
-  /* Le maillage est SUBDIVISE, et ce n'est pas un detail : il doit epouser
-     le terrain, ce qu'un quadrilatere de deux triangles ne peut pas faire.
-     Douze cases de cote sur quinze metres, soit un sommet tous les metres
-     et quart — assez fin pour suivre un devers, assez grossier pour ne rien
-     couter. */
-  const geo = new THREE.PlaneGeometry(taille, taille, 12, 12);
+function flaque(couleur, taille, trou = 0) {
+  /* LE TROU AU MILIEU N'EST PAS UNE COQUETTERIE.
+
+     Une flaque pleine posee douze centimetres au-dessus du sol TRAVERSE ce
+     qui se tient dessus : la roue de la voiture, l'ourlet de la cape. Le
+     plan gagne le test de profondeur partout ou il passe devant la surface,
+     et l'on obtient un lisere fluorescent au bas du personnage — deux
+     duellistes en jupe de fete verte et rouge, ce qui n'etait pas l'effet
+     recherche.
+
+     Un anneau regle la chose une fois pour toutes, et il est en plus
+     physiquement juste : ce qui produit la lumiere se fait de l'ombre
+     juste en dessous de lui.
+
+     Le maillage est SUBDIVISE dans les deux sens — il doit epouser le
+     terrain, ce qu'un quadrilatere de deux triangles ne peut pas faire. */
+  const geo = trou > 0
+    ? new THREE.RingGeometry(trou, taille / 2, 28, 6)
+    : new THREE.PlaneGeometry(taille, taille, 12, 12);
   geo.rotateX(-Math.PI / 2);
   /* LA LUEUR RONDE NE CONVIENT PAS ICI, ET C'EST MESURE. Son profil tombe a
      treize pour cent a mi-rayon : etalee sur quinze metres, elle ne peint
@@ -226,8 +238,8 @@ function voiturePolice() {
      vue de dessus, ou la flaque est parfaitement lisible mais pale. Pour
      qu'une couleur survive, il faut lui retirer presque tout ce qui n'est
      pas elle. */
-  const solBleu = flaque([0.04, 0.26, 2.3], 15);
-  const solRouge = flaque([2.3, 0.05, 0.04], 15);
+  const solBleu = flaque([0.04, 0.26, 2.3], 15, 1.7);
+  const solRouge = flaque([2.3, 0.05, 0.04], 15, 1.7);
   solBleu.position.z = 0.6;
   solRouge.position.z = 0.6;
   g.add(solBleu, solRouge);
@@ -987,7 +999,7 @@ function etDevantLaLune() {
   g.userData.suitCamera = true;
   g.userData.jouer = (u, t, camera) => {
     const vis = smoothstep(0, 0.16, u) * smoothstep(1, 0.80, u);
-    disque.material.opacity = vis * 0.42;
+    disque.material.opacity = vis * 0.55;
     velo.material.opacity = vis * 0.98;
     g.visible = vis > 0.01;
     if (!camera) return;
@@ -1010,11 +1022,21 @@ function etDevantLaLune() {
        cerf, le disque sortait par le haut du cadre. A 34 m pour 265, on est
        a 7,3°, ce qui le pose au-dessus de la ligne d'arbres sans jamais
        toucher le bord. */
-    g.position.y = camera.position.y + 34;
+    /* Descendu de trente-quatre a vingt-neuf metres apres avoir regarde
+       l'image : a 7,3° la silhouette frolait le bord haut du cadre en
+       paysage, et l'on ne peut pas compter sur le format portrait du
+       telephone pour la rattraper. A 6,3°, elle est franchement dans le
+       ciel sans jamais toucher la ligne d'arbres. */
+    g.position.y = camera.position.y + 29;
     g.lookAt(camera.position);
 
-    // La traversee : de gauche a droite devant le disque, en montant a peine.
-    velo.position.set((u - 0.5) * 74, 3 + Math.sin(t * 0.8) * 1.4, 1);
+    /* LA TRAVERSEE PASSAIT A COTE DE LA LUNE. Le disque mesure cinquante-
+       huit unites de large, mais son coeur clair n'en fait qu'une quinzaine
+       — le reste est une diffusion qui s'eteint. Une course de soixante-
+       quatorze unites promenait donc le velo sur le halo et jamais devant
+       l'astre. Vingt-six, et la silhouette traverse le disque lui-meme,
+       ce qui est tout le sujet du plan. */
+    velo.position.set((u - 0.5) * 26, 2 + Math.sin(t * 0.8) * 1.2, 1);
   };
   return g;
 }
@@ -1022,47 +1044,187 @@ function etDevantLaLune() {
 /* ==========================================================================
    4. LE DUEL DE SABRES
 
-   Deux lames, une verte et une rouge, qui s'entrechoquent derriere les
-   troncs. On ne voit jamais les duellistes — et c'est mieux ainsi : deux
-   silhouettes mal faites tueraient l'effet, alors que deux lames qui
-   claquent l'une contre l'autre dans le noir se passent d'acteurs.
+   J'avais ecrit ici que les duellistes etaient inutiles — « deux lames qui
+   claquent dans le noir se passent d'acteurs ». L'image dit le contraire :
+   sans personne pour les tenir, on ne lit pas un duel, on lit deux tubes
+   fluorescents plantes dans la neige. Rien n'avancait, rien ne portait, et
+   les deux halos ronds accroches au milieu des lames ne ressemblaient a
+   aucun eclairage connu.
+
+   Deux silhouettes ENCAPUCHONNEES corrigent tout cela, et elles sont le
+   sujet le plus indulgent qui soit : une cape est un cone, un capuchon une
+   sphere, et la nuit se charge du reste. On ne verra jamais un visage —
+   c'est d'ailleurs comme cela que ces plans-la sont eclaires au cinema, a
+   contre-jour de la lame.
+
+   Trois choses font le duel, dans l'ordre :
+
+   · les lames S'ECLAIRENT elles-memes, en long et non par un rond pose au
+     milieu. Une lame de sabre est une source lineaire ;
+   · la neige en dessous vire au vert et au rouge. C'est elle qui donne
+     l'echelle et qui dit que ces lumieres sont dans le monde ;
+   · ils AVANCENT et RECULENT. Une passe d'armes est un deplacement, pas un
+     poignet qui tourne.
    ========================================================================== */
+
+/* La lueur en long. Un rectangle additif dans le plan de la lame, avec le
+   degrade doux au centre : la lame est une source LINEAIRE, et un halo rond
+   pose sur son milieu ne ressemble a rien — ni a une lame, ni a une lampe. */
+function halolame(couleur, longueur, largeur) {
+  const mat = new THREE.MeshBasicMaterial({
+    map: lueurDiffuse(), transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
+    side: THREE.DoubleSide,
+  });
+  mat.color.setRGB(couleur[0], couleur[1], couleur[2]);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(largeur, longueur), mat);
+  m.renderOrder = 2;
+  return m;
+}
+
 function lame(couleur, halos) {
   const g = new THREE.Group();
+  const LONG = 1.15, R = 0.035;
   const l = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.035, 1.15, 4, 8),
+    new THREE.CapsuleGeometry(R, LONG, 4, 8),
     new THREE.MeshBasicMaterial({ color: 0xF2FFF6 })
   );
-  l.position.y = 0.68;
+  l.position.y = LONG / 2 + 0.10;
   g.add(l);
-  const h = halo(halos, 2.3);
-  h.position.y = 0.68;
-  h.material.opacity = 0;
-  g.add(h);
+
+  /* Deux plans croises plutot qu'un seul : de trois quarts, un plan unique
+     disparait par la tranche et la lame perd sa lueur pile au moment ou
+     elle se met de profil. Deux plans perpendiculaires ne peuvent jamais
+     s'effacer ensemble. */
+  const halosLame = [];
+  for (const a of [0, Math.PI / 2]) {
+    const h = halolame(halos, LONG + 0.9, 0.72);
+    h.position.y = LONG / 2 + 0.10;
+    h.rotation.y = a;
+    g.add(h);
+    halosLame.push(h);
+  }
+  // Un rond a la pointe : c'est la ou la lumiere se concentre vraiment.
+  const pointe = halo(halos, 0.95);
+  pointe.position.y = LONG + 0.12;
+  pointe.material.opacity = 0;
+  g.add(pointe);
+
   const poignee = new THREE.Mesh(
     new THREE.CylinderGeometry(0.032, 0.028, 0.20, 6),
     new THREE.MeshStandardMaterial({ color: 0x2A2E36, roughness: 0.5, metalness: 0.6 })
   );
   g.add(poignee);
-  g.userData.halo = h;
+  g.userData.halos = [...halosLame, pointe];
   g.userData.lame = l;
   void couleur;
   return g;
 }
 
+/* Le duelliste. Origine aux pieds, comme tout ce qui se pose sur la neige.
+   La cape est un cone OUVERT en bas : ferme, il se lit comme un chapeau
+   pointu retourne, et le personnage a l'air pose sur un socle. */
+const _noirCape = () => new THREE.MeshStandardMaterial({
+  color: 0x0A0C11, roughness: 0.94, metalness: 0,
+});
+
+function duelliste() {
+  const g = new THREE.Group();
+  const tissu = _noirCape();
+
+  /* LA CAPE EST FERMEE EN BAS, et ce n'est pas cosmetique : ouverte, on
+     voyait au travers, et la flaque de lumiere posee sur la neige
+     traversait le personnage — un ourlet fluorescent vert et rouge, comme
+     une jupe de fete. Une cape se termine par un ourlet opaque. */
+  const cape = new THREE.Mesh(new THREE.ConeGeometry(0.46, 1.34, 14, 3, false), tissu);
+  cape.position.y = 0.67;
+  g.add(cape);
+
+  const buste = new THREE.Mesh(new THREE.CapsuleGeometry(0.21, 0.22, 4, 10), tissu);
+  buste.position.y = 1.36;
+  g.add(buste);
+
+  const capuche = new THREE.Mesh(new THREE.SphereGeometry(0.175, 12, 10), tissu);
+  capuche.scale.set(1, 1.18, 1.06);
+  capuche.position.set(0, 1.60, 0.02);
+  g.add(capuche);
+  /* Le creux du capuchon : une calotte plus sombre, avancee. Sans elle, la
+     tete est une boule et le personnage a l'air d'un moine en playmobil ;
+     avec elle, on lit un visage qu'on ne voit pas, ce qui est exactement le
+     but. */
+  const creux = new THREE.Mesh(
+    new THREE.SphereGeometry(0.135, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0x030405 })
+  );
+  creux.scale.set(1, 1.05, 0.55);
+  creux.position.set(0, 1.58, -0.10);
+  g.add(creux);
+
+  /* LE BRAS ARME. Une chaine courte : epaule, main. La lame se greffe dans
+     la main, donc tout ce qu'on fait a l'epaule se propage a la lame — et
+     c'est ce qui permet a une passe d'armes de partir du corps. */
+  const epaule = new THREE.Group();
+  epaule.position.set(0.20, 1.40, 0);
+  g.add(epaule);
+  const bras = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.36, 4, 8), tissu);
+  bras.position.y = -0.25;
+  epaule.add(bras);
+  const main = new THREE.Group();
+  main.position.y = -0.50;
+  epaule.add(main);
+
+  // Le bras libre, le long du corps.
+  const autre = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.40, 4, 8), tissu);
+  autre.position.set(-0.22, 1.15, 0.02);
+  autre.rotation.z = 0.14;
+  g.add(autre);
+
+  g.userData.epaule = epaule;
+  g.userData.main = main;
+  return g;
+}
+
 function duelSabres() {
   const g = new THREE.Group();
-  const vert = lame(0x8CFF7A, [0.55, 3.2, 0.75]);
-  const rouge = lame(0xFF6A5A, [3.2, 0.45, 0.35]);
-  vert.position.set(-1.15, 0.9, 0);
-  rouge.position.set(1.15, 0.9, 0);
-  rouge.rotation.z = Math.PI;
-  rouge.position.y = 2.0;
-  g.add(vert, rouge);
 
-  const eclat = halo([2.6, 2.9, 2.4], 4.0);
-  eclat.position.set(0, 1.5, 0);
+  /* Les deux camps se font face le long de X, donc de part et d'autre du
+     chemin. Le personnage regarde vers -Z : viser +X demande un quart de
+     tour negatif, viser -X un quart de tour positif. */
+  const ECART = 1.55;
+  const gauche = duelliste();
+  gauche.position.x = -ECART;
+  gauche.rotation.y = -Math.PI / 2;
+  const droite = duelliste();
+  droite.position.x = ECART;
+  droite.rotation.y = Math.PI / 2;
+  g.add(gauche, droite);
+
+  const vert = lame(0x8CFF7A, [0.30, 3.1, 0.55]);
+  const rouge = lame(0xFF6A5A, [3.1, 0.28, 0.22]);
+  /* La lame prolonge le poing vers le haut et vers l'avant : c'est la garde
+     de base, celle a partir de laquelle toutes les passes se lisent. */
+  vert.rotation.x = -0.55;
+  rouge.rotation.x = -0.55;
+  gauche.userData.main.add(vert);
+  droite.userData.main.add(rouge);
+
+  const eclat = halo([2.8, 3.0, 2.6], 3.2);
+  eclat.position.set(0, 1.55, 0);
   g.add(eclat);
+
+  /* LA NEIGE PREND LA COULEUR DES LAMES. C'est ce qui manquait le plus :
+     deux sources aussi vives, dans un sous-bois enneige, ne peuvent pas
+     laisser le sol gris. Les flaques epousent le relief, comme celles du
+     gyrophare. */
+  const solVert = flaque([0.06, 1.5, 0.20], 7, 0.8);
+  const solRouge = flaque([1.5, 0.05, 0.05], 7, 0.8);
+  solVert.position.x = -ECART;
+  solRouge.position.x = ECART;
+  g.add(solVert, solRouge);
+  g.userData.poser = (relief) => {
+    epouserLeSol(solVert, relief, 0.10);
+    epouserLeSol(solRouge, relief, 0.11);
+  };
 
   /* Le numero de la passe d'armes en cours : il sert a ne declencher le
      choc sonore QU'UNE FOIS par passe. Le pic dure cinq images environ, et
@@ -1072,9 +1234,9 @@ function duelSabres() {
   g.userData.jouer = (u, t) => {
     const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
     g.visible = vis > 0.01;
-    /* Trois passes d'armes : les lames se rapprochent, claquent, se
-       separent. Le rythme est ce qui fait « duel » plutot que « deux
-       batons qui bougent ». */
+    /* Les passes d'armes : ils se rapprochent, les lames claquent, ils se
+       separent. Le rythme est ce qui fait « duel » plutot que « deux batons
+       qui bougent ». */
     const passe = (t * 1.25) % 1;
     const choc = Math.pow(Math.max(0, 1 - Math.abs(passe - 0.5) * 5), 2);
     const numero = Math.floor(t * 1.25);
@@ -1083,13 +1245,37 @@ function duelSabres() {
       // Le son part au moment ou les lames se touchent, pas avant.
       if (vis > 0.2) g.userData.emettre?.('choc');
     }
-    vert.rotation.z = -0.55 + Math.sin(t * 3.9) * 0.42 - choc * 0.35;
-    rouge.rotation.z = Math.PI + 0.55 - Math.sin(t * 3.7 + 1.1) * 0.42 + choc * 0.35;
-    vert.position.x = -1.15 + choc * 0.55;
-    rouge.position.x = 1.15 - choc * 0.55;
-    vert.userData.halo.material.opacity = vis * 0.85;
-    rouge.userData.halo.material.opacity = vis * 0.85;
+
+    /* LE PAS. Un duelliste avance sur la passe et recule apres : c'est ce
+       deplacement du CORPS qui fait la difference entre un combat et deux
+       poignets. Il est volontairement ample — a vingt-cinq metres, dix
+       centimetres ne se voient pas. */
+    const pas = choc * 0.62;
+    gauche.position.x = -ECART + pas;
+    droite.position.x = ECART - pas;
+    // Ils se penchent dans l'echange, puis se redressent.
+    gauche.rotation.z = -choc * 0.16;
+    droite.rotation.z = choc * 0.16;
+
+    /* LE BRAS. Une garde qui monte et descend en dehors des passes, un coup
+       porte au moment du contact. Les deux vont en sens opposes : ils se
+       font face, donc ce qui monte pour l'un descend pour l'autre. */
+    const respire = Math.sin(t * 2.6) * 0.30;
+    gauche.userData.epaule.rotation.x = -0.35 + respire - choc * 0.85;
+    gauche.userData.epaule.rotation.z = 0.20 + Math.sin(t * 3.9) * 0.22;
+    droite.userData.epaule.rotation.x = -0.35 - respire - choc * 0.85;
+    droite.userData.epaule.rotation.z = 0.20 - Math.sin(t * 3.7 + 1.1) * 0.22;
+
+    const eclatLame = 0.72 + choc * 0.28;
+    for (const h of vert.userData.halos) h.material.opacity = vis * eclatLame;
+    for (const h of rouge.userData.halos) h.material.opacity = vis * eclatLame;
     eclat.material.opacity = vis * choc * 0.9;
+
+    /* Les flaques palpitent avec l'echange : au contact, tout le sous-bois
+       s'allume d'un coup. */
+    const bat = 0.55 + choc * 0.45;
+    solVert.material.opacity = vis * bat * 0.34;
+    solRouge.material.opacity = vis * bat * 0.34;
   };
   return g;
 }
@@ -1231,10 +1417,16 @@ function traineesDeFeu(longueur) {
    ========================================================================== */
 function cerfDeLumiere() {
   const g = new THREE.Group();
+  /* UN BLEU FRANC, PAS UN BLANC BLEUTE. Le patronus passe au-dessus d'une
+     clairiere enneigee : une matiere additive presque blanche, ajoutee a du
+     blanc, donne du blanc, et le cerf de lumiere disparaissait dans le sol.
+     On charge donc le bleu bien au-dela de un — `setRGB` travaille en
+     lineaire, rien n'empeche de depasser — et on vide le rouge. */
   const mat = new THREE.MeshBasicMaterial({
-    color: 0xBFE4FF, transparent: true, opacity: 0,
+    transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
   });
+  mat.color.setRGB(0.26, 0.80, 1.60);
   const pieces = [];
   const P = (r, l, x, y, z, rx, rz) => {
     const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 3, 7), mat);
@@ -1473,14 +1665,34 @@ export class Apparitions {
        s'allume, et combien de metres APRES elle s'eteint. Une fenetre
        centree sur l'objet l'allumerait au moment ou on le depasse, donc
        quand il est deja derriere la camera. */
+    /* LES ECARTS SONT DICTES PAR LE FORMAT DU TELEPHONE, ET C'EST BEAUCOUP
+       PLUS SERRE QU'IL N'Y PARAIT.
+
+       En portrait, le champ vertical vaut soixante-six degres mais le champ
+       HORIZONTAL n'en fait plus que trente-trois — seize et demi de chaque
+       cote de l'axe. Une apparition posee a dix metres du chemin sort donc
+       du cadre des que l'on n'est plus qu'a trente-cinq metres d'elle, et
+       elle en est franchement dehors au moment ou l'on passe a son niveau.
+
+       Mesure faite a la mi-fenetre, avant correction : cinq des huit
+       apparitions etaient hors champ sur l'ecran d'Antoine, alors qu'elles
+       tenaient toutes largement dans mon cadre paysage. C'est exactement le
+       genre d'erreur qu'on ne peut pas commettre deux fois — on verifie au
+       format de l'appareil, pas au sien.
+
+       Les ecarts ci-dessous gardent chaque scene sous les douze degres a la
+       distance ou elle doit se lire. Le prix a payer est qu'elles frolent le
+       chemin ; c'est sans consequence, aucune n'est au sol devant le cerf —
+       Spider-Man pend en hauteur, le patronus est un fantome, et le duel se
+       tient assez loin pour qu'on n'ait pas a le contourner. */
     const plan = [
-      { nom: 'police',   s: L * 0.09, cote: -1, ecart: 10,  avant: 42, apres: 10, faire: () => voiturePolice(), tourne: 0.6 },
-      { nom: 'spider1',  s: L * 0.21, cote:  1, ecart: 5.5, avant: 30, apres: 8,  faire: () => spiderSuspendu() },
+      { nom: 'police',   s: L * 0.09, cote: -1, ecart: 5.5, avant: 42, apres: 10, faire: () => voiturePolice(), tourne: 0.6 },
+      { nom: 'spider1',  s: L * 0.21, cote:  1, ecart: 3.0, avant: 30, apres: 8,  faire: () => spiderSuspendu() },
       { nom: 'et',       s: L * 0.33, cote:  0, ecart: 0,   avant: 34, apres: 24, faire: () => etDevantLaLune() },
-      { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 11,  avant: 40, apres: 10, faire: () => duelSabres() },
-      { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 7,   avant: 34, apres: 10, faire: () => trioSpider(), tourne: 0.4 },
-      { nom: 'patronus', s: L * 0.68, cote:  1, ecart: 8,   avant: 38, apres: 12, faire: () => patronus() },
-      { nom: 'spider2',  s: L * 0.79, cote:  1, ecart: 5.5, avant: 28, apres: 8,  faire: () => spiderBalance(9) },
+      { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 6.5, avant: 40, apres: 10, faire: () => duelSabres() },
+      { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 5.0, avant: 34, apres: 10, faire: () => trioSpider(), tourne: 0.4 },
+      { nom: 'patronus', s: L * 0.68, cote:  1, ecart: 4.5, avant: 38, apres: 12, faire: () => patronus() },
+      { nom: 'spider2',  s: L * 0.79, cote:  1, ecart: 2.5, avant: 28, apres: 8,  faire: () => spiderBalance(9) },
       { nom: 'delorean', s: L * 0.90, cote:  0, ecart: 0,   avant: 34, apres: 8,  faire: () => traineesDeFeu(26) },
     ];
 
