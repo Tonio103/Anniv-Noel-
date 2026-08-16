@@ -42,8 +42,8 @@ function squelette() {
 
   O('racine', null, V(0, 0, 0), V(0, 0.2, 0), 0, 0);
   O('corps', 'racine', V(0, AXE, 0.80), V(0, AXE - 0.06, -0.62), 3.2, 1.10);
-  O('cou', 'corps', V(0, 0.96, -0.66), V(0, 1.38, -0.90), 1.5, 0.50);
-  O('tete', 'cou', V(0, 1.40, -0.92), V(0, 1.30, -1.22), 1.5, 0.42);
+  O('cou', 'corps', V(0, 0.96, -0.66), V(0, 1.58, -0.88), 1.5, 0.50);
+  O('tete', 'cou', V(0, 1.60, -0.90), V(0, 1.50, -1.20), 1.5, 0.42);
   O('queue', 'corps', V(0, 1.02, 0.90), V(0, 0.88, 1.02), 0.7, 0.24);
 
   for (const [suf, sgn] of [['G', 1], ['D', -1]]) {
@@ -664,7 +664,7 @@ export function creerCerf(palier) {
      volume qui deborde se fait trancher net par le bord de la grille, ce qui
      laisse un trou beant dans la peau. On la prend large — le cout est
      lineaire en volume, mais une troncature est irrattrapable. */
-  const boite = new THREE.Box3(V(-0.40, -0.14, -1.38), V(0.40, 1.62, 1.02));
+  const boite = new THREE.Box3(V(-0.40, -0.14, -1.38), V(0.40, 1.92, 1.02));
   const { positions, index } = polygoniser(f, boite, pas);
   const normales = normalesParGradient(f, positions, pas);
   const retournes = orienterFaces(positions, index, normales);
@@ -769,7 +769,7 @@ export function creerCerf(palier) {
      qui s'est produit en epaississant le chanfrein et en ajoutant les joues :
      oreilles et yeux ont purement disparu de la silhouette. Toute retouche du
      volume cranien impose de reverifier ces trois blocs. */
-  const rel = (x, y, z) => V(x, y - 1.40, z + 0.92);
+  const rel = (x, y, z) => V(x, y - 1.60, z + 0.90);
 
   /* LE MUFLE ETAIT UNE BILLE — c'est lui, plus que la longueur du museau,
      qui faisait lire "chien" plutot que "cerf". Une sphere quasi entiere,
@@ -787,14 +787,14 @@ export function creerCerf(palier) {
     new THREE.MeshStandardMaterial({ color: 0x120E0A, roughness: 0.34 })
   );
   mufle.scale.set(1.12, 0.58, 0.68);
-  mufle.position.copy(rel(0, 1.286, -1.322));
+  mufle.position.copy(rel(0, 1.486, -1.302));
   tete.add(mufle);
 
   const matNarine = new THREE.MeshStandardMaterial({ color: 0x030202, roughness: 0.55 });
   for (const cote of [-1, 1]) {
     const narine = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), matNarine);
     narine.scale.set(1.3, 0.7, 1.6);
-    narine.position.copy(rel(cote * 0.026, 1.284, -1.300));
+    narine.position.copy(rel(cote * 0.026, 1.484, -1.280));
     narine.rotation.y = cote * 0.5;
     tete.add(narine);
   }
@@ -822,7 +822,7 @@ export function creerCerf(palier) {
   const oreilles = [];
   for (const cote of [-1, 1]) {
     const o = new THREE.Group();
-    o.position.copy(rel(cote * 0.138, 1.462, -0.895));
+    o.position.copy(rel(cote * 0.138, 1.662, -0.875));
     o.rotation.z = cote * 0.88;
     o.rotation.x = -0.34;
     o.userData = { cote, reposZ: cote * 0.88, reposX: -0.34 };
@@ -879,7 +879,7 @@ export function creerCerf(palier) {
   const yeux = [];
   for (const cote of [-1, 1]) {
     const y = new THREE.Mesh(new THREE.SphereGeometry(0.033, 12, 10), matOeil);
-    y.position.copy(rel(cote * 0.118, 1.414, -1.038));
+    y.position.copy(rel(cote * 0.118, 1.614, -1.018));
     tete.add(y);
     yeux.push(y);
 
@@ -894,7 +894,7 @@ export function creerCerf(palier) {
   }
 
   const ramure = new THREE.Mesh(boisGeo(rand), mat);
-  ramure.position.copy(rel(0, 1.478, -0.915));
+  ramure.position.copy(rel(0, 1.678, -0.895));
   ramure.castShadow = palier.ombres;
   ramure.receiveShadow = palier.ombres;
   tete.add(ramure);
@@ -917,7 +917,7 @@ export function creerCerf(palier) {
 
   /* --- 9. buee des naseaux ----------------------------------------------- */
   const souffle = creerSouffle();
-  souffle.position.copy(rel(0, 1.292, -1.345));
+  souffle.position.copy(rel(0, 1.492, -1.325));
   tete.add(souffle);
 
   /* --- 10. les membres, tels que le rig les attend ------------------------ */

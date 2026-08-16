@@ -56,18 +56,24 @@ const r = await page.evaluate(() => {
       const ecart = u.clone().sub(t.clone().multiplyScalar(k));
       // Repasser l'ecart du monde vers le repere du corps
       const inv = new THREE.Matrix4().copy(cerf.racine.matrixWorld).invert();
+      /* ATTENTION : `transformDirection` NORMALISE. Ce qu'on lit ici est
+         donc une DIRECTION, pas une amplitude — d'ou les valeurs proches de
+         plus ou moins un. Le signe, lui, reste valable, et c'est tout ce que
+         cette mesure a le droit de conclure. Je l'avais oublie une premiere
+         fois et j'en avais tire une certitude que les chiffres ne portaient
+         pas ; Antoine a eu raison de me reprendre. */
       const e2 = ecart.clone().transformDirection(inv);
       out[mb.nom] = +e2.z.toFixed(4);
     }
     return { etiquette, ecartsZ: out };
   };
 
-  const avant = releve('sens actuel (1 partout)');
+  const avant = releve('sens tel qu\'il est dans le code');
 
-  // On inverse le sens des posterieurs et on remesure.
-  for (const mb of cerf.membres) mb.sens = mb.avant ? 1 : -1;
+  // Puis avec le meme sens partout, pour comparaison.
+  for (const mb of cerf.membres) mb.sens = 1;
   for (let i = 0; i < 40; i++) s.simuler(1 / 60);
-  const apres = releve('posterieurs inverses');
+  const apres = releve('le meme sens pour les quatre');
 
   return { avant, apres };
 });

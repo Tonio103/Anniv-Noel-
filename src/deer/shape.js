@@ -308,16 +308,16 @@ export function anatomie() {
      aussi epais que la tete est longue, et il s'evase vers le poitrail sans
      qu'on puisse dire ou il commence. La version precedente en faisait un
      tube mince — la tete semblait portee au bout d'une tige. */
-  C(0, 0.98, -0.62, 0, 1.18, -0.78, 0.212, 0.166, { sy: 1.14, groupe: 'cou0' });
-  C(0, 1.18, -0.78, 0, 1.38, -0.89, 0.166, 0.124, { sy: 1.08, groupe: 'cou1' });
+  C(0, 0.98, -0.62, 0, 1.26, -0.74, 0.212, 0.166, { sy: 1.14, groupe: 'cou0' });
+  C(0, 1.26, -0.74, 0, 1.58, -0.88, 0.166, 0.124, { sy: 1.08, groupe: 'cou1' });
 
   /* LA CRINIERE. Sous la gorge pend un manchon de poils longs, plus bas et
      plus large que le cou lui-meme. C'est le signe distinctif du male en
      hiver, et c'est aussi ce qui donne a l'encolure sa masse vue de profil.
      Deux capsules decalees vers le bas suffisent : la fusion adoucie les
      soude au cou sans qu'aucune jonction n'apparaisse. */
-  C(0, 0.82, -0.58, 0, 0.99, -0.80, 0.172, 0.142, { sx: 0.80, sy: 1.22, groupe: 'cou0' });
-  C(0, 0.99, -0.80, 0, 1.14, -0.92, 0.142, 0.094, { sx: 0.80, sy: 1.14, groupe: 'cou1' });
+  C(0, 0.82, -0.58, 0, 1.04, -0.74, 0.172, 0.142, { sx: 0.80, sy: 1.22, groupe: 'cou0' });
+  C(0, 1.04, -0.74, 0, 1.30, -0.83, 0.142, 0.094, { sx: 0.80, sy: 1.14, groupe: 'cou1' });
 
   /* --- tete : front large, chanfrein epais, museau ALLONGE ----------------
      Un cerf n'a pas un museau pointu — la version d'avant celle-ci s'effilait
@@ -332,15 +332,15 @@ export function anatomie() {
      longueur totale a trente-neuf centimetres (+34 %), avec un rayon qui ne
      descend qu'a six centimetres a la pointe : le nez reste franc, jamais un
      bec, mais le visage retrouve la ligne longue et noble d'un vrai cerf. */
-  C(0, 1.41, -0.90, 0, 1.375, -1.02, 0.132, 0.112, { groupe: 'tete' });
-  C(0, 1.375, -1.02, 0, 1.335, -1.16, 0.112, 0.088, { sy: 1.06, groupe: 'tete' });
-  C(0, 1.335, -1.16, 0, 1.300, -1.29, 0.088, 0.062, { sy: 1.04, groupe: 'tete' });
+  C(0, 1.61, -0.88, 0, 1.575, -1.00, 0.132, 0.112, { groupe: 'tete' });
+  C(0, 1.575, -1.00, 0, 1.535, -1.14, 0.112, 0.088, { sy: 1.06, groupe: 'tete' });
+  C(0, 1.535, -1.14, 0, 1.500, -1.27, 0.088, 0.062, { sy: 1.04, groupe: 'tete' });
 
   /* LES JOUES. Sans elles la tete est un cone lisse et le raccord au cou se
      lit comme un emmanchement. Un cerf a une masse de machoire nette sous
      l'oeil, qui elargit la tete a l'arriere et lui donne son coin. */
-  C(0.055, 1.34, -0.94, 0.052, 1.30, -1.06, 0.082, 0.062, { groupe: 'tete' });
-  C(-0.055, 1.34, -0.94, -0.052, 1.30, -1.06, 0.082, 0.062, { groupe: 'tete' });
+  C(0.055, 1.54, -0.92, 0.052, 1.50, -1.04, 0.082, 0.062, { groupe: 'tete' });
+  C(-0.055, 1.54, -0.92, -0.052, 1.50, -1.04, 0.082, 0.062, { groupe: 'tete' });
 
   /* --- membres anterieurs ------------------------------------------------- */
   for (const s of [1, -1]) {
