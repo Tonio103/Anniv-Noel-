@@ -23,8 +23,17 @@ console.log('mauvais code -> erreur affichee :', await page.evaluate(()=>documen
 await page.reload({waitUntil:'load'});
 await page.fill('#pw', code);
 await page.click('#go');
-await page.waitForFunction('window.__scene!==undefined || document.getElementById("gl")!==null', {timeout:180000});
-await page.waitForFunction('window.__scene!==undefined', {timeout:180000});
+/* `waitForFunction(fn, options)` a deux arguments se lit comme
+   `waitForFunction(fn, arg, options)` avec `arg` omis : Playwright range
+   alors {timeout:180000} dans `arg`, pas dans `options`, et retombe sur le
+   delai par defaut de trente secondes. En rendu logiciel, dechiffrer le
+   coffre (PBKDF2 a un million d'iterations) puis compiler tous les
+   nuanceurs prend regulierement plus de trente secondes a lui seul — la
+   verification echouait donc a coup sur, alors que la page se chargeait
+   bel et bien, simplement plus lentement que le delai qu'on croyait lui
+   avoir donne. Il faut le troisieme argument explicite. */
+await page.waitForFunction('window.__scene!==undefined || document.getElementById("gl")!==null', undefined, {timeout:180000});
+await page.waitForFunction('window.__scene!==undefined', undefined, {timeout:180000});
 const info = await page.evaluate(()=>({
   titre: document.title,
   palier: window.__scene.palier.nom,

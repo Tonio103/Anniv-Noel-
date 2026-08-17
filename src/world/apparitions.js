@@ -177,133 +177,6 @@ function faisceau(couleur, longueur, ouverture) {
   return m;
 }
 
-/* ==========================================================================
-   1. LA VOITURE DE POLICE
-
-   Ce qui fait « police », ce n'est pas la voiture — a vingt metres, de nuit,
-   entre des troncs, on n'en voit qu'une masse sombre. C'est le GYROPHARE :
-   deux halos qui alternent, bleu puis rouge, et qui battent la neige autour
-   d'eux. On peut supprimer la carrosserie entiere sans que personne ne s'en
-   apercoive ; on ne peut pas toucher au rythme du gyrophare.
-   ========================================================================== */
-function voiturePolice() {
-  const g = new THREE.Group();
-
-  const caisse = boite(1.85, 0.62, 4.25, 0x1B2432);
-  caisse.position.y = 0.72;
-  g.add(caisse);
-  // Portiere blanche : le bicolore se lit meme en silhouette.
-  const flanc = boite(1.88, 0.34, 2.10, 0xD8DEE6);
-  flanc.position.set(0, 0.66, 0.15);
-  g.add(flanc);
-
-  const habitacle = boite(1.62, 0.56, 2.05, 0x0E141C, { roughness: 0.35 });
-  habitacle.position.set(0, 1.28, -0.15);
-  g.add(habitacle);
-
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const roue = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.35, 0.35, 0.24, 10),
-      new THREE.MeshStandardMaterial({ color: 0x0A0C10, roughness: 0.95 })
-    );
-    roue.rotation.z = Math.PI / 2;
-    roue.position.set(sx * 0.92, 0.35, sz * 1.42);
-    g.add(roue);
-  }
-
-  // La rampe, et les deux halos qui font tout le travail.
-  const rampe = boite(1.30, 0.16, 0.34, 0x14181F);
-  rampe.position.set(0, 1.64, -0.15);
-  g.add(rampe);
-
-  const bleu = halo([0.35, 0.85, 3.4], 3.6);
-  bleu.position.set(-0.42, 1.70, -0.15);
-  const rouge = halo([3.4, 0.42, 0.30], 3.6);
-  rouge.position.set(0.42, 1.70, -0.15);
-  g.add(bleu, rouge);
-
-  // Deux phares vers l'avant, tres faibles : ils posent la voiture au sol.
-  for (const sx of [-1, 1]) {
-    const p = halo([2.2, 2.0, 1.5], 1.5, 0.5);
-    p.position.set(sx * 0.62, 0.78, -2.15);
-    g.add(p);
-  }
-
-  /* CE QUI MANQUAIT VRAIMENT : LA NEIGE NE REAGISSAIT PAS.
-
-     Deux halos qui clignotent dans le noir, c'est une guirlande. Ce qui
-     fait « voiture de police », c'est que TOUT AUTOUR bat au meme rythme —
-     le sol vire au bleu puis au rouge, et deux rayons balaient les troncs.
-     C'est la reaction du decor qui donne l'echelle et la puissance, jamais
-     la lampe elle-meme. */
-  /* DES COULEURS TRES SATUREES, ET C'EST UNE OBLIGATION, PAS UN GOUT.
-
-     Une lumiere additive posee sur de la neige — donc sur du presque blanc
-     — remonte les TROIS canaux, et le resultat vire au blanc lavande : on
-     voit que ca s'eclaire, on ne voit pas de quelle couleur. Verifie en
-     vue de dessus, ou la flaque est parfaitement lisible mais pale. Pour
-     qu'une couleur survive, il faut lui retirer presque tout ce qui n'est
-     pas elle. */
-  const solBleu = flaque([0.04, 0.26, 2.3], 15, 1.7);
-  const solRouge = flaque([2.3, 0.05, 0.04], 15, 1.7);
-  solBleu.position.z = 0.6;
-  solRouge.position.z = 0.6;
-  g.add(solBleu, solRouge);
-  /* Les deux flaques doivent suivre le devers, sans quoi elles s'enterrent
-     — voir `epouserLeSol`, qui raconte precisement ce qui se passait. */
-  g.userData.poser = (relief) => {
-    epouserLeSol(solBleu, relief, 0.10);
-    epouserLeSol(solRouge, relief, 0.11);
-  };
-
-  /* Les deux rayons tournent en sens INVERSE l'un de l'autre. Sur une vraie
-     rampe ils tournent dans le meme sens, mais alors ils se suivent et l'on
-     ne voit jamais qu'un balayage ; opposes, ils se croisent devant la
-     voiture a chaque tour, et c'est ce croisement qui accroche l'oeil. */
-  const rayonBleu = faisceau([0.24, 0.60, 2.3], 21, 2.8);
-  const rayonRouge = faisceau([2.3, 0.28, 0.22], 21, 2.8);
-  for (const r of [rayonBleu, rayonRouge]) {
-    r.position.set(0, 1.70, -0.15);
-    /* L'ordre compte : on veut d'abord tourner (le lacet), puis pencher
-       DANS le repere deja tourne, comme une tourelle. Dans l'ordre par
-       defaut, l'inclinaison se fait autour d'un axe fixe et le faisceau
-       plonge dans le sol d'un cote, part vers le ciel de l'autre. */
-    r.rotation.order = 'YXZ';
-    g.add(r);
-  }
-
-  g.userData.jouer = (u, t) => {
-    // Entree et sortie en fondu : rien n'apparait ni ne disparait d'un coup.
-    const vis = smoothstep(0, 0.12, u) * smoothstep(1, 0.86, u);
-    /* L'ALTERNANCE, pas le clignotement. Un gyrophare de police ne fait pas
-       « allume / eteint » : chaque cote pulse deux fois vite, puis passe la
-       main a l'autre. C'est ce rythme-la qu'on reconnait de loin. */
-    const cy = (t * 1.6) % 1;
-    const cote = cy < 0.5;
-    const bat = Math.pow(Math.abs(Math.sin(t * 19)), 0.6);
-    const fB = cote ? bat : 0.06;
-    const fR = cote ? 0.06 : bat;
-    bleu.material.opacity = vis * fB;
-    rouge.material.opacity = vis * fR;
-
-    /* La flaque suit le battement mais garde toujours un fond : la neige
-       eclairee une fois reste un peu chaude a l'oeil, et un sol qui
-       s'eteint completement entre deux eclats scintille desagreablement. */
-    solBleu.material.opacity = vis * (0.10 + fB * 0.42);
-    solRouge.material.opacity = vis * (0.10 + fR * 0.42);
-
-    rayonBleu.rotation.y = t * 2.4;
-    rayonRouge.rotation.y = -t * 2.4 + Math.PI;
-    /* Un rayon qui pointe vers la camera eblouit et remplit l'ecran d'une
-       tache plate ; on le laisse donc respirer un peu de haut en bas, ce qui
-       casse cette symetrie et donne du relief au balayage. */
-    rayonBleu.rotation.x = Math.sin(t * 0.9) * 0.09 - 0.06;
-    rayonRouge.rotation.x = Math.sin(t * 0.9 + 2.1) * 0.09 - 0.06;
-    rayonBleu.material.opacity = vis * (0.16 + fB * 0.30);
-    rayonRouge.material.opacity = vis * (0.16 + fR * 0.30);
-  };
-  return g;
-}
 
 /* ==========================================================================
    2. SPIDER-MAN
@@ -356,6 +229,77 @@ function tendreFil(m, a, b) {
   m.quaternion.setFromUnitVectors(_AXE_Y, _delta.divideScalar(l));
 }
 
+/* LA BRANCHE D'ACCROCHE.
+
+   Antoine : « le premier Spider-Man pend dans le vide ». Il avait raison :
+   le degagement qui protege la pose (5,5 m de rayon, voir `planApparitions`)
+   retire aussi tout arbre susceptible d'expliquer a quoi le fil est
+   attache. Au-dessus des chevilles, il ne restait donc rien — un fil qui
+   monte tout droit et s'arrete en l'air, sans que rien n'explique pourquoi
+   il ne tombe pas.
+
+   La scene porte donc sa propre branche : un moignon de conifere qui entre
+   par le cote et rejoint exactement la pointe du fil. Elle est ajoutee au
+   PIVOT, comme le fil, jamais au groupe : les deux doivent rester
+   rigidement solidaires quand l'ensemble se balance, sinon l'accroche se
+   desolidarise a chaque oscillation — ce qui se verrait plus encore que
+   l'absence de branche. */
+function brancheAccroche() {
+  /* PREMIER ESSAI, INSUFFISANT : un simple baton tendu vers une racine
+     hors champ. Photographie a l'endroit exact du passage, il se lisait
+     comme un fil de plus, pas comme du bois — un trait fin qui disparait
+     dans le noir n'evoque rien de vegetal, meme raccorde a une pointe
+     juste. Ce qui manquait n'etait pas la longueur, c'etait le FEUILLAGE :
+     ce sont les aiguilles, pas le bois, qui font reconnaitre un conifere en
+     silhouette. On tient donc la branche COURTE — a peine plus d'un metre,
+     elle n'a pas besoin d'atteindre un tronc qu'on ne voit jamais — et on
+     l'entoure d'une touffe d'aiguilles qui capte la lumiere de la lune. */
+  const g = new THREE.Group();
+  const matBois = new THREE.MeshStandardMaterial({ color: 0x2B2119, roughness: 0.95 });
+  const matAiguilles = new THREE.MeshStandardMaterial({
+    color: 0x3D6354, roughness: 0.92, side: THREE.DoubleSide,
+  });
+  const matNeige = new THREE.MeshStandardMaterial({ color: 0xE7F0F9, roughness: 0.82 });
+
+  // La pointe doit tomber EXACTEMENT sur le sommet du fil (chevilles 3,55 +
+  // longueur du fil 3,4 = 6,95) ; la racine, elle, reste toute proche.
+  const pointe = new THREE.Vector3(0, 6.95, 0);
+  const racine = new THREE.Vector3(0.90, 7.55, -0.55);
+
+  const l = racine.distanceTo(pointe);
+  const bois = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.055, l, 6), matBois);
+  bois.position.copy(racine).add(pointe).multiplyScalar(0.5);
+  bois.quaternion.setFromUnitVectors(
+    _AXE_Y, new THREE.Vector3().subVectors(pointe, racine).divideScalar(l));
+  g.add(bois);
+
+  /* Une demi-douzaine d'aiguilles courtes, en cone, qui rayonnent depuis la
+     racine : c'est leur eventail irregulier — jamais leur nombre exact —
+     qui fait lire "rameau de sapin" plutot que "baton". */
+  const touffe = (azimut, elev, longueur, rayon) => {
+    const dir = new THREE.Vector3(
+      Math.cos(azimut) * Math.cos(elev), Math.sin(elev), Math.sin(azimut) * Math.cos(elev));
+    const m = new THREE.Mesh(new THREE.ConeGeometry(rayon, longueur, 5), matAiguilles);
+    m.position.copy(racine).addScaledVector(dir, longueur * 0.5);
+    m.quaternion.setFromUnitVectors(_AXE_Y, dir);
+    return m;
+  };
+  g.add(touffe(0.3, 0.55, 0.42, 0.11));
+  g.add(touffe(1.3, 0.15, 0.50, 0.13));
+  g.add(touffe(2.6, 0.65, 0.34, 0.10));
+  g.add(touffe(3.6, -0.10, 0.46, 0.12));
+  g.add(touffe(4.5, 0.40, 0.30, 0.09));
+  g.add(touffe(5.6, 0.75, 0.38, 0.10));
+
+  // Un peu de neige accumulee au coeur de la touffe.
+  const neige = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5), matNeige);
+  neige.scale.set(1.3, 0.55, 1.15);
+  neige.position.copy(racine).addScaledVector(_AXE_Y, 0.18);
+  g.add(neige);
+
+  return g;
+}
+
 /* ==========================================================================
    SPIDER-MAN, PREMIER PASSAGE : SUSPENDU LA TETE EN BAS
 
@@ -391,6 +335,7 @@ function spiderSuspendu(palier) {
   const fil = filDeToile(3.4);
   fil.position.y = CHEVILLES + 1.70;
   pivot.add(fil);
+  pivot.add(brancheAccroche());
   g.add(pivot);
 
   const os = perso.userData.os;
@@ -1418,9 +1363,7 @@ function jurassique(chemin, relief, palier) {
   const oZ = new Float32Array(N).map(() => (Math.random() - 0.5) * 34);
   const oH = new Float32Array(N).map(() => 5 + Math.random() * 9);
 
-  /* La voie : loin du chemin et DERRIERE les arbres. Vingt-deux metres,
-     c'est au-dela de la lisiere degagee — donc il y a forcement du tronc
-     entre lui et nous, ce qui est tout l'effet recherche. */
+  /* La voie : loin du chemin et DERRIERE les arbres. */
   /* OU LE PLACER, ET C'EST TOUTE LA DIFFICULTE DE CETTE SCENE.
 
      Premiere version : vingt-deux metres de cote, marchant a la hauteur du
@@ -1429,17 +1372,60 @@ function jurassique(chemin, relief, palier) {
      que seize et demi de chaque cote. On ne le voyait jamais.
 
      La reponse n'est pas de le rapprocher du chemin — il doit rester
-     derriere des arbres — mais de le tenir DEVANT. A treize metres de cote
-     et cinquante a soixante-dix metres d'avance, il tombe a douze degres de
-     l'axe : dans le cadre, loin, a demi mange par le brouillard et par les
+     derriere des arbres — mais de le tenir DEVANT. A treize metres de cote,
+     il tombe a douze degres de l'axe des qu'il precede le cerf de quelques
+     metres : dans le cadre, loin, a demi mange par le brouillard et par les
      troncs. C'est exactement le plan qu'on veut.
 
      A treize metres, la marge du couloir garantit qu'il y a de grands
      sapins entre lui et nous : elle vaut deux metres soixante plus quatre
      dixiemes de la hauteur de l'arbre, soit pres de dix metres pour un
-     sujet de quinze. */
+     sujet de quinze.
+
+     SECONDE ERREUR, ET CELLE-LA ETAIT GRAVE : DEPART ET ARRIVEE COURAIENT
+     DEVANT LA CAMERA, PAS DEVANT LE CERF.
+
+     Avec `avant = 48` et `apres = 26`, la fenetre s'ouvre a `ancre - 48` et
+     se ferme a `ancre + 26` : c'est la LE SEUL INTERVALLE ou le cerf — donc
+     a peu pres la camera — peut se trouver pendant toute la scene. Or DEPART
+     valait 26 et ARRIVEE 78 : la bete demarrait DEJA a la limite haute de
+     cet intervalle et finissait cinquante-deux metres plus loin, hors de
+     portee sur toute la duree. Mesure faite avec `build/apparitions.mjs`,
+     qui balaie desormais la fenetre entiere d'une scene mobile au lieu d'un
+     seul instant : la bete ne repassait JAMAIS a moins de cent trente metres
+     de la camera. Elle courait devant une camera qui ne pouvait pas la
+     suivre — invisible du debut a la fin, et rien dans un simple coup d'oeil
+     ne le laissait voir, puisqu'une capture isolee tombait toujours, par
+     chance, sur un instant ou elle etait encore loin devant.
+
+     La marche visible se joue entre u=0,30 et u=0,86 (voir plus bas) ; sur
+     ce segment le cerf va de `ancre-25,8` a `ancre+15,6`.
+
+     TROISIEME ERREUR, MESUREE CETTE FOIS AVEC LA VRAIE CAMERA DE MARCHE, PAS
+     UNE RECONSTITUTION.
+
+     Le calage precedent (DEPART=-19, ARRIVEE=23) collait de trop pres a la
+     progression du cerf : la bete finissait par rester quasiment FIXE en
+     fin de fenetre (k sature a 1 des que u depasse 0,86) pendant que le
+     cerf, lui, continue d'avancer jusqu'a `ancre+apres` puis au-dela. Le
+     cerf la RATTRAPE, puis la depasse — et une bete treize metres sur le
+     cote et desormais legerement EN ARRIERE tombe evidemment hors du champ
+     d'une camera qui regarde devant. La marche complete simulee image par
+     image (`build/_tmp_trex_real.mjs`, jamais un instantane reconstruit) l'a
+     montre sans ambiguite : l'ecart ecran partait de -0,68 a la sortie de la
+     halte voisine pour atteindre -20 quelques secondes plus tard.
+
+     La regle qui en decoule : ARRIVEE doit rester en avance sur le cerf
+     MEME apres la fin nominale de la fenetre, avec une marge confortable, et
+     DEPART doit deja placer la bete en avance des le debut de la marche. On
+     vise une avance qui ne descend jamais sous vingt-cinq metres sur tout le
+     segment utile, ce qui, a treize metres de voie, tient l'angle sous
+     vingt-huit degres — au-dela du champ theorique de seize degres et demi,
+     mais la moitie de cette marge est mangee par le brouillard et les
+     troncs, ce qui est justement l'effet voulu : on l'aperçoit, on ne le
+     fixe pas. */
   const VOIE = 13, COTE = -1;
-  const DEPART = 26, ARRIVEE = 78;
+  const DEPART = 8, ARRIVEE = 58;
   const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
 
   let dernierPas = -1, rugi = false;

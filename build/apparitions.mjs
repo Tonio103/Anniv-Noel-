@@ -64,7 +64,62 @@ for (const a of liste) {
        reproductible. Sans reproductibilite, aucun reglage de cadrage ne veut
        rien dire. */
     const T0 = 120;
-    const cible = ap.s - ap.avant * 0.45;
+    /* LES SCENES QUI SUIVENT LE CHEMIN NE SE TESTENT PAS AU MEME POINT.
+
+       « cible = s - avant*0.45 » suppose une scene POSEE une fois pour
+       toutes, dont on regarde le milieu de fenetre. Une voiture de police ou
+       un theropode, eux, ont leur PROPRE horaire a l'interieur de cette
+       fenetre — `coursePoursuite` et `jurassique` placent le vehicule a une
+       abscisse qui depend de `k`, une progression seconde, non lineaire par
+       rapport a `u`. Au milieu de fenetre choisi ici, `k` peut tres bien
+       valoir un instant ou la voiture est encore a trente metres DERRIERE
+       le cerf — donc derriere la camera, qui regarde devant. Le test
+       donnait alors des coordonnees ecran absurdes, non pas parce que la
+       scene est fausse, mais parce que l'instant choisi ne l'est pas.
+
+       Pour ces scenes-la, on BALAYE toute la fenetre et on retient l'instant
+       ou l'objet est le plus proche de la camera : c'est necessairement la
+       ou le passage doit se voir, quelle que soit la loi de mouvement
+       interne. */
+    const o0 = s.apparitions.scenes.find((x) => x.nom === ap.nom).objet;
+    const mobile = !!o0.userData.suitChemin;
+    const bornage = mobile
+      ? Array.from({ length: 25 }, (_, i) => -ap.avant + (ap.avant + ap.apres) * (i / 24))
+      : [-ap.avant * 0.45];
+
+    let meilleur = null;
+    for (const decalage of bornage) {
+      const cible = ap.s + decalage;
+      s.cerf.s = cible;
+      s.cerf.placer(cible);
+      s.drone.poser(s.cerf, T0);
+      for (let i = 0; i < (mobile ? 20 : 90); i++) {
+        s.cerf.placer(cible);
+        s.drone.maj(1 / 60, T0 + i / 60, s.cerf);
+        s.relief.maj(s.camera, s.ciel.actuel);
+        s.foret.maj(s.camera);
+        s.apparitions.maj(1 / 60, T0 + i / 60, cible, s.camera);
+      }
+      const o = s.apparitions.scenes.find((x) => x.nom === ap.nom).objet;
+      s.camera.updateMatrixWorld();
+      const ancrage = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+      const d = s.camera.position.distanceTo(ancrage);
+      /* UN ECHANTILLON INVISIBLE NE DOIT JAMAIS GAGNER FACE A UN VISIBLE,
+         MEME PLUS LOIN — sans quoi le tout premier essai, tire au hasard des
+         trois temps de la scene, peut s'installer en "meilleur" et ne plus
+         jamais ceder la place a un instant ou l'on voit vraiment quelque
+         chose. On ne compare les distances qu'entre echantillons de meme
+         visibilite ; un visible bat toujours un invisible. */
+      const mieux = !meilleur
+        || (o.visible && !meilleur.visible)
+        || (o.visible === meilleur.visible && d < meilleur.d);
+      if (mieux) meilleur = { cible, d, visible: o.visible };
+      if (!mobile) break;
+    }
+    s.boucle.pause();
+
+    // On refait le meilleur instant pour la photo et la mesure finales.
+    const cible = meilleur.cible;
     s.cerf.s = cible;
     s.cerf.placer(cible);
     s.drone.poser(s.cerf, T0);
@@ -75,7 +130,6 @@ for (const a of liste) {
       s.foret.maj(s.camera);
       s.apparitions.maj(1 / 60, T0 + i / 60, cible, s.camera);
     }
-    s.boucle.pause();
 
     // Est-elle effectivement dans le champ de la camera ?
     const o = s.apparitions.scenes.find((x) => x.nom === ap.nom).objet;
@@ -98,6 +152,7 @@ for (const a of liste) {
     const ancrage = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
     const p = ancrage.project(s.camera);
     return {
+      mobile,
       visible: o.visible,
       dansLeChamp: o.visible ? fr.intersectsBox(b) : false,
       distance: +s.camera.position.distanceTo(centre).toFixed(1),
@@ -109,6 +164,7 @@ for (const a of liste) {
   const ok = etat.visible && etat.dansLeChamp;
   const centre = Math.abs(etat.x) < 0.75 && Math.abs(etat.y) < 0.85;
   const marque = !ok ? 'KO ' : centre ? 'OK ' : 'BORD';
-  console.log(`  ${marque.padEnd(4)} ${a.nom.padEnd(9)} a ${String(etat.distance).padStart(5)} m · centre a l'ecran x=${String(etat.x).padStart(5)} y=${String(etat.y).padStart(5)}`);
+  const suffixe = etat.mobile ? '  (mobile : meilleur instant du passage)' : '';
+  console.log(`  ${marque.padEnd(4)} ${a.nom.padEnd(9)} a ${String(etat.distance).padStart(5)} m · centre a l'ecran x=${String(etat.x).padStart(5)} y=${String(etat.y).padStart(5)}${suffixe}`);
 }
 await nav.close();
