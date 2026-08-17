@@ -27,6 +27,9 @@
 import * as THREE from 'three';
 import { lueurDiffuse, grainRond, tacheDouce } from '../core/dot.js';
 import { smoothstep, clamp } from '../core/noise.js';
+import { REPERES, piste, appliquerPose, regarderVers } from './humanoide.js';
+import { creerSpider, POSES } from './spider.js';
+import { creerDuelliste, GARDES } from './encapuchonne.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
    porte a distance, bien plus que la geometrie. */
@@ -302,384 +305,21 @@ function voiturePolice() {
 /* ==========================================================================
    2. SPIDER-MAN
 
-   Il apparait DEUX fois — c'est le seul a qui ce fichier accorde ce
+   Il apparait TROIS fois — c'est le seul a qui ce fichier accorde ce
    privilege, et c'est assume : Antoine dit qu'il l'aime beaucoup.
 
-   La premiere fois suspendu la tete en bas au bout de son fil, la seconde en
-   plein balancement au-dessus du chemin. Les deux poses sont celles qu'on
-   reconnait a la silhouette seule, sans voir un seul detail du costume — ce
-   qui tombe bien, puisque de nuit et a dix metres on n'en verra aucun.
+   ANTOINE : « on dirait un personnage Roblox ». C'etait vrai, et le defaut
+   etait structurel : le personnage etait fait de capsules posees cote a cote,
+   et la ou deux tubes se rencontrent, on voit deux tubes qui se rencontrent.
+   Il vient desormais de `humanoide.js` — une seule peau continue extraite
+   d'un champ implicite, avec de vrais deltoides, un vrai resserrement a la
+   taille, de vrais mollets — et de `spider.js`, qui lui pose son costume, sa
+   toile dessinee dans le nuanceur et ses yeux.
 
-   Le costume tient a trois choses : le ROUGE du torse et de la tete, le BLEU
-   des jambes et des avant-bras, et les DEUX YEUX blancs cernes de noir. Rien
-   d'autre ne survit a la distance, surtout pas la toile dessinee.
+   Ce qui reste ici, c'est la MISE EN SCENE : ou il est, ce qu'il fait, et
+   dans quel ordre. Chaque apparition est ecrite comme une petite sequence de
+   poses cles datees, pas comme une pile de sinusoides reglees a la main.
    ========================================================================== */
-/* --- LE TISSU ------------------------------------------------------------
-
-   La toile du costume. On la DESSINE, on ne la suggere pas : deux rayons
-   verticaux et des fils transversaux qui pendent entre eux, exactement
-   comme une vraie toile d'araignee — des lignes droites d'un bord a l'autre
-   donneraient un quadrillage de maillot de foot.
-
-   Le motif est volontairement gros. A vingt metres et de nuit, un reseau
-   fin disparait completement ; un reseau large laisse voir quelques traits
-   sombres qui cassent l'aplat de couleur, et c'est tout ce qu'on demande.
-   Le detail exact ne se lira jamais — ce qui se lit, c'est qu'il y a
-   QUELQUE CHOSE dessus, et que ce n'est pas un pyjama uni.
-
-   Les textures sont fabriquees une seule fois et partagees par les cinq
-   Spider-Man de la balade : cinq canevas de deux cent cinquante-six pixels
-   pour un motif identique seraient du gaspillage pur. */
-const _tissus = new Map();
-function tissuCostume(fond, trait) {
-  const cle = fond + '|' + trait;
-  const dejaLa = _tissus.get(cle);
-  if (dejaLa) return dejaLa;
-
-  const n = 256;
-  const cv = document.createElement('canvas');
-  cv.width = n; cv.height = n;
-  const c = cv.getContext('2d');
-  c.fillStyle = fond;
-  c.fillRect(0, 0, n, n);
-
-  /* LE TRAIT ETAIT DIX FOIS TROP FIN, ET LE CALCUL LE DIT.
-
-     Sept mailles de deux virgule six pixels sur deux cent cinquante-six :
-     enroule autour d'un torse de vingt-trois centimetres de tour, cela fait
-     un fil de deux millimetres. A six metres — la distance la plus courte a
-     laquelle on verra jamais ce personnage — un tel fil couvre un dixieme
-     de pixel a l'ecran. Il ne pouvait donc RIEN se voir, et le costume
-     sortait uniformement rouge.
-
-     On passe a cinq mailles et a des traits de six a sept pixels, soit des
-     fils de cinq millimetres : visibles de pres, encore lisibles a dix
-     metres, fondus en un grain sombre au-dela. C'est le bon compromis pour
-     un personnage qu'on croise de cinq a vingt-cinq metres. */
-  const M = 5, pas = n / M;
-  c.strokeStyle = trait;
-  c.lineCap = 'round';
-
-  /* Les RAYONS : les fils porteurs. On les fait legerement ondulants —
-     une toile tendue a la regle a l'air d'un grillage. */
-  c.lineWidth = 7;
-  for (let i = 0; i <= M; i++) {
-    const x = i * pas;
-    c.beginPath();
-    c.moveTo(x, 0);
-    for (let y = 10; y <= n; y += 10) c.lineTo(x + Math.sin(y * 0.055 + i * 1.7) * 2.6, y);
-    c.stroke();
-  }
-
-  /* Les FILS TRANSVERSAUX : ils PENDENT entre deux rayons. C'est cette
-     courbure, et elle seule, qui fait lire « toile » plutot que « filet ». */
-  c.lineWidth = 5.5;
-  for (let j = 0; j <= M; j++) {
-    const y = j * pas;
-    for (let i = 0; i < M; i++) {
-      const x = i * pas;
-      c.beginPath();
-      c.moveTo(x, y);
-      c.quadraticCurveTo(x + pas * 0.5, y + pas * 0.30, x + pas, y);
-      c.stroke();
-    }
-  }
-
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 4;
-  _tissus.set(cle, t);
-  return t;
-}
-
-/* L'ARAIGNEE DE POITRINE. Quatre paires de pattes recourbees autour d'un
-   corps ovale : c'est un dessin de trois lignes, mais c'est le seul detail
-   du costume qui soit une FORME et non une matiere, donc le seul qui puisse
-   encore se reconnaitre quand la toile, elle, s'est deja fondue en gris. */
-let _araignee = null;
-function ecussonAraignee() {
-  if (_araignee) return _araignee;
-  const n = 128;
-  const cv = document.createElement('canvas');
-  cv.width = n; cv.height = n;
-  const c = cv.getContext('2d');
-  c.clearRect(0, 0, n, n);
-  c.strokeStyle = '#07090C'; c.fillStyle = '#07090C';
-  c.lineCap = 'round'; c.lineJoin = 'round';
-
-  // Le corps : deux ovales, l'abdomen plus gros que le cephalothorax.
-  c.beginPath(); c.ellipse(64, 74, 11, 20, 0, 0, Math.PI * 2); c.fill();
-  c.beginPath(); c.ellipse(64, 47, 8, 11, 0, 0, Math.PI * 2); c.fill();
-
-  // Les huit pattes, recourbees vers le bas.
-  c.lineWidth = 5.5;
-  for (const sx of [-1, 1]) {
-    for (let i = 0; i < 4; i++) {
-      const y0 = 42 + i * 9;
-      const ouv = 26 + i * 7;
-      const chute = 16 + i * 10;
-      c.beginPath();
-      c.moveTo(64 + sx * 6, y0);
-      c.quadraticCurveTo(64 + sx * ouv, y0 - 10 + i * 3, 64 + sx * (ouv + 6), y0 + chute);
-      c.stroke();
-    }
-  }
-
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  _araignee = t;
-  return t;
-}
-
-/* UN COSTUME LEGEREMENT EMISSIF. De nuit, sous une lune rasante et a vingt
-   metres, un bonhomme rouge et bleu non eclaire n'est qu'une tache noire de
-   plus dans les arbres. Une emission faible — pas assez pour qu'il rayonne,
-   assez pour qu'il existe — le detache sans en faire une lampe. C'est la
-   meme correction que pour les cabanes et le sapin.
-
-   Les deux matieres sont partagees, comme les textures : cinq personnages,
-   deux materiaux, donc deux programmes de nuanceur au total. */
-let _matRouge = null, _matBleu = null;
-function matiereCostume(quelle) {
-  if (quelle === 'rouge') {
-    if (!_matRouge) {
-      _matRouge = new THREE.MeshStandardMaterial({
-        map: tissuCostume('#B3202B', 'rgba(12,5,8,0.88)'),
-        roughness: 0.60, emissive: 0x3E0A10, emissiveIntensity: 1,
-      });
-    }
-    return _matRouge;
-  }
-  if (!_matBleu) {
-    _matBleu = new THREE.MeshStandardMaterial({
-      map: tissuCostume('#1B3C86', 'rgba(4,7,20,0.88)'),
-      roughness: 0.60, emissive: 0x0A1430, emissiveIntensity: 1,
-    });
-  }
-  return _matBleu;
-}
-
-/* --- LE CORPS ------------------------------------------------------------
-
-   Deux decisions structurent tout ce qui suit, et les deux corrigent un
-   defaut qu'on voit a l'ecran.
-
-   1. L'ORIGINE EST AUX PIEDS, pas au bassin.
-
-      Les apparitions sont posees sur le terrain a la hauteur du sol : leur
-      origine EST le sol. Un personnage dont l'origine tombait au niveau du
-      bassin s'enfoncait donc de quarante-quatre centimetres dans la neige,
-      et c'est exactement ce qu'on voyait — trois Spider-Man sans jambes,
-      des bustes rouges plantes dans la poudreuse. Le corps se construit
-      desormais vers le HAUT depuis la plante des pieds.
-
-   2. LES MEMBRES SONT DES CHAINES, pas des morceaux poses cote a cote.
-
-      Chaque bras est une epaule qui porte un coude qui porte une main ;
-      chaque jambe, une hanche qui porte un genou qui porte un pied. Avec des
-      capsules independantes, lever un bras laissait l'avant-bras en
-      arriere — c'est la definition d'un pantin casse, et c'est pour cela
-      que les poses ne tenaient jamais. Une chaine coute six groupes vides
-      par personnage : rien du tout, et tout devient possible.
-
-   Les cotes sont nommes correctement : le personnage regarde vers -Z, donc
-   son cote DROIT est en +X. L'ancien code appelait « G » ce qui etait la
-   droite ; les poses ecrites dessus etaient donc miroir. */
-const piece = (r, l, quelle) => new THREE.Mesh(
-  new THREE.CapsuleGeometry(r, l, 4, 10), matiereCostume(quelle));
-
-/* Les cotes du squelette, en metres, mesures depuis la plante des pieds.
-   Ils sont rassembles ici parce qu'ils se repondent : deplacer l'epaule
-   sans deplacer le coude disloque le bras. */
-const CORPS = {
-  cheville: 0.050, genou: 0.338, hanche: 0.658,
-  bassin: 0.710, torse: 1.020, epaule: 1.190, tete: 1.400,
-  ecartHanche: 0.078, ecartEpaule: 0.135,
-  brasHaut: 0.264, brasBas: 0.252,
-  cuisse: 0.320, mollet: 0.288,
-};
-
-function spiderMan() {
-  const g = new THREE.Group();
-
-  const torse = piece(0.115, 0.30, 'rouge');
-  torse.position.y = CORPS.torse;
-  g.add(torse);
-
-  const bassin = piece(0.105, 0.10, 'bleu');
-  bassin.position.y = CORPS.bassin;
-  g.add(bassin);
-
-  /* L'ecusson, pose juste devant le torse. Un decalage de deux millimetres
-     suffit a eviter le combat de profondeur, et le plan reste invisible de
-     dos — ce qui est correct, la version noire de l'araignee dorsale
-     n'appartient pas a ce costume-la. */
-  const ecusson = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.165, 0.165),
-    new THREE.MeshStandardMaterial({
-      map: ecussonAraignee(), transparent: true, roughness: 0.6,
-      depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2,
-    })
-  );
-  ecusson.position.set(0, CORPS.torse + 0.045, -0.113);
-  g.add(ecusson);
-
-  /* LA TETE EST UN GROUPE, ET C'EST LA DIFFERENCE ENTRE UN MANNEQUIN ET
-     QUELQU'UN. Le crane et les deux yeux vivent dedans, donc il suffit de
-     tourner ce groupe pour qu'il REGARDE — s'ils etaient poses directement
-     dans le corps, tourner le crane laisserait les yeux en arriere, ce qui
-     est la definition meme d'un bug de poupee. */
-  /* Le cou. Sans lui la tete flotte deux centimetres au-dessus des epaules,
-     ce qui se voit tout de suite et fait « figurine mal emboitee ». Il
-     appartient au corps et non a la tete : un cou qui tourne avec le crane
-     tordrait le col du costume. */
-  const cou = piece(0.055, 0.06, 'rouge');
-  cou.position.y = (CORPS.torse + CORPS.tete) / 2 + 0.06;
-  g.add(cou);
-
-  const tete = new THREE.Group();
-  tete.position.y = CORPS.tete;
-  g.add(tete);
-
-  const crane = new THREE.Mesh(new THREE.SphereGeometry(0.105, 14, 12), matiereCostume('rouge'));
-  crane.scale.set(0.92, 1.0, 1.02);
-  tete.add(crane);
-
-  /* LES YEUX. C'est LA signature — deux amandes blanches cernees de noir,
-     inclinees vers l'interieur. Sans elles on a un bonhomme rouge et bleu ;
-     avec elles, tout le monde le nomme instantanement. */
-  const matOeil = new THREE.MeshBasicMaterial({ color: 0xF2F6FF });
-  const matCerne = new THREE.MeshBasicMaterial({ color: 0x08090C });
-  for (const sx of [-1, 1]) {
-    const cerne = new THREE.Mesh(new THREE.SphereGeometry(0.049, 10, 8), matCerne);
-    cerne.scale.set(1.24, 0.78, 0.5);
-    cerne.position.set(sx * 0.046, 0.015, -0.083);
-    cerne.rotation.z = sx * -0.34;
-    tete.add(cerne);
-
-    const oeil = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), matOeil);
-    oeil.scale.set(1.22, 0.76, 0.5);
-    oeil.position.set(sx * 0.046, 0.015, -0.094);
-    oeil.rotation.z = sx * -0.34;
-    tete.add(oeil);
-  }
-
-  const membres = {};
-  for (const sx of [-1, 1]) {
-    const n = sx > 0 ? 'D' : 'G';
-
-    /* --- LE BRAS. Au repos il PEND : chaque segment part vers -Y depuis
-       son articulation, et les rotations se lisent alors comme des angles
-       d'anatomie et non comme des corrections. */
-    const epaule = new THREE.Group();
-    epaule.position.set(sx * CORPS.ecartEpaule, CORPS.epaule, 0);
-    g.add(epaule);
-
-    const brasH = piece(0.042, 0.18, 'rouge');
-    brasH.position.y = -CORPS.brasHaut / 2;
-    epaule.add(brasH);
-
-    const coude = new THREE.Group();
-    coude.position.y = -CORPS.brasHaut;
-    epaule.add(coude);
-
-    const brasB = piece(0.036, 0.18, 'bleu');
-    brasB.position.y = -CORPS.brasBas / 2;
-    coude.add(brasB);
-
-    const main = new THREE.Group();
-    main.position.y = -CORPS.brasBas;
-    coude.add(main);
-    // Le gant : une petite sphere rouge, qui ferme proprement l'avant-bras.
-    const gant = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), matiereCostume('rouge'));
-    gant.scale.set(1, 1.15, 1.1);
-    main.add(gant);
-
-    /* --- LA JAMBE, sur le meme principe. */
-    const hanche = new THREE.Group();
-    hanche.position.set(sx * CORPS.ecartHanche, CORPS.hanche, 0);
-    g.add(hanche);
-
-    const cuisse = piece(0.055, 0.21, 'bleu');
-    cuisse.position.y = -CORPS.cuisse / 2;
-    hanche.add(cuisse);
-
-    const genou = new THREE.Group();
-    genou.position.y = -CORPS.cuisse;
-    hanche.add(genou);
-
-    const mollet = piece(0.044, 0.20, 'bleu');
-    mollet.position.y = -CORPS.mollet / 2;
-    genou.add(mollet);
-
-    const pied = new THREE.Group();
-    pied.position.y = -CORPS.mollet;
-    genou.add(pied);
-    /* La botte. Elle avance sous la cheville : sans elle, la jambe se
-       termine par un moignon arrondi et le personnage a l'air de flotter,
-       meme quand il touche exactement le sol. */
-    const botte = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.075, 0.20), matiereCostume('rouge'));
-    botte.position.set(0, -0.0125, -0.045);
-    pied.add(botte);
-
-    membres['epaule' + n] = epaule; membres['coude' + n] = coude; membres['main' + n] = main;
-    membres['hanche' + n] = hanche; membres['genou' + n] = genou; membres['pied' + n] = pied;
-  }
-
-  g.userData.membres = membres;
-  g.userData.tete = tete;
-  return g;
-}
-
-/* Une pose de repos qui ne soit pas un garde-a-vous : les bras s'ecartent
-   un peu du corps, les coudes flechissent, un genou est legerement plie.
-   Trois lignes qui suffisent a faire la difference entre quelqu'un debout
-   et un mannequin de vitrine. */
-function poseDebout(perso, graine = 0) {
-  const m = perso.userData.membres;
-  for (const [n, sx] of [['D', 1], ['G', -1]]) {
-    m['epaule' + n].rotation.z = sx * -0.14;
-    m['epaule' + n].rotation.x = 0.10 + Math.sin(graine + sx) * 0.05;
-    m['coude' + n].rotation.x = 0.28;
-  }
-  m.genouG.rotation.x = -0.16;
-  m.hancheG.rotation.x = 0.10;
-}
-
-/* --- IL VOUS REGARDE -----------------------------------------------------
-
-   Le geste qui change tout. Une silhouette accrochee a un arbre est un
-   decor ; la meme silhouette qui TOURNE LA TETE vers vous quand vous
-   passez est une rencontre. Ca ne coute que deux angles, et c'est de loin
-   le meilleur rapport qualite-prix de tout ce fichier.
-
-   Deux precautions, sans lesquelles l'effet se retourne :
-
-   · on calcule dans le repere du PERSONNAGE, pas du monde. Le Spider-Man
-     suspendu est retourne tete en bas ; un calcul en coordonnees monde lui
-     ferait tordre la nuque du mauvais cote ;
-   · on BRIDE. Une tete qui pivote de cent quatre-vingts degres pour ne pas
-     lacher la camera cesse d'etre inquietante et devient cassee. Au-dela de
-     la limite, il perd la camera de vue — et c'est tres bien ainsi. */
-const _cible = new THREE.Vector3();
-const _dir = new THREE.Vector3();
-function regarder(perso, camera, force = 1, limiteY = 1.15, limiteX = 0.62) {
-  const tete = perso.userData.tete;
-  if (!tete || !camera) return;
-  perso.updateWorldMatrix(true, false);
-  _cible.setFromMatrixPosition(camera.matrixWorld);
-  perso.worldToLocal(_cible);
-  _dir.copy(_cible).sub(tete.position);
-  if (_dir.lengthSq() < 1e-6) return;
-  _dir.normalize();
-  /* Le visage pointe vers -Z : le lacet vaut donc atan2 sur les composantes
-     opposees, et le tangage est directement l'arc-sinus de la hauteur. */
-  const lacet = Math.atan2(-_dir.x, -_dir.z);
-  const tangage = Math.asin(clamp(_dir.y, -1, 1));
-  tete.rotation.y = clamp(lacet, -limiteY, limiteY) * force;
-  tete.rotation.x = clamp(tangage, -limiteX, limiteX) * force;
-}
 
 /* Le fil : un cylindre tres fin, legerement lumineux, qui monte hors champ.
    Sans lui le personnage flotte ; avec lui, il PEND, et c'est toute la
@@ -718,76 +358,76 @@ function tendreFil(m, a, b) {
 
    La pose la plus reconnaissable du personnage, et de loin la plus facile a
    rater : accroche par un pied, l'autre jambe repliee, les bras qui pendent
-   vers le sol. Trois temps la font vivre — il pend, il vous repere, il vous
-   salue — et sans ces trois temps on regarde un pantin au bout d'une
-   ficelle pendant huit secondes.
+   vers le sol.
+
+   LA SCENE EST ECRITE COMME UN PLAN DE FILM, en quatre temps :
+
+     il pend et tourne lentement  →  il vous repere et s'immobilise
+       →  il vous salue  →  il reprend sa derive
+
+   Chaque temps est une pose cle datee ; la piste les enchaine avec une
+   acceleration et une deceleration, parce qu'un passage a vitesse constante
+   d'une pose a l'autre se lit immediatement comme une machine.
    ========================================================================== */
-function spiderSuspendu() {
+function spiderSuspendu(palier) {
   const g = new THREE.Group();
-  const perso = spiderMan();
+  const perso = creerSpider(palier, { ombres: palier.ombres });
   const pivot = new THREE.Group();
   pivot.add(perso);
 
   /* IL PENDAIT SOUS LA NEIGE, PUIS PAR LE VENTRE. Deux corrections
      successives, dont voici le compte definitif : le groupe est pose AU SOL,
      le personnage est retourne d'un demi-tour autour de Z — donc ses pieds
-     restent a la hauteur qu'on lui donne et sa tete descend d'un metre et
-     demi en dessous. On accroche les pieds a 3,30 m : la tete arrive alors
-     a 1,80 m, pile a hauteur de regard du drone. */
-  const CHEVILLES = 3.30;
+     restent a la hauteur qu'on lui donne et sa tete descend d'un metre
+     soixante-dix-huit en dessous. On accroche les chevilles a 3,55 m : la
+     tete arrive alors a 1,77 m, pile a hauteur de regard du drone. */
+  const CHEVILLES = 3.55;
   perso.rotation.z = Math.PI;
   perso.position.y = CHEVILLES;
 
-  const fil = filDeToile(3.5);
-  fil.position.y = CHEVILLES + 1.75;
+  const fil = filDeToile(3.4);
+  fil.position.y = CHEVILLES + 1.70;
   pivot.add(fil);
   g.add(pivot);
 
-  const m = perso.userData.membres;
-
-  /* LA POSE. Une jambe tendue — c'est elle qui tient le fil — l'autre
-     repliee en travers ; les bras pendent VERS LE SOL, ce qui, dans un
-     repere retourne, veut dire qu'ils remontent le long du corps. C'est le
-     genre d'inversion ou l'on se trompe une fois sur deux, et ou l'image
-     tranche immediatement. */
-  m.hancheD.rotation.x = 0.06;
-  m.genouD.rotation.x = -0.05;
-  m.hancheG.rotation.x = 0.55;
-  m.genouG.rotation.x = -1.35;
-  m.hancheG.rotation.z = -0.22;
-
-  const BRAS = 2.85;                 // presque un demi-tour : ils pendent
-  for (const [n, sx] of [['D', 1], ['G', -1]]) {
-    m['epaule' + n].rotation.x = BRAS;
-    m['epaule' + n].rotation.z = sx * 0.16;
-    m['coude' + n].rotation.x = -0.35;
-  }
+  const os = perso.userData.os;
+  /* La sequence. Les instants sont exprimes en progression dans la fenetre,
+     de zero a un : la scene dure ce qu'elle dure selon la vitesse du cerf,
+     et elle se joue toujours en entier. */
+  const sequence = piste([
+    { t: 0.00, pose: POSES.suspendu },
+    { t: 0.34, pose: POSES.suspendu },
+    { t: 0.50, pose: POSES.suspenduSalut },
+    { t: 0.70, pose: POSES.suspenduSalut },
+    { t: 0.86, pose: POSES.suspendu },
+    { t: 1.00, pose: POSES.suspendu },
+  ]);
 
   g.userData.jouer = (u, t, camera) => {
     const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
-    g.traverse((o) => {
-      if (o.material && o.material.transparent) o.material.opacity = vis;
-    });
     g.visible = vis > 0.01;
+    if (!g.visible) return;
+
+    sequence(os, u);
+
+    /* LE SALUT SE SUPERPOSE A LA POSE, il ne la remplace pas : la main
+       oscille deux fois pendant que le bras reste ou la sequence l'a mis.
+       C'est ce qui evite qu'un geste dure trop et devienne un moulinet. */
+    const salut = smoothstep(0.44, 0.52, u) * smoothstep(0.76, 0.66, u);
+    if (salut > 0.001) {
+      const bat = Math.sin(t * 5.6);
+      os.avantD.rotation.z += salut * bat * 0.55;
+      os.mainD.rotation.z += salut * bat * 0.35;
+    }
 
     // Il se balance doucement, et tourne un peu sur lui-meme.
-    pivot.rotation.z = Math.sin(t * 1.15) * 0.16;
+    pivot.rotation.z = Math.sin(t * 1.15) * 0.15;
     /* La rotation propre s'ARRETE quand il vous a vu : on ne detaille pas
        quelqu'un qui tourne sur lui-meme, et surtout, un regard qui suit
        pendant que le corps pivote se lit comme un decrochage de nuque. */
-    const attention = smoothstep(0.20, 0.36, u);
-    pivot.rotation.y = Math.sin(t * 0.52) * 0.9 * (1 - attention);
-    regarder(perso, camera, attention, 1.25, 0.85);
-
-    /* LE SALUT. Un bras se leve et oscille deux fois, au milieu du passage.
-       Court : un salut qui dure devient un moulinet. Il part de l'epaule et
-       le coude suit — c'est tout l'interet d'avoir une chaine. */
-    const salut = smoothstep(0.42, 0.50, u) * smoothstep(0.74, 0.62, u);
-    const bat = Math.sin(t * 5.6);
-    m.epauleD.rotation.x = BRAS - salut * 1.45;
-    m.epauleD.rotation.z = 0.16 + salut * (0.55 + bat * 0.28);
-    m.coudeD.rotation.x = -0.35 - salut * 0.55;
-    m.coudeD.rotation.z = salut * bat * 0.45;
+    const attention = smoothstep(0.20, 0.36, u) * smoothstep(0.94, 0.82, u);
+    pivot.rotation.y = Math.sin(t * 0.52) * 0.85 * (1 - attention);
+    regarderVers(perso, os, camera, attention);
   };
   return g;
 }
@@ -800,10 +440,10 @@ function spiderSuspendu() {
    pendu a une corde qui oscille, avec lui on voit quelqu'un qui SE DEPLACE
    — la difference tient a un fil de plus.
    ========================================================================== */
-function spiderBalance(porteeX) {
+function spiderBalance(porteeX, palier) {
   const g = new THREE.Group();
   const ancre = new THREE.Group();       // le point d'accroche, en hauteur
-  const perso = spiderMan();
+  const perso = creerSpider(palier, { ombres: palier.ombres });
 
   /* LE FIL PARTAIT DANS LE MAUVAIS SENS. Il montait de l'ancre vers le ciel
      pendant que le personnage pendait dessous, sans rien qui les relie :
@@ -815,32 +455,35 @@ function spiderBalance(porteeX) {
   fil.position.y = -LONGUEUR / 2;
   ancre.add(fil);
 
-  /* Le poignet leve se trouve a `epaule + brasHaut + brasBas` au-dessus des
-     pieds : on descend le personnage d'autant pour que sa main touche
-     exactement le bout du fil. Une constante calculee, jamais un nombre
-     ajuste a vue — le jour ou l'on rallonge un bras, tout suit. */
-  const POIGNET = CORPS.epaule + CORPS.brasHaut + CORPS.brasBas;
+  /* Le poignet leve se trouve a `epaule + humerus + radius` au-dessus des
+     pieds. C'est une constante CALCULEE a partir des reperes du corps,
+     jamais un nombre ajuste a vue : le jour ou l'on rallonge un bras, la
+     main reste accrochee a son fil.
+
+     ELLE ETAIT DEVENUE « NON DEFINI ». Le corps ne decrivait plus ses bras
+     par la HAUTEUR de leurs articulations mais par la LONGUEUR de leurs
+     segments — la pose de liaison en « A » l'imposait — et deux reperes
+     disparus laissaient ici un calcul valant NaN. Le personnage partait
+     alors a une position invalide, ce qui contaminait sa matrice monde,
+     donc la position de sa source sonore, et le Web Audio refusait un
+     parametre non fini. Un metre de trop dans un fil se voit ; une position
+     invalide se manifeste trois modules plus loin, par une erreur qui ne
+     parle de rien. */
+  const POIGNET = REPERES.epaule + REPERES.humerus + REPERES.radius;
   perso.position.y = -LONGUEUR - POIGNET;
   ancre.add(perso);
   g.add(ancre);
   ancre.position.y = 9.2;
 
-  const m = perso.userData.membres;
-  /* Le bras gauche tendu vers le haut : c'est lui qui tient. Un demi-tour
-     complet de l'epaule met le bras a la verticale, vers +Y. */
-  m.epauleG.rotation.x = Math.PI;
-  m.epauleG.rotation.z = -0.10;
-  m.coudeG.rotation.x = 0.12;
-  // Le droit reste bas, pret a lancer.
-  m.epauleD.rotation.x = 0.55;
-  m.epauleD.rotation.z = -0.30;
-  m.coudeD.rotation.x = 0.7;
-  /* Les jambes trainent en arriere, comme sur toutes les images du
-     personnage en vol : une jambe tendue, l'autre repliee. */
-  m.hancheG.rotation.x = -0.85;
-  m.genouG.rotation.x = -0.55;
-  m.hancheD.rotation.x = -0.30;
-  m.genouD.rotation.x = -1.15;
+  const os = perso.userData.os;
+  const sequence = piste([
+    { t: 0.00, pose: POSES.balance },
+    { t: 0.40, pose: POSES.balance },
+    { t: 0.56, pose: POSES.arme },
+    { t: 0.64, pose: POSES.lance },
+    { t: 0.82, pose: POSES.balance },
+    { t: 1.00, pose: POSES.balance },
+  ]);
 
   const tir = filDeToile(1);          // longueur pilotee par l'etirement
   tir.visible = false;
@@ -855,6 +498,10 @@ function spiderBalance(porteeX) {
   g.userData.jouer = (u, t, camera) => {
     const vis = smoothstep(0, 0.08, u) * smoothstep(1, 0.90, u);
     g.visible = vis > 0.01;
+    if (!g.visible) return;
+
+    sequence(os, u);
+
     /* Un balancement, c'est un pendule : vite en bas, lent aux extremites.
        Un deplacement lineaire se lirait comme un panneau qu'on tire sur un
        rail. */
@@ -869,22 +516,16 @@ function spiderBalance(porteeX) {
     /* Le corps se redresse au point bas et se couche aux extremites : c'est
        ce qu'un pendule vivant fait de son bassin, et c'est ce qui empeche la
        silhouette de rester raide comme un pendu. */
-    perso.rotation.x = -0.34 + Math.abs(a) * 0.30;
+    perso.rotation.x = -0.30 + Math.abs(a) * 0.28;
 
     /* Il se retourne vers vous au passage le plus bas — le seul instant ou
        il est assez pres pour que ca se voie. */
-    regarder(perso, camera, smoothstep(0.30, 0.44, u) * smoothstep(0.80, 0.66, u), 1.4, 0.9);
+    regarderVers(perso, os, camera,
+      smoothstep(0.28, 0.42, u) * smoothstep(0.80, 0.66, u));
 
-    // Le bras libre s'arme, puis se detend d'un coup vers l'avant.
-    const armer = smoothstep(0.40, 0.56, u);
-    const lacher = smoothstep(0.56, 0.64, u);
-    m.epauleD.rotation.x = 0.55 + armer * 0.75 - lacher * 3.4;
-    m.epauleD.rotation.z = -0.30 - lacher * 0.35;
-    m.coudeD.rotation.x = 0.70 + armer * 0.9 - lacher * 1.5;
+    if (!tirFait && u > 0.60) { tirFait = true; g.userData.emettre?.('toile'); }
 
-    if (!tirFait && u > 0.58) { tirFait = true; g.userData.emettre?.('toile'); }
-
-    const sortie = smoothstep(0.58, 0.68, u);
+    const sortie = smoothstep(0.60, 0.70, u);
     if (sortie > 0.01) {
       /* La position du poignet, prise dans le repere du groupe. On force la
          mise a jour de la branche concernee : les matrices du monde ne sont
@@ -892,7 +533,7 @@ function spiderBalance(porteeX) {
          une image de retard — visible, sur un mouvement aussi rapide. */
       ancre.updateWorldMatrix(true, true);
       _poignet.set(0, 0, 0);
-      m.mainD.localToWorld(_poignet);
+      os.mainD.localToWorld(_poignet);
       g.worldToLocal(_poignet);
       /* Le fil ne jaillit pas d'un coup sur toute sa longueur : il PART de
          la main et file vers son point d'accroche. */
@@ -1096,10 +737,17 @@ function lame(couleur, halos) {
      disparait par la tranche et la lame perd sa lueur pile au moment ou
      elle se met de profil. Deux plans perpendiculaires ne peuvent jamais
      s'effacer ensemble. */
+  /* LA LUEUR NE DOIT PAS DEBORDER SUR LE PORTEUR. Elle etait centree sur le
+     milieu de la lame avec neuf decimetres de rab : elle descendait donc de
+     trente-cinq centimetres SOUS la poignee, c'est-a-dire en plein sur la
+     poitrine du duelliste, qu'elle repeignait en vert fluo ou en rouge vif
+     par-dessus. Une lame eclaire celui qui la tient, mais par un reflet, pas
+     en le badigeonnant. On la remonte pour qu'elle parte de l'emetteur, et
+     on l'affine. */
   const halosLame = [];
   for (const a of [0, Math.PI / 2]) {
-    const h = halolame(halos, LONG + 0.9, 0.72);
-    h.position.y = LONG / 2 + 0.10;
+    const h = halolame(halos, LONG + 0.42, 0.50);
+    h.position.y = LONG / 2 + 0.24;
     h.rotation.y = a;
     g.add(h);
     halosLame.push(h);
@@ -1121,70 +769,7 @@ function lame(couleur, halos) {
   return g;
 }
 
-/* Le duelliste. Origine aux pieds, comme tout ce qui se pose sur la neige.
-   La cape est un cone OUVERT en bas : ferme, il se lit comme un chapeau
-   pointu retourne, et le personnage a l'air pose sur un socle. */
-const _noirCape = () => new THREE.MeshStandardMaterial({
-  color: 0x0A0C11, roughness: 0.94, metalness: 0,
-});
-
-function duelliste() {
-  const g = new THREE.Group();
-  const tissu = _noirCape();
-
-  /* LA CAPE EST FERMEE EN BAS, et ce n'est pas cosmetique : ouverte, on
-     voyait au travers, et la flaque de lumiere posee sur la neige
-     traversait le personnage — un ourlet fluorescent vert et rouge, comme
-     une jupe de fete. Une cape se termine par un ourlet opaque. */
-  const cape = new THREE.Mesh(new THREE.ConeGeometry(0.46, 1.34, 14, 3, false), tissu);
-  cape.position.y = 0.67;
-  g.add(cape);
-
-  const buste = new THREE.Mesh(new THREE.CapsuleGeometry(0.21, 0.22, 4, 10), tissu);
-  buste.position.y = 1.36;
-  g.add(buste);
-
-  const capuche = new THREE.Mesh(new THREE.SphereGeometry(0.175, 12, 10), tissu);
-  capuche.scale.set(1, 1.18, 1.06);
-  capuche.position.set(0, 1.60, 0.02);
-  g.add(capuche);
-  /* Le creux du capuchon : une calotte plus sombre, avancee. Sans elle, la
-     tete est une boule et le personnage a l'air d'un moine en playmobil ;
-     avec elle, on lit un visage qu'on ne voit pas, ce qui est exactement le
-     but. */
-  const creux = new THREE.Mesh(
-    new THREE.SphereGeometry(0.135, 10, 8),
-    new THREE.MeshBasicMaterial({ color: 0x030405 })
-  );
-  creux.scale.set(1, 1.05, 0.55);
-  creux.position.set(0, 1.58, -0.10);
-  g.add(creux);
-
-  /* LE BRAS ARME. Une chaine courte : epaule, main. La lame se greffe dans
-     la main, donc tout ce qu'on fait a l'epaule se propage a la lame — et
-     c'est ce qui permet a une passe d'armes de partir du corps. */
-  const epaule = new THREE.Group();
-  epaule.position.set(0.20, 1.40, 0);
-  g.add(epaule);
-  const bras = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.36, 4, 8), tissu);
-  bras.position.y = -0.25;
-  epaule.add(bras);
-  const main = new THREE.Group();
-  main.position.y = -0.50;
-  epaule.add(main);
-
-  // Le bras libre, le long du corps.
-  const autre = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.40, 4, 8), tissu);
-  autre.position.set(-0.22, 1.15, 0.02);
-  autre.rotation.z = 0.14;
-  g.add(autre);
-
-  g.userData.epaule = epaule;
-  g.userData.main = main;
-  return g;
-}
-
-function duelSabres() {
+function duelSabres(palier) {
   const g = new THREE.Group();
 
   /* Les deux camps se font face le long de X, donc de part et d'autre du
@@ -1196,22 +781,46 @@ function duelSabres() {
      duel a bout portant est de toute facon plus tendu qu'un duel a distance
      respectueuse. */
   const ECART = 1.35;
-  const gauche = duelliste();
+  const TVERT = [0.30, 3.1, 0.55], TROUGE = [3.1, 0.28, 0.22];
+  const gauche = creerDuelliste(palier, TVERT);
   gauche.position.x = -ECART;
   gauche.rotation.y = -Math.PI / 2;
-  const droite = duelliste();
+  const droite = creerDuelliste(palier, TROUGE);
   droite.position.x = ECART;
   droite.rotation.y = Math.PI / 2;
   g.add(gauche, droite);
 
-  const vert = lame(0x8CFF7A, [0.30, 3.1, 0.55]);
-  const rouge = lame(0xFF6A5A, [3.1, 0.28, 0.22]);
-  /* La lame prolonge le poing vers le haut et vers l'avant : c'est la garde
-     de base, celle a partir de laquelle toutes les passes se lisent. */
-  vert.rotation.x = -0.55;
-  rouge.rotation.x = -0.55;
-  gauche.userData.main.add(vert);
-  droite.userData.main.add(rouge);
+  const vert = lame(0x8CFF7A, TVERT);
+  const rouge = lame(0xFF6A5A, TROUGE);
+  /* La lame prolonge le POING, et se greffe donc sur l'os de la main : tout
+     ce que fait l'epaule se propage jusqu'a la pointe, ce qui est la seule
+     facon qu'une passe d'armes parte du corps et non du poignet. */
+  vert.rotation.x = -0.35;
+  rouge.rotation.x = -0.35;
+  vert.position.y = -0.04;
+  rouge.position.y = -0.04;
+  gauche.userData.os.mainD.add(vert);
+  droite.userData.os.mainD.add(rouge);
+
+  /* Les trois temps de la passe d'armes, joues en boucle. Chaque duelliste
+     lit la meme piste, decalee d'un demi-temps : quand l'un frappe, l'autre
+     recule, et c'est ce contretemps qui fait lire un echange plutot que deux
+     gymnastiques paralleles. */
+  const passeGauche = piste([
+    { t: 0.00, pose: GARDES.garde },
+    { t: 0.42, pose: GARDES.frappe },
+    { t: 0.56, pose: GARDES.frappe },
+    { t: 0.80, pose: GARDES.recul },
+    { t: 1.00, pose: GARDES.garde },
+  ]);
+  const passeDroite = piste([
+    { t: 0.00, pose: GARDES.recul },
+    { t: 0.30, pose: GARDES.garde },
+    { t: 0.46, pose: GARDES.frappe },
+    { t: 0.58, pose: GARDES.frappe },
+    { t: 0.86, pose: GARDES.recul },
+    { t: 1.00, pose: GARDES.recul },
+  ]);
 
   const eclat = halo([2.8, 3.0, 2.6], 3.2);
   eclat.position.set(0, 1.55, 0);
@@ -1262,16 +871,23 @@ function duelSabres() {
     gauche.rotation.z = -choc * 0.16;
     droite.rotation.z = choc * 0.16;
 
-    /* LE BRAS. Une garde qui monte et descend en dehors des passes, un coup
-       porte au moment du contact. Les deux vont en sens opposes : ils se
-       font face, donc ce qui monte pour l'un descend pour l'autre. */
-    const respire = Math.sin(t * 2.6) * 0.30;
-    gauche.userData.epaule.rotation.x = -0.35 + respire - choc * 0.85;
-    gauche.userData.epaule.rotation.z = 0.20 + Math.sin(t * 3.9) * 0.22;
-    droite.userData.epaule.rotation.x = -0.35 - respire - choc * 0.85;
-    droite.userData.epaule.rotation.z = 0.20 - Math.sin(t * 3.7 + 1.1) * 0.22;
+    /* LE CORPS ENTIER JOUE LA PASSE. La piste enchaine garde, frappe et
+       recul sur seize os ; l'ancienne version ne bougeait qu'une epaule, et
+       c'est pour cela qu'on voyait deux batons plutot que deux escrimeurs. */
+    passeGauche(gauche.userData.os, passe);
+    passeDroite(droite.userData.os, passe);
 
-    const eclatLame = 0.72 + choc * 0.28;
+    /* La cape suit le mouvement avec un temps de retard — un tissu lourd ne
+       part jamais en meme temps que le corps qui le porte. */
+    for (const [d, sens] of [[gauche, 1], [droite, -1]]) {
+      const a = d.userData.attacheCape;
+      if (a) {
+        a.rotation.x = -choc * 0.28;
+        a.rotation.z = sens * Math.sin(t * 1.7) * 0.05;
+      }
+    }
+
+    const eclatLame = 0.52 + choc * 0.26;
     for (const h of vert.userData.halos) h.material.opacity = vis * eclatLame;
     for (const h of rouge.userData.halos) h.material.opacity = vis * eclatLame;
     eclat.material.opacity = vis * choc * 0.9;
@@ -1554,13 +1170,13 @@ function patronus() {
    pendant qu'on passe. Une animation les rendrait rigolos ; leur raideur les
    rend inquietants, ce qui est bien plus drole.
    ========================================================================== */
-function trioSpider() {
+function trioSpider(palier) {
   const g = new THREE.Group();
-  const R = 1.45;                       // rayon du triangle
+  const R = 1.50;                       // rayon du triangle
   const persos = [];
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2;
-    const p = spiderMan();
+    const p = creerSpider(palier, { ombres: palier.ombres, variante: 'trio' });
     p.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
 
     /* Chacun regarde le suivant : c'est cet alignement, et lui seul, qui
@@ -1577,33 +1193,98 @@ function trioSpider() {
     const dz = (Math.sin(b) - Math.sin(a)) * R;
     p.rotation.y = Math.atan2(-dx, -dz);
 
-    const m = p.userData.membres;
-    poseDebout(p, i * 2.1);
-    /* Le bras tendu vers l'autre, presque a l'horizontale, le coude a peine
-       casse — un bras parfaitement droit a l'air d'une barre. L'autre reste
-       le long du corps : deux bras tendus feraient un epouvantail. */
-    m.epauleD.rotation.x = 1.46 + (i % 2 ? 0.06 : -0.05);
-    m.epauleD.rotation.z = -0.10;
-    m.coudeD.rotation.x = 0.14;
-    m.epauleG.rotation.x = 0.16;
-    m.epauleG.rotation.z = -0.22;
-    m.coudeG.rotation.x = 0.34;
-    /* Un appui legerement decale : trois personnages pieds joints font trois
-       poteaux. */
-    m.hancheD.rotation.z = 0.10 + (i % 3) * 0.03;
-    m.hancheG.rotation.z = -0.13;
+    const os = p.userData.os;
+    appliquerPose(os, POSES.pointe);
+    /* Trois exemplaires strictement identiques se lisent comme trois copies
+       collees. On decale donc legerement chacun — le bras un peu plus haut
+       ou plus bas, l'appui sur une jambe ou sur l'autre, la tete a peine
+       tournee. Ce sont des ecarts de quelques degres, et ils suffisent a
+       faire trois individus. */
+    const d = (i - 1) * 0.055;
+    os.brasD.rotation.x += d;
+    os.brasD.rotation.z += d * 0.5;
+    os.avantD.rotation.x += Math.abs(d) * 0.6;
+    os.colonne.rotation.z += d * 0.4;
+    os.tete.rotation.y += d * 1.2;
+    os.tete.rotation.z += d * 0.5;
+    os.cuisseD.rotation.z += d * 0.3;
 
     g.add(p);
     persos.push(p);
   }
 
+  /* CHACUN SUR SON PROPRE SOL. Le groupe est pose a la hauteur du terrain en
+     son centre, mais les trois sont repartis sur un triangle de trois metres
+     de cote : sur un devers, celui d'amont s'enfonce et celui d'aval flotte.
+     On releve donc la hauteur reelle sous chaque paire de pieds. */
+  g.userData.poser = (relief) => {
+    g.updateWorldMatrix(true, false);
+    const y0 = g.position.y;
+    const p = new THREE.Vector3();
+    for (const perso of persos) {
+      p.copy(perso.position).applyMatrix4(g.matrixWorld);
+      perso.position.y = relief.hauteur(p.x, p.z) - y0;
+    }
+  };
+
   g.userData.jouer = (u) => {
     const vis = smoothstep(0, 0.12, u) * smoothstep(1, 0.86, u);
     g.visible = vis > 0.01;
-    // Aucune animation. C'est le sujet.
+    /* Aucune animation. C'est le sujet : leur RAIDEUR est ce qui rend la
+       scene inquietante, et une animation les rendrait seulement rigolos. */
     void persos;
   };
   return g;
+}
+
+/* --------------------------------------------------------------------------
+   OU SE PLACENT LES APPARITIONS.
+
+   Cette table est sortie du constructeur pour une raison precise : LA FORET
+   DOIT LA CONNAITRE AVANT D'ETRE SEMEE.
+
+   Antoine : « fait gaffe a ce qu'il n'y ait pas de collision avec les
+   arbres ». Le semis place plus de mille sapins au hasard le long du chemin,
+   sans rien savoir de ce qui viendra s'y ajouter : un duelliste pouvait donc
+   se retrouver le nez dans un tronc, et un Spider-Man pendu au milieu d'un
+   feuillage. Le seul remede qui tienne est de degager le terrain AVANT de
+   semer — retirer un arbre apres coup laisse un trou visible, et deplacer
+   une apparition apres coup casse le cadrage qu'on vient de mesurer.
+
+   `sitesApparitions` rend donc la liste des zones a laisser libres, et
+   `main.js` la passe a la foret au moment du semis.
+   -------------------------------------------------------------------------- */
+export function planApparitions(L) {
+  return [
+    { nom: 'police',   s: L * 0.09, cote: -1, ecart: 6.5, avant: 42, apres: 10, tourne: 0.6, degage: 7.5 },
+    { nom: 'spider1',  s: L * 0.21, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
+    { nom: 'et',       s: L * 0.33, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
+    { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5 },
+    { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
+    { nom: 'patronus', s: L * 0.68, cote: -1, ecart: 5.5, avant: 38, apres: 12, degage: 8.0 },
+    { nom: 'spider2',  s: L * 0.79, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
+    { nom: 'delorean', s: L * 0.90, cote:  0, ecart: 0,   avant: 34, apres: 8,  degage: 4.0 },
+  ];
+}
+
+/* Les zones a laisser sans arbre, en coordonnees du monde. Le rayon est
+   celui de la scene plus une marge : un sapin dont le TRONC est hors zone
+   peut encore etaler ses branches dessus, et c'est le feuillage qu'on voit. */
+export function sitesApparitions(chemin) {
+  const L = chemin.longueur;
+  const p = new THREE.Vector3(), c = new THREE.Vector3();
+  const sites = [];
+  for (const d of planApparitions(L)) {
+    if (!d.degage) continue;
+    chemin.point(d.s, p);
+    chemin.cote(d.s, c);
+    sites.push({
+      x: p.x + c.x * d.cote * d.ecart,
+      z: p.z + c.z * d.cote * d.ecart,
+      r: d.degage,
+    });
+  }
+  return sites;
 }
 
 /* ========================================================================== */
@@ -1711,16 +1392,21 @@ export class Apparitions {
        chemin ; c'est sans consequence, aucune n'est au sol devant le cerf —
        Spider-Man pend en hauteur, le patronus est un fantome, et le duel se
        tient assez loin pour qu'on n'ait pas a le contourner. */
-    const plan = [
-      { nom: 'police',   s: L * 0.09, cote: -1, ecart: 6.5, avant: 42, apres: 10, faire: () => voiturePolice(), tourne: 0.6 },
-      { nom: 'spider1',  s: L * 0.21, cote: -1, ecart: 3.5, avant: 30, apres: 8,  faire: () => spiderSuspendu() },
-      { nom: 'et',       s: L * 0.33, cote:  0, ecart: 0,   avant: 34, apres: 24, faire: () => etDevantLaLune() },
-      { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 4.5, avant: 40, apres: 10, faire: () => duelSabres() },
-      { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 7.0, avant: 34, apres: 10, faire: () => trioSpider(), tourne: 0.4 },
-      { nom: 'patronus', s: L * 0.68, cote: -1, ecart: 5.5, avant: 38, apres: 12, faire: () => patronus() },
-      { nom: 'spider2',  s: L * 0.79, cote: -1, ecart: 3.0, avant: 28, apres: 8,  faire: () => spiderBalance(9) },
-      { nom: 'delorean', s: L * 0.90, cote:  0, ecart: 0,   avant: 34, apres: 8,  faire: () => traineesDeFeu(26) },
-    ];
+    /* Les fabriques, indexees par nom. La table des positions vit desormais
+       hors de la classe (voir `planApparitions`) parce que la foret doit la
+       lire avant de semer ses arbres ; il ne reste ici que ce qui construit
+       reellement les objets. */
+    const FABRIQUES = {
+      police: () => voiturePolice(),
+      spider1: () => spiderSuspendu(palier),
+      et: () => etDevantLaLune(),
+      sabres: () => duelSabres(palier),
+      trio: () => trioSpider(palier),
+      patronus: () => patronus(),
+      spider2: () => spiderBalance(9, palier),
+      delorean: () => traineesDeFeu(26),
+    };
+    const plan = planApparitions(L).map((d) => ({ ...d, faire: FABRIQUES[d.nom] }));
 
     const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
     this.scenes = [];
@@ -1763,7 +1449,6 @@ export class Apparitions {
       this.groupe.add(o);
       this.scenes.push({ ...d, objet: o, ouverte: false });
     }
-    void palier;
   }
 
   /* Le moteur audio des apparitions, branche une fois le contexte ouvert. */

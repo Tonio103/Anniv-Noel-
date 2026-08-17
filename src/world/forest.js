@@ -128,7 +128,18 @@ function fusionner(geos) {
 const TRONCONS = 22;
 
 export class Foret {
-  constructor(chemin, relief, palier, clairieres, uniformsVent) {
+  /* `degagements` : des zones ou l'on ne plante RIEN, sans pour autant les
+     transformer en clairiere.
+
+     La distinction compte. Une clairiere, dans ce projet, creuse aussi le
+     TERRAIN — c'est ce qui donne les replats des haltes. Y ajouter les huit
+     sites d'apparitions aurait aplani huit taches de foret au hasard du
+     parcours, ce qui se serait vu tout de suite. Un degagement, lui, ne
+     touche qu'au semis : le relief reste ce qu'il est, il n'y pousse
+     simplement pas d'arbre. */
+  constructor(chemin, relief, palier, clairieres, uniformsVent, degagements = []) {
+    this.degagements = degagements;
+    this.refusDegagement = 0;
     this.chemin = chemin;
     this.relief = relief;
     this.palier = palier;
@@ -516,6 +527,10 @@ export class Foret {
     }
 
     this.nbArbres = arbres.length;
+    /* La liste est conservee pour le banc `collisions.mjs`, qui verifie
+       qu'aucun sapin ne pousse dans une apparition. Elle n'est pas utilisee
+       au rendu — les instances sont deja construites a ce stade. */
+    this.arbres = arbres;
 
     this._semerBouleaux(rng(4242), relief, clairieres, palier, uniformsVent);
   }
@@ -582,6 +597,12 @@ export class Foret {
           if (Math.hypot(x - cl.x, z - cl.z) < cl.r * 1.05) { dansClairiere = true; break; }
         }
         if (dansClairiere) continue;
+        // Les bouleaux respectent les memes degagements que les sapins.
+        let surUneScene = false;
+        for (const d of this.degagements) {
+          if (Math.hypot(x - d.x, z - d.z) < d.r + 2.4) { surUneScene = true; break; }
+        }
+        if (surUneScene) continue;
         liste.push({ x, y: relief.hauteur(x, z) - 0.12, z, h: 8 + rand() * 8, rot: rand() * 6.28 });
       }
     }
@@ -670,6 +691,23 @@ export class Foret {
         if (d < c.r * (0.82 + rand() * 0.3)) { dansClairiere = true; break; }
       }
       if (dansClairiere) continue;
+
+      /* Les degagements des apparitions. Le rayon est augmente de la
+         DEMI-ENVERGURE de l'arbre : un sapin dont le tronc est juste hors
+         zone etale quand meme ses branches dessus, et c'est le feuillage
+         qu'on voit traverser un personnage, pas le tronc. */
+      let surUneScene = false;
+      for (const d of this.degagements) {
+        if (Math.hypot(x - d.x, z - d.z) < d.r + hauteurVoulue * 0.22) { surUneScene = true; break; }
+      }
+      /* On COMPTE les refus, et ce n'est pas de la curiosite : un
+         degagement qui ne refuse jamais rien est indiscernable d'un
+         degagement qui ne s'execute pas. Le banc de collisions, seul, passait
+         au vert meme en supprimant tout le mecanisme — le semis est
+         suffisamment clairsemé pour qu'aucun arbre ne tombe sur une scene
+         par hasard, ce jour-la et avec cette graine. C'est ce compteur qui
+         prouve que la regle existe et mord. */
+      if (surUneScene) { this.refusDegagement++; continue; }
 
       // La foret s'epaissit a mesure qu'on s'enfonce.
       const avancee = pr.s / chemin.longueur;

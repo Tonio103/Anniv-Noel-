@@ -23,7 +23,8 @@ import { Neige } from './world/snowfall.js';
 import { Brume } from './world/mist.js';
 import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
-import { Apparitions } from './world/apparitions.js';
+import { Apparitions, sitesApparitions } from './world/apparitions.js';
+import { coutSpider } from './world/spider.js';
 import { Cabanes } from './world/cabins.js';
 import { Fouillis } from './world/props.js';
 import { Poudre } from './world/puffs.js';
@@ -101,7 +102,14 @@ async function demarrer() {
   scene.add(relief.groupe);
   for (const c of clairieres) c.h = relief.hauteur(c.x, c.z);
 
-  const foret = new Foret(chemin, relief, palier, clairieres, uniformsVent);
+  /* Les emplacements des apparitions, calcules AVANT le semis : la foret
+     doit savoir ou ne pas planter. Antoine : « fait gaffe a ce qu'il n'y ait
+     pas de collision avec les arbres » — retirer un arbre apres coup
+     laisserait un trou visible, et deplacer une apparition apres coup
+     casserait le cadrage. On degage donc en amont. */
+  const degagements = sitesApparitions(chemin);
+
+  const foret = new Foret(chemin, relief, palier, clairieres, uniformsVent, degagements);
   scene.add(foret.groupe);
 
   const fouillis = new Fouillis(chemin, relief, palier, clairieres);
@@ -1064,6 +1072,10 @@ async function demarrer() {
     stations: STATIONS,
     brume, details, cabanes, apparitions, empreintes, fouillis, habitants, postfx, boucle, palier,
     son, sfx, ruisseau,
+    /* Le cout reel du personnage implicite, pour le banc `corps.mjs` : il
+       n'est calculable qu'apres la construction, et personne d'autre n'a
+       besoin de le connaitre. */
+    spider: { cout: coutSpider },
     /* Outils de controle : placer la balade a une halte, avancer le temps. */
     aller(i, ph) {
       demarree = true;
