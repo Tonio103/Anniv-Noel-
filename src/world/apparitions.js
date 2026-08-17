@@ -32,6 +32,7 @@ import { creerSpider, POSES } from './spider.js';
 import { creerDuelliste, GARDES, ECHANGES } from './encapuchonne.js';
 import { coursePoursuite, delorean } from './vehicules.js';
 import { trouNoir, killBill } from './cinema.js';
+import { creerTrex, marcheTrex } from './trex.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
    porte a distance, bien plus que la geometrie. */
@@ -1098,6 +1099,12 @@ function traineesDeFeu(longueur, palier, relief) {
         const bruit = Math.pow(Math.abs(Math.sin(t * 23 + i * 2.1)), 8);
         auto.userData.arcs[i].material.opacity = proche * bruit * 0.95;
       }
+      /* Le son suit la montee en regime, et le crepitement du condensateur
+         arrive avec les arcs — donc juste avant le saut. Sans cette montee,
+         la disparition tombe sans prevenir. */
+      const regler = [{ regime: 0.25 + av * 0.75, doppler: 0, volume: 1 }];
+      regler.crepite = proche;
+      g.userData.emettre?.('regler', regler);
     }
 
     /* --- L'ECLAIR, une seule fois. --------------------------------------- */
@@ -1107,7 +1114,17 @@ function traineesDeFeu(longueur, palier, relief) {
       : 0;
     _p.set(0, 0, Z1).applyMatrix4(g.matrixWorld);
     flash.position.set(0, relief.hauteur(_p.x, _p.z) - g.position.y + 0.9, Z1);
-    if (!sautFait && u >= SAUT) { sautFait = true; g.userData.emettre?.('bang'); }
+    if (!sautFait && u >= SAUT) {
+      sautFait = true;
+      /* LE SAUT, PAS UNE EXPLOSION. Une aspiration qui monte, le claquement,
+         puis une queue de sub qui s'effondre : c'est la forme d'un depart.
+         Et l'on coupe le moteur dans le meme geste — la voiture n'est plus
+         la, son moteur ne peut pas continuer a tourner. */
+      g.userData.emettre?.('saut');
+      const eteint = [{ regime: 0, doppler: 0, volume: 0 }];
+      eteint.crepite = 0;
+      g.userData.emettre?.('regler', eteint);
+    }
 
     /* --- LES TRAINEES. Elles ne s'allument qu'APRES le saut : ce sont
        elles qui restent quand la voiture n'est plus la. ------------------- */
@@ -1360,6 +1377,143 @@ function trioSpider(palier) {
   return g;
 }
 
+/* ==========================================================================
+   JURASSIC PARK
+
+   La scene la plus celebre du cinema d'aventure, et la seule qui COMMENCE
+   AVANT QU'ON VOIE QUOI QUE CE SOIT. Le verre d'eau qui tremble, le
+   silence, puis la chose. On reprend cette construction en trois temps,
+   transposee a une foret enneigee.
+
+   Il passe DERRIERE la ligne d'arbres, jamais entierement degage. Ce n'est
+   pas une economie : un dinosaure entierement visible invite a l'examiner,
+   et il ne resiste jamais a l'examen. Entrevu entre deux troncs, il est
+   enorme.
+   ========================================================================== */
+function jurassique(chemin, relief, palier) {
+  const g = new THREE.Group();
+  g.userData.suitChemin = true;
+
+  const bete = creerTrex(palier);
+  g.add(bete);
+  const os = bete.userData.os;
+
+  /* LA NEIGE QUI TOMBE DES BRANCHES. C'est le premier temps de la scene, et
+     c'est le seul moment ou elle repose entierement sur autre chose que la
+     bete : deux gerbes qui se detachent des arbres, en cadence, pendant
+     qu'on ne voit encore rien. */
+  const N = palier.nom === 'bas' ? 90 : 170;
+  const pos = new Float32Array(N * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const matN = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02, color: 0xE6EEFB, size: 0.13,
+    transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true,
+  });
+  const chute = new THREE.Points(geo, matN);
+  chute.frustumCulled = false;
+  g.add(chute);
+  const vies = new Float32Array(N).map(() => Math.random());
+  const oX = new Float32Array(N).map(() => (Math.random() - 0.5) * 26);
+  const oZ = new Float32Array(N).map(() => (Math.random() - 0.5) * 34);
+  const oH = new Float32Array(N).map(() => 5 + Math.random() * 9);
+
+  /* La voie : loin du chemin et DERRIERE les arbres. Vingt-deux metres,
+     c'est au-dela de la lisiere degagee — donc il y a forcement du tronc
+     entre lui et nous, ce qui est tout l'effet recherche. */
+  /* OU LE PLACER, ET C'EST TOUTE LA DIFFICULTE DE CETTE SCENE.
+
+     Premiere version : vingt-deux metres de cote, marchant a la hauteur du
+     cerf. Il etait donc PARALLELE a nous et par le travers — c'est-a-dire a
+     plus de trente degres de l'axe, alors qu'en portrait le champ n'en fait
+     que seize et demi de chaque cote. On ne le voyait jamais.
+
+     La reponse n'est pas de le rapprocher du chemin — il doit rester
+     derriere des arbres — mais de le tenir DEVANT. A treize metres de cote
+     et cinquante a soixante-dix metres d'avance, il tombe a douze degres de
+     l'axe : dans le cadre, loin, a demi mange par le brouillard et par les
+     troncs. C'est exactement le plan qu'on veut.
+
+     A treize metres, la marge du couloir garantit qu'il y a de grands
+     sapins entre lui et nous : elle vaut deux metres soixante plus quatre
+     dixiemes de la hauteur de l'arbre, soit pres de dix metres pour un
+     sujet de quinze. */
+  const VOIE = 13, COTE = -1;
+  const DEPART = 26, ARRIVEE = 78;
+  const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
+
+  let dernierPas = -1, rugi = false;
+  g.userData.reinit = () => { dernierPas = -1; rugi = false; };
+
+  g.userData.jouer = (u, t, camera, sAncre, dt) => {
+    /* LES TROIS TEMPS.
+       0.00 → 0.30  la neige tombe des branches, on ne voit rien
+       0.22 → 0.32  le rugissement, toujours invisible
+       0.30 → 0.86  il traverse derriere les arbres  */
+    const vis = smoothstep(0, 0.04, u) * smoothstep(1, 0.92, u);
+    g.visible = vis > 0.01;
+    if (!g.visible) return;
+
+    const k = clamp((u - 0.30) / 0.56, 0, 1);
+    const sBete = sAncre + DEPART + k * (ARRIVEE - DEPART);
+    const sc = clamp(sBete, 0, chemin.longueur);
+    chemin.point(sc, p);
+    chemin.cote(sc, c);
+    chemin.tangente(sc, tan);
+    const x = p.x + c.x * COTE * VOIE;
+    const z = p.z + c.z * COTE * VOIE;
+    g.position.set(x, relief.hauteur(x, z), z);
+    g.rotation.y = Math.atan2(-tan.x, -tan.z);
+
+    /* IL N'EST LA QU'A PARTIR DU DEUXIEME TEMPS. Avant, le groupe existe —
+       il porte la neige qui tombe et la source sonore — mais la bete est
+       eteinte : c'est ce qui fait qu'on entend des pas sans voir personne. */
+    bete.visible = u > 0.28;
+
+    /* LA CADENCE. Un pas toutes les huit dixiemes de seconde, comptes sur le
+       temps ABSOLU et non sur la progression : ainsi le rythme reste le meme
+       quelle que soit la vitesse du cerf, et c'est le rythme qui fait la
+       masse. */
+    const cadence = t / 0.82;
+    const phase = cadence % 1;
+    marcheTrex(os, phase, 1);
+    // Il avance vraiment : la marche et le deplacement sont accordes.
+    bete.position.z = 0;
+
+    /* Le pas qui vient de se poser. On declenche dessus la secousse et le
+       son — jamais sur une horloge separee, sinon l'image et le bruit
+       derivent l'un de l'autre au bout de quelques secondes. */
+    const numero = Math.floor(cadence * 2);
+    const neuf = numero !== dernierPas;
+    if (neuf) {
+      dernierPas = numero;
+      if (u > 0.02) g.userData.emettre?.('pas');
+    }
+    // La force de la secousse decroit apres chaque impact.
+    const depuis = (cadence * 2) % 1;
+    const secousse = Math.pow(1 - depuis, 3);
+
+    if (!rugi && u > 0.22) { rugi = true; g.userData.emettre?.('rugir'); }
+
+    /* La neige des branches. Elle tombe surtout juste apres un pas, et elle
+       s'arrete quand la bete est passee — c'est elle qui fait le compte a
+       rebours du debut. */
+    const pluie = smoothstep(0, 0.05, u) * smoothstep(0.92, 0.62, u);
+    matN.opacity = pluie * (0.30 + secousse * 0.70);
+    for (let i = 0; i < N; i++) {
+      vies[i] += dt * 0.55;
+      if (vies[i] > 1) vies[i] -= 1;
+      const kk = vies[i];
+      pos[i * 3] = oX[i];
+      pos[i * 3 + 1] = oH[i] * (1 - kk * kk);
+      pos[i * 3 + 2] = oZ[i] + kk * 0.6;
+    }
+    geo.attributes.position.needsUpdate = true;
+    void camera;
+  };
+  return g;
+}
+
 /* --------------------------------------------------------------------------
    OU SE PLACENT LES APPARITIONS.
 
@@ -1389,16 +1543,32 @@ export function planApparitions(L) {
 
        L'ancrage n'est plus qu'un REPERE : les voitures, elles, parcourent
        deux cent cinquante metres autour de lui. */
-    { nom: 'police',   s: L * 0.14, cote: -1, ecart: 6.0, avant: 46, apres: 26, degage: 0 },
-    { nom: 'spider1',  s: L * 0.23, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
-    { nom: 'killbill', s: L * 0.31, cote: -1, ecart: 4.0, avant: 32, apres: 12, tourne: 0.3, degage: 5.0 },
-    { nom: 'et',       s: L * 0.39, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
-    { nom: 'sabres',   s: L * 0.47, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5 },
-    { nom: 'trio',     s: L * 0.56, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
-    { nom: 'patronus', s: L * 0.65, cote: -1, ecart: 5.5, avant: 38, apres: 12, degage: 8.0 },
-    { nom: 'gargantua', s: L * 0.73, cote: 0, ecart: 0,   avant: 40, apres: 30, degage: 0 },
-    { nom: 'spider2',  s: L * 0.82, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
-    { nom: 'delorean', s: L * 0.91, cote:  0, ecart: 0,   avant: 46, apres: 16, degage: 4.0 },
+    /* ONZE APPARITIONS, ESPACEES DE HUIT POUR CENT DU PARCOURS.
+
+       L'espacement n'est plus un choix de gout mais une contrainte
+       arithmetique : chaque fenetre mesure de quarante a quatre-vingts
+       metres, et le chemin en fait six cent soixante-neuf. A onze scenes,
+       il reste cinquante-trois metres entre deux ancrages — juste de quoi
+       qu'elles ne se chevauchent pas.
+
+       La verification s'est imposee toute seule : le theropode, avec ses
+       cinquante-deux metres d'approche, empietait a la fois sur le trio qui
+       le precede et sur le patronus qui le suit. Trois apparitions
+       simultanees, ce n'est plus une surprise, c'est une brocante. */
+    { nom: 'police',    s: L * 0.12, cote: -1, ecart: 6.0, avant: 46, apres: 26, degage: 0 },
+    { nom: 'spider1',   s: L * 0.20, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
+    { nom: 'killbill',  s: L * 0.28, cote: -1, ecart: 4.0, avant: 32, apres: 12, tourne: 0.3, degage: 5.0 },
+    { nom: 'et',        s: L * 0.36, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
+    { nom: 'sabres',    s: L * 0.44, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5 },
+    { nom: 'trio',      s: L * 0.52, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
+    /* Le theropode marche a vingt-deux metres du chemin, derriere la ligne
+       d'arbres : on ne degage donc RIEN pour lui — ce sont justement les
+       troncs entre lui et nous qui font la scene. */
+    { nom: 'trex',      s: L * 0.61, cote: -1, ecart: 0,   avant: 48, apres: 26, degage: 0 },
+    { nom: 'patronus',  s: L * 0.70, cote: -1, ecart: 5.5, avant: 34, apres: 10, degage: 8.0 },
+    { nom: 'gargantua', s: L * 0.78, cote:  0, ecart: 0,   avant: 38, apres: 28, degage: 0 },
+    { nom: 'spider2',   s: L * 0.86, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
+    { nom: 'delorean',  s: L * 0.94, cote:  0, ecart: 0,   avant: 46, apres: 16, degage: 4.0 },
   ];
 }
 
@@ -1540,6 +1710,7 @@ export class Apparitions {
       patronus: () => patronus(),
       spider2: () => spiderBalance(9, palier),
       killbill: () => killBill(palier),
+      trex: () => jurassique(chemin, relief, palier),
       gargantua: () => trouNoir(),
       delorean: () => traineesDeFeu(26, palier, relief),
     };
@@ -1559,9 +1730,9 @@ export class Apparitions {
          des lames, le bang de la DeLorean. Les scenes ne connaissent ni le
          moteur audio ni leur propre nom : elles disent seulement « ceci vient
          de se produire », et c'est ici qu'on sait a qui l'adresser. */
-      o.userData.emettre = (quoi) => {
+      o.userData.emettre = (quoi, valeur) => {
         const s = this.son;
-        if (s && typeof s[quoi] === 'function') s[quoi](d.nom);
+        if (s && typeof s[quoi] === 'function') s[quoi](d.nom, valeur);
       };
       if (!o.userData.suitCamera && !o.userData.suitChemin) {
         chemin.point(d.s, p);

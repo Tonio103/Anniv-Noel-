@@ -389,6 +389,87 @@ function distSegment(px, py, pz, a, b) {
    sommet est celle du maillage, soit deux centimetres ici. Les motifs fins
    se font dans le nuanceur, ou ils sont continus.
    -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+   LA FABRIQUE GENERIQUE.
+
+   Elle ne sait rien d'un humain : on lui donne une liste de capsules et une
+   liste d'os, elle rend une peau continue liee a ce squelette. C'est la
+   meme machine qui sert au cerf, aux personnages et au theropode — trois
+   anatomies qui n'ont rien en commun et un seul pipeline.
+
+   Elle a ete extraite le jour ou il a fallu un troisieme corps : recopier
+   la polygonisation, les normales de gradient et la repartition de peau une
+   troisieme fois aurait garanti que les trois divergent.
+   -------------------------------------------------------------------------- */
+export function construirePeau(caps, osDef, options = {}) {
+  const f = champ(caps, options.fusion ?? 0.015);
+  const pas = options.pas ?? 0.02;
+  const boite = options.boite;
+  const { positions, index } = polygoniser(f, boite, pas);
+  const normales = normalesParGradient(f, positions, pas);
+  orienterFaces(positions, index, normales);
+  const nSommets = positions.length / 3;
+
+  const pesants = osDef.map((o, i) => ({ ...o, i })).filter((o) => o.importance > 0);
+  const skinIndex = new Uint16Array(nSommets * 4);
+  const skinWeight = new Float32Array(nSommets * 4);
+  const cand = [];
+
+  for (let v = 0; v < nSommets; v++) {
+    const x = positions[v * 3], y = positions[v * 3 + 1], z = positions[v * 3 + 2];
+    cand.length = 0;
+    for (const o of pesants) {
+      const d = distSegment(x, y, z, o.tete, o.bout);
+      if (d > o.portee) continue;
+      cand.push([o.i, o.importance / (Math.pow(d, 3) + 1e-4)]);
+    }
+    if (!cand.length) {
+      let meilleur = pesants[0], best = Infinity;
+      for (const o of pesants) {
+        const d = distSegment(x, y, z, o.tete, o.bout);
+        if (d < best) { best = d; meilleur = o; }
+      }
+      cand.push([meilleur.i, 1]);
+    }
+    cand.sort((p, q) => q[1] - p[1]);
+    let somme = 0;
+    const n = Math.min(4, cand.length);
+    for (let k = 0; k < n; k++) somme += cand[k][1];
+    for (let k = 0; k < n; k++) {
+      skinIndex[v * 4 + k] = cand[k][0];
+      skinWeight[v * 4 + k] = cand[k][1] / somme;
+    }
+  }
+
+  const couleurs = new Float32Array(nSommets * 3);
+  const teinter = options.teinter;
+  const c = new THREE.Color(0xffffff);
+  for (let i = 0; i < nSommets; i++) {
+    if (teinter) {
+      const nomOs = osDef[skinIndex[i * 4]] ? osDef[skinIndex[i * 4]].nom : '';
+      teinter(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2], c, nomOs,
+              normales[i * 3], normales[i * 3 + 1], normales[i * 3 + 2]);
+    }
+    couleurs[i * 3] = c.r; couleurs[i * 3 + 1] = c.g; couleurs[i * 3 + 2] = c.b;
+  }
+
+  let solLocal = Infinity;
+  for (let i = 1; i < positions.length; i += 3) {
+    if (positions[i] < solLocal) solLocal = positions[i];
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normales, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(couleurs, 3));
+  geo.setAttribute('skinIndex', new THREE.BufferAttribute(skinIndex, 4));
+  geo.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeight, 4));
+  geo.setIndex(new THREE.BufferAttribute(index, 1));
+  geo.computeBoundingSphere();
+
+  return { geo, osDef, solLocal, triangles: index.length / 3, sommets: nSommets };
+}
+
 export function construireCorps(palier, options = {}) {
   const caps = anatomieHumaine(options.gabarit);
   /* Le rayon de fusion. Trop grand, le cou disparait dans les epaules et les

@@ -33,9 +33,22 @@ const r = await page.evaluate(() => {
   const s = window.__scene, THREE = window.__THREE;
   const arbres = s.foret.arbres || [];
   const out = [];
+  const mobiles = [];
 
   for (const sc of s.apparitions.scenes) {
     if (sc.objet.userData.suitCamera) continue;
+    /* LES SCENES MOBILES NE SE VERIFIENT PAS AINSI, et le banc le disait
+       faussement. Une poursuite ou un theropode parcourent cent metres le
+       long du chemin : leur position a un instant donne est arbitraire, et
+       un degagement fixe autour d'un point n'a aucun sens pour eux. Le banc
+       les signalait pourtant en echec des qu'un semis de deux metres se
+       trouvait pres de leur ancrage — un arbrisseau qu'une bete de douze
+       metres ecarterait sans le voir.
+
+       On les recense a part. Pour elles, la regle est ailleurs : elles
+       roulent ou marchent sur une VOIE choisie assez loin du chemin pour
+       que la marge du couloir garantisse ce qu'il faut d'espace. */
+    if (sc.objet.userData.suitChemin) { mobiles.push(sc.nom); continue; }
     /* L'emprise reelle de la scene au sol. On l'obtient de la boite
        englobante, en excluant ce qui est purement lumineux — un faisceau de
        gyrophare de vingt et un metres traverserait la moitie de la foret et
@@ -80,7 +93,7 @@ const r = await page.evaluate(() => {
     }
     out.push({ nom: sc.nom, rayon: +rayon.toFixed(2), touches });
   }
-  return { out, nArbres: arbres.length, refus: s.foret.refusDegagement, nZones: s.foret.degagements.length };
+  return { out, mobiles, nArbres: arbres.length, refus: s.foret.refusDegagement, nZones: s.foret.degagements.length };
 });
 
 console.log(`${r.nArbres} arbres semes · ${r.nZones} zones degagees · ${r.refus} candidats refuses pour cause de scene\n`);
@@ -98,6 +111,9 @@ for (const a of r.out) {
   } else {
     console.log(`  OK  ${a.nom.padEnd(9)} emprise ${a.rayon} m — rien autour`);
   }
+}
+if (r.mobiles.length) {
+  console.log(`  (${r.mobiles.join(', ')} : scenes mobiles, verifiees par leur voie et non par un degagement)`);
 }
 console.log(ko === 0 ? '\nAUCUNE COLLISION' : `\n${ko} SCENE(S) A DEGAGER`);
 await nav.close();

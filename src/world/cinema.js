@@ -341,12 +341,20 @@ export function killBill(palier) {
      groupe entier, parce qu'un corps qui pivote autour de sa colonne
      vertebrale sans deplacer ses appuis se lit comme une poupee sur un
      socle. */
+  let lameFaite = false;
+  g.userData.reinit = () => { lameFaite = false; };
+
   g.userData.jouer = (u, t, camera) => {
     const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
     g.visible = vis > 0.01;
     if (!g.visible) return;
 
     sequence(os, u);
+    /* LA LAME CHANTE AU MOMENT OU ELLE SE MET EN GARDE. Un seul son, place
+       exactement sur le geste : c'est ce qui transforme une pose en un
+       evenement. Il ne se rejoue pas tant que la fenetre ne s'est pas
+       refermee. */
+    if (!lameFaite && u > 0.60) { lameFaite = true; g.userData.emettre?.('lame'); }
     // Le demi-tour, cale sur le deuxieme temps de la sequence.
     const tourne = smoothstep(0.28, 0.66, u);
     perso.rotation.y = Math.PI * (1 - tourne) + 0.35 * tourne;

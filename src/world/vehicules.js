@@ -297,6 +297,10 @@ export function coursePoursuite(chemin, relief, palier) {
   };
 
   let dernierS = 0;
+  /* Les distances de l'image precedente, pour la vitesse radiale du doppler,
+     et leur version lissee. */
+  let dernierDp = 0, dernierDf = 0, lissP = 0, lissF = 0;
+  const _oreille = new THREE.Vector3(), _ici = new THREE.Vector3();
 
   g.userData.jouer = (u, t, camera, sAncre, dt) => {
     /* LE PASSAGE NE DURE PAS TOUTE LA FENETRE. On les voit venir de loin,
@@ -355,6 +359,49 @@ export function coursePoursuite(chemin, relief, palier) {
     majGerbe(poussierePolice, dt, force);
     majGerbe(poussiereFuyard, dt, force);
 
+    /* --------------------------------------------------------------------
+       LE SON SUIT LA COURSE.
+
+       Deux grandeurs sont transmises au moteur a chaque image :
+
+       · LE REGIME, tire de la vitesse reelle. Il ouvre le filtre de corps
+         bien plus qu'il ne monte la hauteur — c'est cette ouverture qui
+         s'entend comme « il accelere » ;
+       · LE DECALAGE DOPPLER, calcule a partir de la VITESSE RADIALE, c'est-
+         a-dire de la vitesse a laquelle la voiture se rapproche de
+         l'oreille. Le Web Audio ne le fait plus depuis longtemps ; sans lui,
+         un passage rapide sonne exactement comme un passage lent, et c'est
+         justement le moment ou la scene doit exister.
+
+       On lisse la vitesse radiale : mesuree image par image sur une camera
+       qui tremble, elle sauterait, et un doppler qui saute s'entend comme
+       un disque raye. */
+    if (camera) {
+      _oreille.setFromMatrixPosition(camera.matrixWorld);
+      const dPolice = g.position.distanceTo(_oreille);
+      const dFuyard = fuyard.getWorldPosition(_ici).distanceTo(_oreille);
+      if (dt > 1e-4 && dernierDp > 0) {
+        const vrP = (dPolice - dernierDp) / dt;
+        const vrF = (dFuyard - dernierDf) / dt;
+        lissP += (vrP - lissP) * 0.18;
+        lissF += (vrF - lissF) * 0.18;
+      }
+      dernierDp = dPolice;
+      dernierDf = dFuyard;
+      /* Trois cent quarante metres par seconde : la vitesse du son. Le
+         rapport est donc tres petit — de l'ordre de six pour cent a
+         soixante-quinze a l'heure — et c'est pourtant parfaitement
+         audible. On le borne, parce qu'un pic de mesure au moment ou la
+         camera saute produirait un couac. */
+      const dopP = clamp(-lissP / 340, -0.14, 0.14);
+      const dopF = clamp(-lissF / 340, -0.14, 0.14);
+      const rg = clamp(vitesse / 24, 0, 1);
+      g.userData.emettre?.('regler', [
+        { regime: rg, doppler: dopP, volume: enPiste },
+        { regime: rg * 1.12, doppler: dopF, volume: enPiste * 0.9 },
+      ]);
+    }
+
     // Les phares et les feux.
     for (const v of [police, fuyard]) {
       for (const ph of v.userData.phares) ph.material.opacity = enPiste * 0.85;
@@ -383,7 +430,6 @@ export function coursePoursuite(chemin, relief, palier) {
     gyro.rayonBleu.material.opacity = enPiste * (0.14 + fB * 0.28);
     gyro.rayonRouge.material.opacity = enPiste * (0.14 + fR * 0.28);
 
-    void camera;
   };
   return g;
 }
