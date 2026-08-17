@@ -30,7 +30,7 @@ import { smoothstep, clamp } from '../core/noise.js';
 import { REPERES, piste, appliquerPose, regarderVers } from './humanoide.js';
 import { creerSpider, POSES } from './spider.js';
 import { creerDuelliste, GARDES, ECHANGES } from './encapuchonne.js';
-import { coursePoursuite } from './vehicules.js';
+import { coursePoursuite, delorean } from './vehicules.js';
 import { trouNoir, killBill } from './cinema.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
@@ -475,7 +475,7 @@ function spiderBalance(porteeX, palier) {
   perso.position.y = -LONGUEUR - POIGNET;
   ancre.add(perso);
   g.add(ancre);
-  ancre.position.y = 9.2;
+  ancre.position.y = 7.6;
 
   const os = perso.userData.os;
   const sequence = piste([
@@ -490,7 +490,9 @@ function spiderBalance(porteeX, palier) {
   const tir = filDeToile(1);          // longueur pilotee par l'etirement
   tir.visible = false;
   g.add(tir);
-  const ACCROCHE = new THREE.Vector3(-porteeX * 0.85, 11.5, -17);
+  /* Le point vers lequel il lance son fil suivant. Il est DEVANT lui dans
+     le sens de la marche : un fil lance vers l'arriere le ferait freiner. */
+  const ACCROCHE = new THREE.Vector3(-porteeX * 0.7, 13.0, -46);
   const _poignet = new THREE.Vector3();
   const _bout = new THREE.Vector3();
 
@@ -504,21 +506,46 @@ function spiderBalance(porteeX, palier) {
 
     sequence(os, u);
 
-    /* Un balancement, c'est un pendule : vite en bas, lent aux extremites.
-       Un deplacement lineaire se lirait comme un panneau qu'on tire sur un
-       rail. */
-    const a = Math.sin((u - 0.5) * Math.PI) * 1.05;
-    ancre.rotation.z = a * 0.55;
-    /* LE DEPLACEMENT VA SUR L'ANCRE, PAS SUR LE GROUPE. `g.position` porte
-       l'emplacement calcule au montage, le long du chemin ; y ecrire ici
-       l'ECRASAIT, et le personnage se retrouvait projete a l'origine du
-       monde — hors champ, evidemment. L'ancre, elle, vit dans le repere du
-       groupe, deja oriente face au chemin : c'est le bon endroit. */
-    ancre.position.x = -a * porteeX * 0.5;
+    /* IL SE BALANCAIT SUR PLACE, ET C'ETAIT LE VRAI DEFAUT.
+
+       Antoine : « je veux que le dernier Spider-Man se balance enfin, qu'il
+       bouge vraiment ». L'ancienne version faisait osciller le personnage
+       autour d'un point d'accroche FIXE : il allait de gauche a droite et
+       revenait, sans jamais avancer d'un metre. On regardait un pendule,
+       pas quelqu'un qui se deplace — et se deplacer est tout ce que ce
+       personnage sait faire.
+
+       Il TRAVERSE desormais : son point d'accroche remonte la scene sur
+       cinquante-quatre metres pendant qu'il pendule dessous, si bien qu'il
+       arrive de derriere, passe au-dessus du chemin et file devant. Le
+       balancement se fait dans le plan de la marche — d'arriere en avant
+       sous l'ancre — et non plus lateralement : c'est ainsi qu'un pendule
+       porte celui qui s'y accroche.
+
+       Il louvoie tout de meme un peu de cote, parce qu'une trajectoire
+       rigoureusement rectiligne se lit comme un rail. */
+    const av = clamp((u - 0.10) / 0.78, 0, 1);
+    ancre.position.z = 27 - av * 54;
+    ancre.position.x = Math.sin(av * Math.PI * 1.6) * porteeX * 0.42;
+
+    /* Le pendule : trois arcs sur la traversee, vite au point bas et lent
+       aux extremites. Un deplacement lineaire se lirait comme un panneau
+       qu'on tire sur un rail. */
+    const a = Math.sin(av * Math.PI * 3.0) * 1.0;
+    ancre.rotation.x = a * 0.62;
+    ancre.rotation.z = Math.cos(av * Math.PI * 1.6) * 0.22;
+    /* Il monte au point haut de chaque arc et redescend au point bas : c'est
+       ce qui distingue un vol plane d'un balancement. */
+    /* SEPT METRES SOIXANTE, PAS NEUF DEUX. Mesure au format du telephone :
+       a neuf metres d'accroche, sa tete passait a plus de sept metres du sol
+       et sortait par le haut du cadre au moment ou il est le plus pres —
+       c'est-a-dire au seul moment ou l'on voudrait le voir. */
+    ancre.position.y = 7.6 + Math.abs(a) * 1.5;
     /* Le corps se redresse au point bas et se couche aux extremites : c'est
        ce qu'un pendule vivant fait de son bassin, et c'est ce qui empeche la
        silhouette de rester raide comme un pendu. */
     perso.rotation.x = -0.30 + Math.abs(a) * 0.28;
+    perso.rotation.z = -ancre.rotation.z * 0.5;
 
     /* Il se retourne vers vous au passage le plus bas — le seul instant ou
        il est assez pres pour que ca se voie. */
@@ -949,8 +976,35 @@ function texturebraise() {
   return _braise;
 }
 
-function traineesDeFeu(longueur) {
+function traineesDeFeu(longueur, palier, relief) {
   const g = new THREE.Group();
+
+  /* LA VOITURE ELLE-MEME, QUI MANQUAIT.
+
+     Antoine : « il y a Retour vers le futur, ameliore-la ». Il n'y avait que
+     les deux trainees de feu. C'est le plan de fin du film, et c'est joli,
+     mais on ne cite pas un film en n'en montrant que la consequence.
+
+     Elle arrive de loin derriere, monte en regime — les arcs bleus du
+     condensateur se mettent a courir sur la caisse —, passe, et DISPARAIT
+     dans un eclair a l'instant precis ou les trainees s'allument. La
+     sequence entiere dure six secondes sur une fenetre qui en compte douze.
+
+     Elle roule dans le repere LOCAL de la scene, le long de son axe Z. La
+     scene est posee sur le chemin et orientee selon sa tangente : sur les
+     quatre-vingts metres que la voiture parcourt, l'ecart avec la vraie
+     courbe reste sous le metre, et a cette vitesse-la personne ne peut le
+     voir. C'est le seul endroit du fichier ou l'on se permet cette
+     approximation, et c'est parce qu'elle achete beaucoup de simplicite. */
+  const auto = delorean();
+  g.add(auto);
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: lueurDiffuse(), transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  }));
+  flash.material.color.setRGB(3.6, 3.5, 3.2);
+  flash.scale.setScalar(18);
+  g.add(flash);
   const bandes = [];
   for (const sx of [-1, 1]) {
     /* Trente-deux tronçons dans la longueur : c'est ce qu'il faut pour que
@@ -997,26 +1051,82 @@ function traineesDeFeu(longueur) {
     for (const b of bandes) epouserLeSol(b, relief, 0.07);
   };
 
-  /* Le bang n'arrive qu'une fois par passage. On le remet a zero quand la
-     fenetre se referme, pour qu'il claque a nouveau si l'on refait la
+  /* Le saut n'a lieu qu'une fois par passage. On remet tout a zero quand la
+     fenetre se referme, pour que la voiture repasse si l'on refait la
      balade. */
-  let bangFait = false;
-  g.userData.reinit = () => { bangFait = false; };
+  g.userData.reinit = () => { sautFait = false; };
+
+  /* Le trajet de la voiture, en metres le long de l'axe local. Elle part
+     bien au-dela du brouillard et s'evanouit a l'extremite arriere des
+     trainees, celle par laquelle elles commencent. */
+  const Z0 = 96, Z1 = -longueur / 2 - 2;
+  const _p = new THREE.Vector3();
+  const SAUT = 0.30;                       // l'instant du flash, en fraction de fenetre
+  let sautFait = false;
 
   g.userData.jouer = (u, t) => {
-    /* Elles s'allument d'un coup, tiennent, puis s'eteignent par l'arriere.
-       Un fondu symetrique donnerait une lampe ; ici on doit lire un
-       PASSAGE. */
-    const allume = smoothstep(0, 0.06, u) * smoothstep(1, 0.55, u);
-    /* LE BANG ARRIVE APRES LES TRAINEES, ET C'EST VOULU. La voiture est
-       deja passee : le son la rattrape. C'est physiquement juste — et
-       dramatiquement bien meilleur, parce que l'oeil a le temps de lire les
-       deux traits de feu avant que l'oreille ne dise ce que c'etait. */
-    if (!bangFait && u > 0.14) { bangFait = true; g.userData.emettre?.('bang'); }
+    /* --- LA VOITURE, jusqu'au saut. ------------------------------------- */
+    const k = clamp(u / SAUT, 0, 1);
+    /* Elle ACCELERE : le carre du parcours, pas le parcours lui-meme. Une
+       vitesse constante avant une disparition ne prepare rien ; une
+       acceleration dit que quelque chose se prepare. */
+    const av = k * k;
+    const encoreLa = u < SAUT;
+    auto.visible = encoreLa;
+    if (encoreLa) {
+      auto.position.z = Z0 + (Z1 - Z0) * av;
+      /* ELLE ROULAIT SOUS LA NEIGE. La scene est posee a la hauteur du sol
+         SOUS SON ANCRAGE, et la voiture parcourt quatre-vingt-dix metres a
+         partir de la : sur cette distance le terrain monte et descend de
+         plusieurs metres, si bien qu'elle etait enterree la moitie du temps
+         et flottait le reste. Elle prend donc la hauteur du sol SOUS ELLE, a
+         chaque image. C'est le meme oubli que pour les flaques de gyrophare,
+         et il se manifeste ici en pire : la voiture disparaissait purement
+         et simplement. */
+      _p.set(0, 0, auto.position.z).applyMatrix4(g.matrixWorld);
+      auto.position.y = relief.hauteur(_p.x, _p.z) - g.position.y;
+      // Les roues tournent au rythme du deplacement reel.
+      const dz = Math.abs((Z1 - Z0) * 2 * k * (1 / Math.max(SAUT, 1e-3))) / 60;
+      for (const r of auto.userData.roues) r.rotation.x -= dz / 0.32;
+      const proche = smoothstep(0.35, 0.95, k);
+      for (const p of auto.userData.phares) p.material.opacity = 0.9;
+      for (const c of auto.userData.cones) c.material.opacity = 0.30;
+      /* LES ARCS DU CONDENSATEUR. Ils n'apparaissent qu'a la toute fin de
+         la montee en regime, et par a-coups tres brefs : c'est ce
+         crepitement qui annonce le saut. */
+      for (let i = 0; i < auto.userData.arcs.length; i++) {
+        const bruit = Math.pow(Math.abs(Math.sin(t * 23 + i * 2.1)), 8);
+        auto.userData.arcs[i].material.opacity = proche * bruit * 0.95;
+      }
+    }
+
+    /* --- L'ECLAIR, une seule fois. --------------------------------------- */
+    const depuis = (u - SAUT) / 0.06;
+    flash.material.opacity = u >= SAUT && depuis < 1
+      ? Math.pow(1 - clamp(depuis, 0, 1), 2.2)
+      : 0;
+    _p.set(0, 0, Z1).applyMatrix4(g.matrixWorld);
+    flash.position.set(0, relief.hauteur(_p.x, _p.z) - g.position.y + 0.9, Z1);
+    if (!sautFait && u >= SAUT) { sautFait = true; g.userData.emettre?.('bang'); }
+
+    /* --- LES TRAINEES. Elles ne s'allument qu'APRES le saut : ce sont
+       elles qui restent quand la voiture n'est plus la. ------------------- */
+    const allume = smoothstep(SAUT, SAUT + 0.05, u) * smoothstep(1, 0.62, u);
     const scint = 0.82 + Math.sin(t * 27) * 0.18;
     for (const b of bandes) b.material.opacity = allume * 1.15 * scint;
-    front.material.opacity = smoothstep(0, 0.04, u) * smoothstep(0.34, 0.10, u) * 0.9;
-    g.visible = allume > 0.01;
+    /* Le halo de tete ne s'allume qu'au saut, avec les trainees : avant, la
+       voiture est encore la et c'est ELLE qu'on regarde. */
+    front.material.opacity = smoothstep(SAUT, SAUT + 0.03, u) * smoothstep(SAUT + 0.30, SAUT + 0.08, u) * 0.9;
+
+    /* LA VISIBILITE DU GROUPE NE PEUT PAS DEPENDRE DES SEULES TRAINEES.
+
+       Elle en dependait, et les trainees ne s'allument qu'APRES le saut :
+       tout le groupe — donc la voiture, donc toute la premiere moitie de la
+       scene — restait invisible pendant l'approche. On voyait le resultat
+       sans jamais voir ce qui l'avait produit, ce qui est exactement le
+       defaut qu'on cherchait a corriger. Le groupe vit tant que l'un OU
+       l'autre a quelque chose a montrer. */
+    g.visible = allume > 0.01 || encoreLa || flash.material.opacity > 0.01;
 
     /* Les braises montent, derivent, et s'eteignent d'autant plus vite que
        la trainee elle-meme faiblit. */
@@ -1288,7 +1398,7 @@ export function planApparitions(L) {
     { nom: 'patronus', s: L * 0.65, cote: -1, ecart: 5.5, avant: 38, apres: 12, degage: 8.0 },
     { nom: 'gargantua', s: L * 0.73, cote: 0, ecart: 0,   avant: 40, apres: 30, degage: 0 },
     { nom: 'spider2',  s: L * 0.82, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
-    { nom: 'delorean', s: L * 0.91, cote:  0, ecart: 0,   avant: 34, apres: 8,  degage: 4.0 },
+    { nom: 'delorean', s: L * 0.91, cote:  0, ecart: 0,   avant: 46, apres: 16, degage: 4.0 },
   ];
 }
 
@@ -1431,7 +1541,7 @@ export class Apparitions {
       spider2: () => spiderBalance(9, palier),
       killbill: () => killBill(palier),
       gargantua: () => trouNoir(),
-      delorean: () => traineesDeFeu(26),
+      delorean: () => traineesDeFeu(26, palier, relief),
     };
     const plan = planApparitions(L).map((d) => ({ ...d, faire: FABRIQUES[d.nom] }));
 

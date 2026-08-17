@@ -37,14 +37,30 @@ import { REPERES, construireCorps, nouvelleInstance } from './humanoide.js';
    regard : la cape couvre le dos et les flancs, et laisse le devant libre.
    -------------------------------------------------------------------------- */
 function capeGeometrie(opts = {}) {
-  const NA = opts.na ?? 26;          // pas angulaires
-  const NV = opts.nv ?? 14;          // pas verticaux
-  const ouvre = opts.ouvre ?? 0.75;  // demi-angle laisse libre devant, en radians
-  const yHaut = opts.yHaut ?? 1.470;
-  const yBas = opts.yBas ?? 0.045;
-  const rHaut = opts.rHaut ?? 0.195;
-  const rBas = opts.rBas ?? 0.400;
-  const plis = opts.plis ?? 9;
+  const NA = opts.na ?? 30;          // pas angulaires
+  const NV = opts.nv ?? 16;          // pas verticaux
+  /* ANTOINE, DEUX FOIS : « les personnages Star Wars c'est juste des cones ».
+     Il avait encore raison, et le coupable n'etait plus le corps mais le
+     VETEMENT. La cape partait des epaules a vingt centimetres de rayon et
+     s'evasait jusqu'a quarante au ras du sol : c'est la definition d'une
+     cloche. Peu importe la qualite du corps dessous, on ne voyait qu'un
+     cone, parce qu'il n'y avait qu'un cone a voir.
+
+     Trois chiffres corrigent cela, et ce sont les trois seuls qui comptent :
+
+     · ELLE S'ARRETE A MI-MOLLET et non au sol. Les jambes et les bottes
+       ressortent, donc on voit un homme habille et non une forme ;
+     · ELLE NE S'EVASE PRESQUE PLUS — trente centimetres a l'ourlet contre
+       quarante. Un manteau tombe, une cloche s'ouvre ;
+     · ELLE EST BEAUCOUP PLUS OUVERTE DEVANT, cent dix degres au lieu de
+       quatre-vingt-six, ce qui degage le torse et le bras arme. C'est par
+       cette ouverture qu'on lit qu'il y a quelqu'un dedans. */
+  const ouvre = opts.ouvre ?? 0.96;  // demi-angle laisse libre devant, en radians
+  const yHaut = opts.yHaut ?? 1.455;
+  const yBas = opts.yBas ?? 0.430;
+  const rHaut = opts.rHaut ?? 0.205;
+  const rBas = opts.rBas ?? 0.300;
+  const plis = opts.plis ?? 11;
 
   const pos = [];
   const nor = [];
@@ -52,10 +68,10 @@ function capeGeometrie(opts = {}) {
   const largeur = Math.PI * 2 - ouvre * 2;
 
   const rayon = (t) => {
-    /* Une cape ne s'evase pas lineairement : elle tombe droit sur le buste
-       puis s'ouvre en corolle a partir des hanches. L'exposant est ce qui
+    /* Un manteau ne s'evase pas lineairement : il tombe droit sur le buste
+       puis s'ouvre a peine a partir des hanches. L'exposant est ce qui
        distingue un vetement d'un abat-jour. */
-    const e = Math.pow(t, 1.55);
+    const e = Math.pow(t, 2.1);
     return rHaut + (rBas - rHaut) * e;
   };
 
@@ -68,12 +84,17 @@ function capeGeometrie(opts = {}) {
       /* Les PLIS. Ils naissent au niveau des epaules et s'amplifient en
          descendant : c'est ainsi que tombe un tissu lourd, et c'est ce qui
          empeche la cape de se lire comme une surface de revolution. */
-      const pli = 1 + Math.sin(a * plis) * 0.055 * (0.25 + t * 0.75);
+      const pli = 1 + Math.sin(a * plis) * 0.075 * (0.20 + t * 0.80);
       const r = r0 * pli;
       // L'avant (-Z) correspond a l'angle zero : on tourne autour de +Y.
       const x = Math.sin(a) * r;
       const z = -Math.cos(a) * r;
-      pos.push(x, y, z);
+      /* L'OURLET ONDULE. Un bord parfaitement horizontal se lit comme une
+         decoupe a l'emporte-piece ; quelques centimetres de dent de scie
+         suffisent a en faire un tissu. L'ondulation ne mord qu'en bas — le
+         col, lui, doit rester net. */
+      const ourlet = Math.sin(a * (plis * 0.5) + 1.2) * 0.055 * Math.pow(t, 3.0);
+      pos.push(x, y - ourlet, z);
       /* La normale approchee : radiale, legerement inclinee vers le haut
          par l'evasement. Elle n'a pas besoin d'etre exacte — la cape est
          quasi noire et ne recoit presque pas de lumiere directe — mais elle

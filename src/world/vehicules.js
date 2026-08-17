@@ -387,3 +387,154 @@ export function coursePoursuite(chemin, relief, palier) {
   };
   return g;
 }
+
+/* ==========================================================================
+   LA DELOREAN
+
+   ANTOINE : « il y a Retour vers le futur, ameliore-la ».
+
+   Il n'y avait que les deux trainees de feu sur la neige. C'est le plan de
+   fin du film, et c'est joli, mais on ne cite pas un film en n'en montrant
+   que la consequence : il manquait LA VOITURE, et le moment ou elle
+   disparait.
+
+   La silhouette est tres particuliere et tient a quatre choses, aucune
+   negociable :
+
+   · ELLE EST TRES BASSE ET TRES PLATE. Un mètre quinze au toit, la moitie
+     d'une berline. C'est le premier rapport qui la nomme ;
+   · LE PARE-BRISE EST PRESQUE COUCHE, et le capot plonge vers l'avant en
+     coin — c'est une voiture en biseau, pas une caisse ;
+   · L'ARRIERE EST VERTICAL, barre de persiennes horizontales ;
+   · ELLE EST EN INOX BROSSE, donc claire et tres reflechissante, la ou
+     toutes les autres voitures de cette foret sont sombres. De nuit, c'est
+     ce qui la fait ressortir immediatement.
+
+   Et par-dessus : le reacteur, les arcs bleus qui montent quand elle
+   accelere, et l'eclair au moment ou elle passe. Le reste — les trainees de
+   feu — existait deja et n'a pas change.
+   ========================================================================== */
+export function delorean() {
+  const g = new THREE.Group();
+  const inox = { color: 0xA8B0BA, roughness: 0.28, metalness: 0.92 };
+  const roues = [];
+
+  /* Le corps, en trois etages tres plats. La ligne de caisse est
+     rigoureusement horizontale et le toit a peine plus haut : c'est ce
+     manque de hauteur qui fait tout. */
+  const bas = boite(1.84, 0.34, 4.30, 0xA8B0BA, inox);
+  bas.position.y = 0.52;
+  g.add(bas);
+
+  // Le capot : il PLONGE vers l'avant, en coin.
+  const capot = boite(1.72, 0.16, 1.70, 0xA8B0BA, inox);
+  capot.position.set(0, 0.70, -1.55);
+  capot.rotation.x = 0.085;
+  g.add(capot);
+
+  // Le pare-brise, presque couche : soixante-cinq degres de la verticale.
+  const parebrise = boite(1.58, 0.72, 0.30, 0x0E1520,
+    { roughness: 0.10, metalness: 0.75 });
+  parebrise.position.set(0, 0.93, -0.62);
+  parebrise.rotation.x = -1.02;
+  g.add(parebrise);
+
+  // Le toit, court et bas.
+  const toit = boite(1.56, 0.10, 1.15, 0xA8B0BA, inox);
+  toit.position.set(0, 1.14, 0.18);
+  g.add(toit);
+
+  /* L'ARRIERE VERTICAL, avec ses persiennes. Trois lattes suffisent : c'est
+     leur horizontalite reguliere qui se lit, pas leur nombre. */
+  const arriere = boite(1.62, 0.62, 0.14, 0x1A2028, { roughness: 0.5, metalness: 0.6 });
+  arriere.position.set(0, 0.92, 0.86);
+  g.add(arriere);
+  for (let i = 0; i < 4; i++) {
+    const latte = boite(1.56, 0.035, 0.10, 0x8A939E, { roughness: 0.35, metalness: 0.8 });
+    latte.position.set(0, 0.72 + i * 0.13, 0.80);
+    g.add(latte);
+  }
+  const pont = boite(1.72, 0.12, 1.10, 0xA8B0BA, inox);
+  pont.position.set(0, 0.68, 1.62);
+  g.add(pont);
+
+  // Les prises d'air laterales, en creux sombre : elles cassent le flanc.
+  for (const sx of [-1, 1]) {
+    const prise = boite(0.06, 0.16, 1.20, 0x121820, { roughness: 0.7 });
+    prise.position.set(sx * 0.92, 0.62, 0.55);
+    g.add(prise);
+  }
+
+  /* LE REACTEUR sur le pont arriere : un cylindre trapu surmonte d'un
+     entonnoir. Sans lui, c'est un coupe des annees quatre-vingts ; avec, on
+     sait exactement de quelle voiture il s'agit. */
+  const reacteur = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.20, 0.24, 0.30, 10),
+    new THREE.MeshStandardMaterial({ color: 0x2E353E, roughness: 0.45, metalness: 0.75 })
+  );
+  reacteur.position.set(0, 0.90, 1.55);
+  g.add(reacteur);
+  const entonnoir = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.26, 0.16, 0.16, 10),
+    new THREE.MeshStandardMaterial({ color: 0x39424D, roughness: 0.4, metalness: 0.8 })
+  );
+  entonnoir.position.set(0, 1.12, 1.55);
+  g.add(entonnoir);
+
+  // Les quatre roues, plus petites que celles d'une berline.
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const roue = new THREE.Group();
+    const pneu = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.32, 0.24, 12),
+      new THREE.MeshStandardMaterial({ color: 0x0A0C10, roughness: 0.95 })
+    );
+    pneu.rotation.z = Math.PI / 2;
+    roue.add(pneu);
+    const rayon = boite(0.26, 0.05, 0.05, 0xC8CFD8, { metalness: 0.6, roughness: 0.3 });
+    roue.add(rayon);
+    roue.position.set(sx * 0.88, 0.32, sz * 1.42);
+    g.add(roue);
+    roues.push(roue);
+  }
+
+  // Phares et feux.
+  const phares = [];
+  for (const sx of [-1, 1]) {
+    const p = halo([2.5, 2.35, 1.9], 1.6, 0.65);
+    p.position.set(sx * 0.56, 0.72, -2.16);
+    g.add(p);
+    phares.push(p);
+  }
+  const cones = [];
+  for (const sx of [-1, 1]) {
+    const c = faisceau([2.0, 1.85, 1.5], 24, 2.4, 2.4);
+    c.position.set(sx * 0.56, 0.72, -2.16);
+    c.rotation.x = -0.03;
+    g.add(c);
+    cones.push(c);
+  }
+
+  /* LES ARCS DU CONDENSATEUR. Quatre halos bleu-blanc qui courent le long
+     de la caisse et s'allument par a-coups quand elle monte en regime.
+     C'est le signal qui annonce le saut : sans lui, la disparition n'a
+     aucune preparation et ressemble a un bogue d'affichage. */
+  const arcs = [];
+  for (let i = 0; i < 6; i++) {
+    const a = halo([0.9, 1.9, 3.4], 1.5);
+    a.position.set((i % 2 ? 1 : -1) * 0.92, 0.62 + (i % 3) * 0.22, -1.4 + i * 0.62);
+    g.add(a);
+    arcs.push(a);
+  }
+
+  g.userData = { roues, phares, cones, arcs, reacteur };
+  return g;
+}
+
+/* La disparition : un eclair blanc bref et tres large. Un objet qui
+   s'efface en fondu se lit comme une erreur ; le meme objet efface par un
+   flash se lit comme un evenement. */
+function eclair() {
+  const s = halo([3.6, 3.5, 3.2], 16);
+  s.position.y = 0.9;
+  return s;
+}
