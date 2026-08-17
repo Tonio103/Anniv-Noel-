@@ -29,7 +29,9 @@ import { lueurDiffuse, grainRond, tacheDouce } from '../core/dot.js';
 import { smoothstep, clamp } from '../core/noise.js';
 import { REPERES, piste, appliquerPose, regarderVers } from './humanoide.js';
 import { creerSpider, POSES } from './spider.js';
-import { creerDuelliste, GARDES } from './encapuchonne.js';
+import { creerDuelliste, GARDES, ECHANGES } from './encapuchonne.js';
+import { coursePoursuite } from './vehicules.js';
+import { trouNoir, killBill } from './cinema.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
    porte a distance, bien plus que la geometrie. */
@@ -802,25 +804,30 @@ function duelSabres(palier) {
   gauche.userData.os.mainD.add(vert);
   droite.userData.os.mainD.add(rouge);
 
-  /* Les trois temps de la passe d'armes, joues en boucle. Chaque duelliste
-     lit la meme piste, decalee d'un demi-temps : quand l'un frappe, l'autre
-     recule, et c'est ce contretemps qui fait lire un echange plutot que deux
-     gymnastiques paralleles. */
-  const passeGauche = piste([
-    { t: 0.00, pose: GARDES.garde },
-    { t: 0.42, pose: GARDES.frappe },
-    { t: 0.56, pose: GARDES.frappe },
-    { t: 0.80, pose: GARDES.recul },
-    { t: 1.00, pose: GARDES.garde },
-  ]);
-  const passeDroite = piste([
-    { t: 0.00, pose: GARDES.recul },
-    { t: 0.30, pose: GARDES.garde },
-    { t: 0.46, pose: GARDES.frappe },
-    { t: 0.58, pose: GARDES.frappe },
-    { t: 0.86, pose: GARDES.recul },
-    { t: 1.00, pose: GARDES.recul },
-  ]);
+  /* LES ECHANGES CHANGENT D'UNE PASSE A L'AUTRE.
+
+     Antoine : « toujours la meme attaque de sabre ». C'etait exact — une
+     seule suite de trois poses tournait en boucle, et au bout de deux
+     passes on avait tout vu. Le repertoire compte maintenant quatre
+     echanges (voir `encapuchonne.js`) : la botte droite, le coup haut
+     abattu par-dessus la garde, le revers remontant, et le corps a corps ou
+     les deux lames restent bloquees.
+
+     On construit les pistes UNE FOIS a la creation, et l'on choisit
+     laquelle jouer selon le numero de la passe. Les reconstruire a chaque
+     image couterait quatre objets par image pour rien.
+
+     L'ordre est FIXE et non tire au hasard : deux visites de la balade
+     doivent montrer la meme scene, sans quoi plus rien n'est verifiable a
+     l'image. */
+  const tempsCles = [0.00, 0.40, 0.56, 0.86, 1.00];
+  const construire = (noms) => piste(
+    [...noms, noms[noms.length - 1]].map((n, i) => ({ t: tempsCles[i], pose: GARDES[n] }))
+  );
+  const pistes = ECHANGES.map((e) => ({
+    attaquant: construire(e.attaquant),
+    pare: construire(e.pare),
+  }));
 
   const eclat = halo([2.8, 3.0, 2.6], 3.2);
   eclat.position.set(0, 1.55, 0);
@@ -871,11 +878,17 @@ function duelSabres(palier) {
     gauche.rotation.z = -choc * 0.16;
     droite.rotation.z = choc * 0.16;
 
-    /* LE CORPS ENTIER JOUE LA PASSE. La piste enchaine garde, frappe et
-       recul sur seize os ; l'ancienne version ne bougeait qu'une epaule, et
-       c'est pour cela qu'on voyait deux batons plutot que deux escrimeurs. */
-    passeGauche(gauche.userData.os, passe);
-    passeDroite(droite.userData.os, passe);
+    /* LE CORPS ENTIER JOUE LA PASSE. La piste enchaine les poses sur seize
+       os ; l'ancienne version ne bougeait qu'une epaule, et c'est pour cela
+       qu'on voyait deux batons plutot que deux escrimeurs.
+
+       ET C'EST UN ECHANGE DIFFERENT A CHAQUE FOIS. On alterne aussi QUI
+       attaque : sans cela, l'un porterait tous les coups et l'autre ne
+       ferait que reculer, ce qui n'est pas un duel mais une correction. */
+    const choix = pistes[((numero % pistes.length) + pistes.length) % pistes.length];
+    const gaucheAttaque = (numero & 1) === 0;
+    (gaucheAttaque ? choix.attaquant : choix.pare)(gauche.userData.os, passe);
+    (gaucheAttaque ? choix.pare : choix.attaquant)(droite.userData.os, passe);
 
     /* La cape suit le mouvement avec un temps de retard — un tissu lourd ne
        part jamais en meme temps que le corps qui le porte. */
@@ -1256,14 +1269,26 @@ function trioSpider(palier) {
    -------------------------------------------------------------------------- */
 export function planApparitions(L) {
   return [
-    { nom: 'police',   s: L * 0.09, cote: -1, ecart: 6.5, avant: 42, apres: 10, tourne: 0.6, degage: 7.5 },
-    { nom: 'spider1',  s: L * 0.21, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
-    { nom: 'et',       s: L * 0.33, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
-    { nom: 'sabres',   s: L * 0.45, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5 },
-    { nom: 'trio',     s: L * 0.57, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
-    { nom: 'patronus', s: L * 0.68, cote: -1, ecart: 5.5, avant: 38, apres: 12, degage: 8.0 },
-    { nom: 'spider2',  s: L * 0.79, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
-    { nom: 'delorean', s: L * 0.90, cote:  0, ecart: 0,   avant: 34, apres: 8,  degage: 4.0 },
+    /* LA POURSUITE ETAIT ALLUMEE DES LA PREMIERE SECONDE. Sa fenetre
+       s'ouvrait quarante-deux metres avant son ancrage, place a neuf pour
+       cent du chemin — soit dix-huit metres — alors que la balade DEMARRE a
+       vingt-six. On voyait donc le gyrophare avant meme d'avoir fait un pas,
+       ce qui grillait la seule surprise qu'il avait a offrir. Elle est
+       reculee a quinze pour cent du parcours, ce qui laisse cinquante
+       metres de foret silencieuse avant qu'il ne se passe quoi que ce soit.
+
+       L'ancrage n'est plus qu'un REPERE : les voitures, elles, parcourent
+       deux cent cinquante metres autour de lui. */
+    { nom: 'police',   s: L * 0.14, cote: -1, ecart: 6.0, avant: 46, apres: 26, degage: 0 },
+    { nom: 'spider1',  s: L * 0.23, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
+    { nom: 'killbill', s: L * 0.31, cote: -1, ecart: 4.0, avant: 32, apres: 12, tourne: 0.3, degage: 5.0 },
+    { nom: 'et',       s: L * 0.39, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
+    { nom: 'sabres',   s: L * 0.47, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5 },
+    { nom: 'trio',     s: L * 0.56, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
+    { nom: 'patronus', s: L * 0.65, cote: -1, ecart: 5.5, avant: 38, apres: 12, degage: 8.0 },
+    { nom: 'gargantua', s: L * 0.73, cote: 0, ecart: 0,   avant: 40, apres: 30, degage: 0 },
+    { nom: 'spider2',  s: L * 0.82, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
+    { nom: 'delorean', s: L * 0.91, cote:  0, ecart: 0,   avant: 34, apres: 8,  degage: 4.0 },
   ];
 }
 
@@ -1397,13 +1422,15 @@ export class Apparitions {
        lire avant de semer ses arbres ; il ne reste ici que ce qui construit
        reellement les objets. */
     const FABRIQUES = {
-      police: () => voiturePolice(),
+      police: () => coursePoursuite(chemin, relief, palier),
       spider1: () => spiderSuspendu(palier),
       et: () => etDevantLaLune(),
       sabres: () => duelSabres(palier),
       trio: () => trioSpider(palier),
       patronus: () => patronus(),
       spider2: () => spiderBalance(9, palier),
+      killbill: () => killBill(palier),
+      gargantua: () => trouNoir(),
       delorean: () => traineesDeFeu(26),
     };
     const plan = planApparitions(L).map((d) => ({ ...d, faire: FABRIQUES[d.nom] }));
@@ -1426,7 +1453,7 @@ export class Apparitions {
         const s = this.son;
         if (s && typeof s[quoi] === 'function') s[quoi](d.nom);
       };
-      if (!o.userData.suitCamera) {
+      if (!o.userData.suitCamera && !o.userData.suitChemin) {
         chemin.point(d.s, p);
         chemin.cote(d.s, c);
         chemin.tangente(d.s, tan);
@@ -1480,8 +1507,11 @@ export class Apparitions {
         continue;
       }
       sc.objet.visible = true;
-      sc.objet.userData.jouer(clamp(u, 0, 1), t, camera);
+      /* L'ABSCISSE DU CERF EST PASSEE AUX SCENES. Une apparition immobile
+         n'en a que faire, mais celle qui se DEPLACE le long du chemin — la
+         course-poursuite — a besoin de savoir ou l'on en est pour se placer
+         par rapport a nous. */
+      sc.objet.userData.jouer(clamp(u, 0, 1), t, camera, sc.s, dt);
     }
-    void dt;
   }
 }

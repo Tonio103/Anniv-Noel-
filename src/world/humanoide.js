@@ -485,7 +485,12 @@ export function construireCorps(palier, options = {}) {
   for (let i = 0; i < nSommets; i++) {
     if (teinter) {
       const nomOs = osDef[skinIndex[i * 4]] ? osDef[skinIndex[i * 4]].nom : '';
-      teinter(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2], c, nomOs);
+      /* La NORMALE est passee elle aussi. Sans elle, un motif « sur le cote
+         exterieur du bras » n'est pas exprimable : dans une pose en « A »,
+         les membres sont inclines et aucun seuil sur l'abscisse ne separe
+         le dehors du dedans. La normale, elle, le dit exactement. */
+      teinter(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2], c, nomOs,
+              normales[i * 3], normales[i * 3 + 1], normales[i * 3 + 2]);
     }
     couleurs[i * 3] = c.r; couleurs[i * 3 + 1] = c.g; couleurs[i * 3 + 2] = c.b;
   }

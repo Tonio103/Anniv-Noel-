@@ -222,6 +222,86 @@ export const GARDES = {
   },
 };
 
+/* --------------------------------------------------------------------------
+   TROIS ECHANGES DIFFERENTS, ET NON UN SEUL REPETE.
+
+   Antoine : « toujours la meme attaque de sabre ». C'etait exact : une seule
+   piste de trois poses tournait en boucle, et au bout de deux passes on
+   avait tout vu. Un duel, ce n'est pas un mouvement repete — c'est une
+   SUITE de coups differents, et c'est la variete qui fait croire a un
+   affrontement plutot qu'a un exercice.
+
+   On ajoute donc deux coups au repertoire, choisis pour etre lisibles a
+   vingt-cinq metres et de nuit, c'est-a-dire pour differer par la
+   TRAJECTOIRE DE LA LAME et non par un detail de poignet :
+
+   · le coup HAUT, porte de haut en bas par-dessus la garde ;
+   · le BALAYAGE, porte de bas en haut en revers.
+
+   Et surtout un quatrieme temps qui n'est pas un coup : le CORPS A CORPS,
+   ou les deux lames restent bloquees l'une contre l'autre pendant que les
+   duellistes poussent. C'est le temps fort de toute scene d'escrime au
+   cinema, et c'est le seul ou l'on voit vraiment les deux silhouettes.
+   -------------------------------------------------------------------------- */
+GARDES.hautLeve = {
+  brasD: [-2.45, 0, 0.42], avantD: [0.30, 0, 0], mainD: [0.1, 0, 0],
+  brasG: [-1.95, 0, -0.60], avantG: [0.55, 0, 0],
+  cuisseD: [-0.22, 0, 0.24], molletD: [-0.45, 0, 0], piedD: [0.3, 0, 0],
+  cuisseG: [0.28, 0, -0.24], molletG: [-0.30, 0, 0],
+  bassin: [0, 0.20, 0], colonne: [-0.12, 0.16, 0], poitrine: [-0.14, 0.12, 0],
+  cou: [0.10, -0.18, 0], tete: [0.08, -0.16, 0],
+};
+GARDES.abattu = {
+  brasD: [-0.55, 0, 0.22], avantD: [0.20, 0, 0], mainD: [0.1, 0, 0],
+  brasG: [-0.35, 0, -0.30], avantG: [0.40, 0, 0],
+  cuisseD: [-0.85, 0, 0.18], molletD: [-0.20, 0, 0], piedD: [0.5, 0, 0],
+  cuisseG: [0.70, 0, -0.24], molletG: [-0.65, 0, 0],
+  bassin: [0.10, 0.04, 0], colonne: [0.34, 0.02, 0], poitrine: [0.26, 0, 0],
+  cou: [-0.22, 0, 0], tete: [-0.20, 0, 0],
+};
+GARDES.basRevers = {
+  brasD: [0.55, 0, 0.30], avantD: [1.35, 0, 0], mainD: [0.3, 0, 0],
+  brasG: [0.30, 0, -0.42], avantG: [1.10, 0, 0],
+  cuisseD: [-0.15, 0, 0.30], molletD: [-0.80, 0, 0], piedD: [0.3, 0, 0],
+  cuisseG: [0.22, 0, -0.30], molletG: [-0.25, 0, 0],
+  bassin: [0.06, 0.36, 0], colonne: [0.22, 0.30, 0], poitrine: [0.18, 0.26, 0],
+  cou: [-0.10, -0.30, 0], tete: [-0.08, -0.26, 0],
+};
+GARDES.remonte = {
+  brasD: [-1.85, 0, 0.60], avantD: [0.45, 0, 0], mainD: [-0.2, 0, 0],
+  brasG: [-0.90, 0, -0.55], avantG: [0.90, 0, 0],
+  cuisseD: [-0.60, 0, 0.20], molletD: [-0.32, 0, 0], piedD: [0.4, 0, 0],
+  cuisseG: [0.52, 0, -0.26], molletG: [-0.40, 0, 0],
+  bassin: [-0.04, 0.12, 0], colonne: [-0.10, 0.08, 0], poitrine: [-0.08, 0.06, 0],
+  cou: [0.06, -0.12, 0], tete: [0.06, -0.10, 0],
+};
+/* Le corps a corps : les deux lames bloquees, le poids en avant, les
+   epaules basses. Rien ne bouge pendant une seconde — c'est ce blocage qui
+   donne sa tension a tout le reste. */
+GARDES.blocage = {
+  brasD: [-1.15, 0, 0.30], avantD: [1.05, 0, 0], mainD: [0.15, 0, 0],
+  brasG: [-1.00, 0, -0.42], avantG: [1.20, 0, 0],
+  cuisseD: [-0.68, 0, 0.18], molletD: [-0.42, 0, 0], piedD: [0.4, 0, 0],
+  cuisseG: [0.58, 0, -0.22], molletG: [-0.60, 0, 0],
+  bassin: [0.08, 0.14, 0], colonne: [0.26, 0.10, 0], poitrine: [0.22, 0.08, 0],
+  cou: [-0.18, 0, 0], tete: [-0.16, 0, 0],
+};
+
+/* Les echanges disponibles, sous forme de suites de poses. Le duel en tire
+   un different a chaque passe, et le fait dans un ordre FIXE plutot
+   qu'aleatoire : deux visites de la balade doivent montrer la meme scene,
+   sans quoi on ne peut plus rien verifier a l'image. */
+export const ECHANGES = [
+  // La botte droite, celle qu'on avait deja.
+  { attaquant: ['garde', 'frappe', 'frappe', 'recul'], pare: ['recul', 'garde', 'garde', 'recul'] },
+  // Le coup haut, abattu par-dessus la garde.
+  { attaquant: ['garde', 'hautLeve', 'abattu', 'recul'], pare: ['garde', 'garde', 'hautLeve', 'garde'] },
+  // Le revers remontant.
+  { attaquant: ['recul', 'basRevers', 'remonte', 'garde'], pare: ['garde', 'recul', 'garde', 'garde'] },
+  // Le corps a corps : ils restent colles, puis se repoussent.
+  { attaquant: ['garde', 'blocage', 'blocage', 'recul'], pare: ['garde', 'blocage', 'blocage', 'recul'] },
+];
+
 /* Le cout, pour le banc d'essai. */
 export function coutDuelliste() {
   return _corps ? { triangles: _corps.triangles, sommets: _corps.sommets } : null;
