@@ -27,7 +27,9 @@
 import * as THREE from 'three';
 import { lueurDiffuse, grainRond, tacheDouce } from '../core/dot.js';
 import { smoothstep, clamp } from '../core/noise.js';
-import { REPERES, piste, appliquerPose, regarderVers } from './humanoide.js';
+import {
+  REPERES, piste, appliquerPose, regarderVers, construireCorps, nouvelleInstance,
+} from './humanoide.js';
 import { creerSpider, POSES } from './spider.js';
 import { creerDuelliste, GARDES, ECHANGES } from './encapuchonne.js';
 import { coursePoursuite, delorean } from './vehicules.js';
@@ -244,16 +246,21 @@ function tendreFil(m, a, b) {
    rigidement solidaires quand l'ensemble se balance, sinon l'accroche se
    desolidarise a chaque oscillation — ce qui se verrait plus encore que
    l'absence de branche. */
-function brancheAccroche() {
-  /* PREMIER ESSAI, INSUFFISANT : un simple baton tendu vers une racine
-     hors champ. Photographie a l'endroit exact du passage, il se lisait
-     comme un fil de plus, pas comme du bois — un trait fin qui disparait
-     dans le noir n'evoque rien de vegetal, meme raccorde a une pointe
-     juste. Ce qui manquait n'etait pas la longueur, c'etait le FEUILLAGE :
-     ce sont les aiguilles, pas le bois, qui font reconnaitre un conifere en
-     silhouette. On tient donc la branche COURTE — a peine plus d'un metre,
-     elle n'a pas besoin d'atteindre un tronc qu'on ne voit jamais — et on
-     l'entoure d'une touffe d'aiguilles qui capte la lumiere de la lune. */
+/* SECONDE CORRECTION. Antoine, encore : « le premier Spider-Man flotte
+   toujours dans le vide ». La premiere reponse — une touffe d'aiguilles au
+   bout d'un baton d'un metre — restait un petit objet flottant, pas un
+   arbre : le degagement de 5,5 m autour de la pose (voir `planApparitions`)
+   retire justement tout ce qui aurait pu convaincre autour de lui.
+   Cette fois la scene porte un arbre COMPLET, du sol jusqu'a la ramure,
+   pose a cote du personnage — pas un accessoire suspendu au-dessus de lui.
+
+   Le tronc n'est PAS ajoute au pivot qui fait tourner et se balancer le
+   personnage : un tronc qui pivote ou se souleve du sol a chaque balancement
+   se voit immediatement, bien plus qu'un fil sans attache. Il est donc fixe
+   dans le groupe, immobile ; seule une petite touffe D'EXTREMITE, ajoutee
+   au pivot avec le fil, suit le balancement — comme la pointe souple d'une
+   vraie branche, quand le tronc, lui, ne bouge pas. */
+function troncAccroche() {
   const g = new THREE.Group();
   const matBois = new THREE.MeshStandardMaterial({ color: 0x2B2119, roughness: 0.95 });
   const matAiguilles = new THREE.MeshStandardMaterial({
@@ -261,42 +268,94 @@ function brancheAccroche() {
   });
   const matNeige = new THREE.MeshStandardMaterial({ color: 0xE7F0F9, roughness: 0.82 });
 
-  // La pointe doit tomber EXACTEMENT sur le sommet du fil (chevilles 3,55 +
-  // longueur du fil 3,4 = 6,95) ; la racine, elle, reste toute proche.
-  const pointe = new THREE.Vector3(0, 6.95, 0);
-  const racine = new THREE.Vector3(0.90, 7.55, -0.55);
+  const segment = (a, b, rA, rB, mat) => {
+    const l = a.distanceTo(b);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rB, rA, l, 6), mat);
+    m.position.copy(a).add(b).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(
+      _AXE_Y, new THREE.Vector3().subVectors(b, a).divideScalar(l));
+    return m;
+  };
+  const touffe = (centre, azimut, elev, longueur, rayon) => {
+    const dir = new THREE.Vector3(
+      Math.cos(azimut) * Math.cos(elev), Math.sin(elev), Math.sin(azimut) * Math.cos(elev));
+    const m = new THREE.Mesh(new THREE.ConeGeometry(rayon, longueur, 5), matAiguilles);
+    m.position.copy(centre).addScaledVector(dir, longueur * 0.5);
+    m.quaternion.setFromUnitVectors(_AXE_Y, dir);
+    return m;
+  };
 
-  const l = racine.distanceTo(pointe);
-  const bois = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.055, l, 6), matBois);
-  bois.position.copy(racine).add(pointe).multiplyScalar(0.5);
-  bois.quaternion.setFromUnitVectors(
-    _AXE_Y, new THREE.Vector3().subVectors(pointe, racine).divideScalar(l));
-  g.add(bois);
+  /* Le pied est au sol, nettement ecarte — un tronc qui penche, pas un
+     poteau plante au ras du personnage. La fourche, elle, doit rester
+     TOUTE PROCHE de la pointe du fil (0, 6,95, 0) : au format portrait, le
+     champ horizontal ne fait qu'une trentaine de degres, et un ecart qui
+     semble anodin en metres s'ouvre en un fosse a l'ecran. Mesure faite : a
+     quatre-vingt-quinze centimetres d'ecart, la fourche et la pointe du fil
+     se separaient nettement a l'image, l'arbre lu comme un decor a part,
+     sans rapport avec le personnage qui pend juste a cote. */
+  const pied = new THREE.Vector3(1.35, 0, -0.85);
+  const fourche = new THREE.Vector3(0.30, 7.00, -0.16);
+  g.add(segment(pied, fourche, 0.22, 0.07, matBois));
 
-  /* Une demi-douzaine d'aiguilles courtes, en cone, qui rayonnent depuis la
-     racine : c'est leur eventail irregulier — jamais leur nombre exact —
-     qui fait lire "rameau de sapin" plutot que "baton". */
+  // La ramure haute, autour de la fourche.
+  g.add(touffe(fourche, 0.3, 0.55, 0.44, 0.12));
+  g.add(touffe(fourche, 1.3, 0.15, 0.52, 0.14));
+  g.add(touffe(fourche, 2.6, 0.65, 0.36, 0.11));
+  g.add(touffe(fourche, 3.6, -0.10, 0.48, 0.13));
+  g.add(touffe(fourche, 4.5, 0.40, 0.32, 0.10));
+  g.add(touffe(fourche, 5.6, 0.75, 0.40, 0.11));
+
+  // Deux etages plus bas sur le tronc : c'est ce qui fait reconnaitre un
+  // arbre plutot qu'un poteau surmonte d'un plumeau.
+  for (const [h, rayon] of [[0.30, 0.15], [0.55, 0.12]]) {
+    const c = new THREE.Vector3().lerpVectors(pied, fourche, h);
+    for (let i = 0; i < 5; i++) {
+      const az = (i / 5) * Math.PI * 2 + h * 4;
+      g.add(touffe(c, az, 0.05 + (i % 2) * 0.18, 0.34, rayon));
+    }
+  }
+
+  // Neige au creux de la fourche et contre le pied.
+  const neigeHaut = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5), matNeige);
+  neigeHaut.scale.set(1.3, 0.5, 1.15);
+  neigeHaut.position.copy(fourche).addScaledVector(_AXE_Y, 0.18);
+  g.add(neigeHaut);
+  const neigePied = new THREE.Mesh(new THREE.SphereGeometry(0.32, 7, 5), matNeige);
+  neigePied.scale.set(1.5, 0.26, 1.4);
+  neigePied.position.copy(pied).addScaledVector(_AXE_Y, 0.04);
+  g.add(neigePied);
+
+  return g;
+}
+
+/* La touffe d'extremite : solidaire du fil, elle suit le meme balancement
+   que lui — comme la pointe souple d'une branche, alors que le tronc,
+   fixe, ne bouge pas. Elle est batie autour de l'origine locale : depuis
+   que le pivot est lui-meme place a hauteur de l'accroche, cette origine
+   EST le noeud du fil, et reste (a peu de choses pres) fixe quel que soit
+   le balancement — voir `spiderSuspendu`. */
+function touffeExtremite() {
+  const g = new THREE.Group();
+  const matAiguilles = new THREE.MeshStandardMaterial({
+    color: 0x3D6354, roughness: 0.92, side: THREE.DoubleSide,
+  });
+  const matNeige = new THREE.MeshStandardMaterial({ color: 0xE7F0F9, roughness: 0.82 });
+  const pointe = new THREE.Vector3(0, 0, 0);
   const touffe = (azimut, elev, longueur, rayon) => {
     const dir = new THREE.Vector3(
       Math.cos(azimut) * Math.cos(elev), Math.sin(elev), Math.sin(azimut) * Math.cos(elev));
     const m = new THREE.Mesh(new THREE.ConeGeometry(rayon, longueur, 5), matAiguilles);
-    m.position.copy(racine).addScaledVector(dir, longueur * 0.5);
+    m.position.copy(pointe).addScaledVector(dir, longueur * 0.5);
     m.quaternion.setFromUnitVectors(_AXE_Y, dir);
     return m;
   };
-  g.add(touffe(0.3, 0.55, 0.42, 0.11));
-  g.add(touffe(1.3, 0.15, 0.50, 0.13));
-  g.add(touffe(2.6, 0.65, 0.34, 0.10));
-  g.add(touffe(3.6, -0.10, 0.46, 0.12));
-  g.add(touffe(4.5, 0.40, 0.30, 0.09));
-  g.add(touffe(5.6, 0.75, 0.38, 0.10));
-
-  // Un peu de neige accumulee au coeur de la touffe.
-  const neige = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5), matNeige);
-  neige.scale.set(1.3, 0.55, 1.15);
-  neige.position.copy(racine).addScaledVector(_AXE_Y, 0.18);
+  g.add(touffe(0.9, 0.45, 0.30, 0.09));
+  g.add(touffe(2.2, 0.20, 0.34, 0.10));
+  g.add(touffe(4.0, 0.55, 0.26, 0.08));
+  const neige = new THREE.Mesh(new THREE.SphereGeometry(0.11, 6, 5), matNeige);
+  neige.scale.set(1.2, 0.5, 1.1);
+  neige.position.copy(pointe).addScaledVector(_AXE_Y, 0.10);
   g.add(neige);
-
   return g;
 }
 
@@ -319,24 +378,38 @@ function brancheAccroche() {
 function spiderSuspendu(palier) {
   const g = new THREE.Group();
   const perso = creerSpider(palier, { ombres: palier.ombres });
-  const pivot = new THREE.Group();
-  pivot.add(perso);
 
   /* IL PENDAIT SOUS LA NEIGE, PUIS PAR LE VENTRE. Deux corrections
      successives, dont voici le compte definitif : le groupe est pose AU SOL,
      le personnage est retourne d'un demi-tour autour de Z — donc ses pieds
      restent a la hauteur qu'on lui donne et sa tete descend d'un metre
      soixante-dix-huit en dessous. On accroche les chevilles a 3,55 m : la
-     tete arrive alors a 1,77 m, pile a hauteur de regard du drone. */
+     tete arrive alors a 1,77 m, pile a hauteur de regard du drone. Le fil
+     mesure 3,4 m ; son sommet — l'ACCROCHE — est donc a 6,95 m. */
   const CHEVILLES = 3.55;
+  const ACCROCHE = CHEVILLES + 3.4;
+
+  /* LE PIVOT DE LA BALANCE ETAIT AU SOL, ET C'ETAIT PHYSIQUEMENT A
+     L'ENVERS. Une fois le tronc ajoute, le defaut a saute aux yeux : le
+     personnage se balancant autour d'un point a hauteur de ses PIEDS, le
+     sommet du fil — cense rester noue a la branche — se deplaçait de PLUS
+     D'UN METRE a chaque oscillation, largement assez pour se detacher du
+     tronc, fixe lui, a l'ecran. Un corps suspendu se balance autour de son
+     ACCROCHE, jamais autour du sol : le pivot est donc place a la hauteur
+     du noeud, et tout ce qu'il contient est repere par rapport a CETTE
+     hauteur — negatif pour le personnage, qui pend dessous. */
+  const pivot = new THREE.Group();
+  pivot.position.y = ACCROCHE;
   perso.rotation.z = Math.PI;
-  perso.position.y = CHEVILLES;
+  perso.position.y = CHEVILLES - ACCROCHE;
+  pivot.add(perso);
 
   const fil = filDeToile(3.4);
-  fil.position.y = CHEVILLES + 1.70;
+  fil.position.y = (CHEVILLES + 1.70) - ACCROCHE;
   pivot.add(fil);
-  pivot.add(brancheAccroche());
+  pivot.add(touffeExtremite());
   g.add(pivot);
+  g.add(troncAccroche());
 
   const os = perso.userData.os;
   /* La sequence. Les instants sont exprimes en progression dans la fenetre,
@@ -613,6 +686,23 @@ function etDevantLaLune() {
   const avant = new THREE.Vector3();
   const cote = new THREE.Vector3();
   g.userData.suitCamera = true;
+
+  /* ANTOINE : « les elements ciel bougent avec la camera... l'ombre de E.T.
+     sur le velo bouge, ne reste pas fixe sur la lune ». Deux plaintes, une
+     seule cause : `g.position` etait recalcule CHAQUE IMAGE a partir de la
+     direction courante de la camera — la lune entiere suivait donc chaque
+     virage du drone au lieu de rester un astre fixe, et comme le velo n'est
+     qu'un decalage local a l'interieur de ce groupe qui se recentre sans
+     cesse, sa propre traversee se noyait dans ce mouvement d'ensemble : vu
+     de la camera, l'assemblage entier restait a peu pres a la meme place a
+     l'ecran, silhouette comprise. La position n'est donc plus recalculee
+     qu'UNE FOIS, au moment ou la fenetre s'ouvre ; au-dela, la lune reste
+     fixe dans le monde comme un vrai astre, et c'est desormais le velo, et
+     lui seul, qui bouge dedans. */
+  let fige = false;
+  const posLune = new THREE.Vector3();
+  g.userData.reinit = () => { fige = false; };
+
   g.userData.jouer = (u, t, camera) => {
     const vis = smoothstep(0, 0.16, u) * smoothstep(1, 0.80, u);
     disque.material.opacity = vis * 0.55;
@@ -620,39 +710,41 @@ function etDevantLaLune() {
     g.visible = vis > 0.01;
     if (!camera) return;
 
-    /* Devant la camera, haut dans le ciel, assez loin pour etre derriere
-       toute la foret : la silhouette doit se detacher sur le disque, jamais
-       sur des branches. */
-    const D = 265;
-    camera.getWorldDirection(avant);
-    avant.y = 0;
-    if (avant.lengthSq() < 1e-6) avant.set(0, 0, -1);
-    avant.normalize();
-    cote.set(-avant.z, 0, avant.x);
-
-    g.position.copy(camera.position)
-      .addScaledVector(avant, D)
-      .addScaledVector(cote, -14);
-    /* HAUTEUR MESUREE, PAS DEVINEE. A 62 m pour 240 de distance, cela
-       faisait 14,5° d'elevation — et comme le drone pique legerement vers le
-       cerf, le disque sortait par le haut du cadre. A 34 m pour 265, on est
-       a 7,3°, ce qui le pose au-dessus de la ligne d'arbres sans jamais
-       toucher le bord. */
-    /* Descendu de trente-quatre a vingt-neuf metres apres avoir regarde
-       l'image : a 7,3° la silhouette frolait le bord haut du cadre en
-       paysage, et l'on ne peut pas compter sur le format portrait du
-       telephone pour la rattraper. A 6,3°, elle est franchement dans le
-       ciel sans jamais toucher la ligne d'arbres. */
-    g.position.y = camera.position.y + 29;
+    if (!fige) {
+      /* Devant la camera, haut dans le ciel, assez loin pour etre derriere
+         toute la foret : la silhouette doit se detacher sur le disque,
+         jamais sur des branches. */
+      const D = 265;
+      camera.getWorldDirection(avant);
+      avant.y = 0;
+      if (avant.lengthSq() < 1e-6) avant.set(0, 0, -1);
+      avant.normalize();
+      cote.set(-avant.z, 0, avant.x);
+      posLune.copy(camera.position)
+        .addScaledVector(avant, D).addScaledVector(cote, -14);
+      /* HAUTEUR MESUREE, PAS DEVINEE. A 62 m pour 240 de distance, cela
+         faisait 14,5° d'elevation — et comme le drone pique legerement vers
+         le cerf, le disque sortait par le haut du cadre. A 34 m pour 265,
+         on est a 7,3°, ce qui le pose au-dessus de la ligne d'arbres sans
+         jamais toucher le bord. */
+      posLune.y = camera.position.y + 29;
+      fige = true;
+    }
+    g.position.copy(posLune);
     g.lookAt(camera.position);
 
-    /* LA TRAVERSEE PASSAIT A COTE DE LA LUNE. Le disque mesure cinquante-
-       huit unites de large, mais son coeur clair n'en fait qu'une quinzaine
-       — le reste est une diffusion qui s'eteint. Une course de soixante-
-       quatorze unites promenait donc le velo sur le halo et jamais devant
-       l'astre. Vingt-six, et la silhouette traverse le disque lui-meme,
-       ce qui est tout le sujet du plan. */
-    velo.position.set((u - 0.5) * 26, 2 + Math.sin(t * 0.8) * 1.2, 1);
+    /* LA BOUCLE. Antoine : « je veux qu'elle exerce une boucle ». Le velo
+       ne faisait que GLISSER a plat devant le disque ; le plan du film,
+       lui, est un bond — la roue avant se souleve, l'engin monte, retombe.
+       Meme course horizontale qu'avant (le disque mesure cinquante-huit
+       unites de large, son coeur clair une quinzaine ; vingt-six fait
+       traverser le velo devant l'astre lui-meme), mais desormais avec une
+       vraie trajectoire d'arc par-dessus, et le cadre qui suit l'inclinaison
+       du saut. */
+    const av = clamp(u, 0, 1);
+    const arc = Math.sin(av * Math.PI);
+    velo.position.set((av - 0.5) * 26, 1.4 + arc * 4.2, 1);
+    velo.rotation.z = (0.5 - av) * 0.9;
   };
   return g;
 }
@@ -1000,39 +1092,60 @@ function traineesDeFeu(longueur, palier, relief) {
   /* Le saut n'a lieu qu'une fois par passage. On remet tout a zero quand la
      fenetre se referme, pour que la voiture repasse si l'on refait la
      balade. */
-  g.userData.reinit = () => { sautFait = false; };
+  g.userData.reinit = () => { sautFait = false; zPrecedent = null; };
 
   /* Le trajet de la voiture, en metres le long de l'axe local. Elle part
-     bien au-dela du brouillard et s'evanouit a l'extremite arriere des
-     trainees, celle par laquelle elles commencent. */
-  const Z0 = 96, Z1 = -longueur / 2 - 2;
+     au-dela du brouillard et s'evanouit a l'extremite arriere des trainees,
+     celle par laquelle elles commencent. */
+  const Z0 = 58, Z1 = -longueur / 2 - 2;
   const _p = new THREE.Vector3();
   const SAUT = 0.30;                       // l'instant du flash, en fraction de fenetre
   let sautFait = false;
+  let zPrecedent = null;
 
   g.userData.jouer = (u, t) => {
     /* --- LA VOITURE, jusqu'au saut. ------------------------------------- */
     const k = clamp(u / SAUT, 0, 1);
-    /* Elle ACCELERE : le carre du parcours, pas le parcours lui-meme. Une
-       vitesse constante avant une disparition ne prepare rien ; une
-       acceleration dit que quelque chose se prepare. */
-    const av = k * k;
+    /* LA COURBE DE POSITION, EN TROIS TEMPS. Antoine : « on ne reconnait
+       pas la DeLorean ». Une pure acceleration (le carre du parcours) la
+       laissait loin et minuscule presque tout le temps, puis elle jaillissait
+       pres de nous une fraction de seconde avant le flash — jamais assez
+       longtemps pour VOIR une voiture, seulement assez pour deviner qu'il y
+       avait quelque chose de lumineux. On lui donne desormais un temps FORT
+       au milieu : elle approche, se stabilise a bonne distance le temps
+       qu'on la voie vraiment — carrosserie basse, reacteur, arcs bleus —
+       puis elle s'elance pour de bon vers le point du saut. */
+    let av;
+    if (k < 0.38) {
+      const p = k / 0.38;
+      av = 0.78 * (p * p * (3 - 2 * p));
+    } else if (k < 0.72) {
+      av = 0.78;
+    } else {
+      const p = (k - 0.72) / 0.28;
+      av = 0.78 + 0.22 * p * p;
+    }
     const encoreLa = u < SAUT;
     auto.visible = encoreLa;
     if (encoreLa) {
       auto.position.z = Z0 + (Z1 - Z0) * av;
       /* ELLE ROULAIT SOUS LA NEIGE. La scene est posee a la hauteur du sol
-         SOUS SON ANCRAGE, et la voiture parcourt quatre-vingt-dix metres a
-         partir de la : sur cette distance le terrain monte et descend de
-         plusieurs metres, si bien qu'elle etait enterree la moitie du temps
-         et flottait le reste. Elle prend donc la hauteur du sol SOUS ELLE, a
-         chaque image. C'est le meme oubli que pour les flaques de gyrophare,
-         et il se manifeste ici en pire : la voiture disparaissait purement
-         et simplement. */
+         SOUS SON ANCRAGE, et la voiture parcourt plusieurs dizaines de
+         metres a partir de la : sur cette distance le terrain monte et
+         descend de plusieurs metres, si bien qu'elle etait enterree la
+         moitie du temps et flottait le reste. Elle prend donc la hauteur du
+         sol SOUS ELLE, a chaque image. C'est le meme oubli que pour les
+         flaques de gyrophare, et il se manifeste ici en pire : la voiture
+         disparaissait purement et simplement. */
       _p.set(0, 0, auto.position.z).applyMatrix4(g.matrixWorld);
       auto.position.y = relief.hauteur(_p.x, _p.z) - g.position.y;
-      // Les roues tournent au rythme du deplacement reel.
-      const dz = Math.abs((Z1 - Z0) * 2 * k * (1 / Math.max(SAUT, 1e-3))) / 60;
+      /* Les roues tournent au rythme du deplacement REEL, mesure d'une
+         image a l'autre — indispensable maintenant que la vitesse n'est
+         plus une simple derivee du carre : sur le palier du milieu, ou la
+         voiture est stable, elles doivent cesser de tourner, pas continuer
+         d'accelerer comme le laissait croire l'ancienne formule. */
+      const dz = zPrecedent === null ? 0 : Math.abs(auto.position.z - zPrecedent);
+      zPrecedent = auto.position.z;
       for (const r of auto.userData.roues) r.rotation.x -= dz / 0.32;
       const proche = smoothstep(0.35, 0.95, k);
       for (const p of auto.userData.phares) p.material.opacity = 0.9;
@@ -1244,80 +1357,92 @@ function patronus() {
 }
 
 /* ==========================================================================
-   8. LES TROIS SPIDER-MAN QUI SE POINTENT DU DOIGT
+   8. SEUL A LA MAISON
 
-   Il fallait bien la faire. Trois Spider-Man en triangle, chacun le bras
-   tendu vers un autre, immobiles au milieu de la neige — c'est l'image la
-   plus citee du personnage, et elle ne demande rien d'autre que trois copies
-   du modele qu'on a deja et trois bras leves.
-
-   Le sel de la chose tient a l'IMMOBILITE : ils ne bougent pas d'un pouce
-   pendant qu'on passe. Une animation les rendrait rigolos ; leur raideur les
-   rend inquietants, ce qui est bien plus drole.
+   Antoine : « trois Spider-Man c'est trop, rajoute une reference a un
+   autre film connu ». Le triangle de Spider-Man qui se pointent du doigt
+   est retire (deux passages du personnage suffisent, et le troisieme
+   citait surtout un mème) ; a sa place, la pose la plus reconnaissable du
+   cinema familial de Noel — les deux mains plaquees sur les joues, la
+   bouche grande ouverte. Un enfant seul, en pleine neige, qui hurle sans
+   bruit : ca n'a besoin d'aucun visage pour se reconnaitre, seulement de
+   ce geste-la.
    ========================================================================== */
-function trioSpider(palier) {
-  const g = new THREE.Group();
-  const R = 1.50;                       // rayon du triangle
-  const persos = [];
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2;
-    const p = creerSpider(palier, { ombres: palier.ombres, variante: 'trio' });
-    p.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
+const BEIGE_PULL = new THREE.Color(0xC9A876);
+const PANTALON_SOMBRE = new THREE.Color(0x262B33);
+const PEAU_CLAIRE = new THREE.Color(0xD8B48C);
 
-    /* Chacun regarde le suivant : c'est cet alignement, et lui seul, qui
-       fait lire la scene. Un triangle de personnages qui regardent ailleurs
-       n'est qu'un attroupement.
-
-       ILS NE SE REGARDAIENT PAS. L'ancien calcul valait un quart de tour de
-       trop : les trois pointaient a cote, ce qui rendait la scene
-       proprement incomprehensible. Le personnage regarde vers -Z, donc
-       viser une direction (dx, dz) demande atan2(-dx, -dz) — et rien
-       d'autre. */
-    const b = ((i + 1) / 3) * Math.PI * 2;
-    const dx = (Math.cos(b) - Math.cos(a)) * R;
-    const dz = (Math.sin(b) - Math.sin(a)) * R;
-    p.rotation.y = Math.atan2(-dx, -dz);
-
-    const os = p.userData.os;
-    appliquerPose(os, POSES.pointe);
-    /* Trois exemplaires strictement identiques se lisent comme trois copies
-       collees. On decale donc legerement chacun — le bras un peu plus haut
-       ou plus bas, l'appui sur une jambe ou sur l'autre, la tete a peine
-       tournee. Ce sont des ecarts de quelques degres, et ils suffisent a
-       faire trois individus. */
-    const d = (i - 1) * 0.055;
-    os.brasD.rotation.x += d;
-    os.brasD.rotation.z += d * 0.5;
-    os.avantD.rotation.x += Math.abs(d) * 0.6;
-    os.colonne.rotation.z += d * 0.4;
-    os.tete.rotation.y += d * 1.2;
-    os.tete.rotation.z += d * 0.5;
-    os.cuisseD.rotation.z += d * 0.3;
-
-    g.add(p);
-    persos.push(p);
+function teinteKevin(x, y, z, c, os) {
+  if (os === 'piedD' || os === 'piedG') { c.setHex(0x1B1E24); return; }
+  const jambe = os === 'cuisseD' || os === 'cuisseG' || os === 'molletD' || os === 'molletG';
+  if (jambe) { c.copy(PANTALON_SOMBRE); return; }
+  if (os === 'tete') {
+    /* Le bonnet, sur le dessus et l'arriere du crane ; le visage, dans
+       l'ombre, en dessous — la meme logique de coupe par la normale que
+       la chevelure de Kill Bill, ici sur un bonnet plutot qu'un carre. */
+    if (y > REPERES.crane - 0.05 || (z > 0.01 && y > REPERES.menton)) { c.setHex(0xB23B3B); return; }
+    c.copy(PEAU_CLAIRE);
+    return;
   }
+  c.copy(BEIGE_PULL);
+  void x; void z;
+}
 
-  /* CHACUN SUR SON PROPRE SOL. Le groupe est pose a la hauteur du terrain en
-     son centre, mais les trois sont repartis sur un triangle de trois metres
-     de cote : sur un devers, celui d'amont s'enfonce et celui d'aval flotte.
-     On releve donc la hauteur reelle sous chaque paire de pieds. */
-  g.userData.poser = (relief) => {
-    g.updateWorldMatrix(true, false);
-    const y0 = g.position.y;
-    const p = new THREE.Vector3();
-    for (const perso of persos) {
-      p.copy(perso.position).applyMatrix4(g.matrixWorld);
-      perso.position.y = relief.hauteur(p.x, p.z) - y0;
-    }
-  };
+/* LA POSE. Les deux bras montent haut et se replient fort — les mains
+   viennent aux joues, les coudes ecartes — c'est exactement la silhouette
+   de l'affiche, jusque dans l'asymetrie legere qui empeche une symetrie
+   parfaite de se lire comme une pose de mannequin. */
+const POSE_KEVIN = {
+  brasD: [-2.00, 0.15, 0.22], avantD: [-1.85, 0, 0], mainD: [0, 0, 0.15],
+  brasG: [-2.10, -0.12, -0.20], avantG: [-1.90, 0, 0], mainG: [0, 0, -0.15],
+  cuisseD: [-0.04, 0, 0.05], molletD: [0.06, 0, 0],
+  cuisseG: [0.04, 0, -0.05], molletG: [0.06, 0, 0],
+  colonne: [-0.10, 0, 0], poitrine: [-0.16, 0, 0],
+  cou: [0.10, 0, 0], tete: [0.18, 0, 0],
+};
 
-  g.userData.jouer = (u) => {
-    const vis = smoothstep(0, 0.12, u) * smoothstep(1, 0.86, u);
+let _corpsKevin = null;
+
+function seulALaMaison(palier) {
+  const g = new THREE.Group();
+  if (!_corpsKevin) {
+    _corpsKevin = construireCorps(palier, {
+      teinter: teinteKevin,
+      // Une charpente plus menue : c'est ce rapport, avant toute echelle,
+      // qui fait lire un enfant plutot qu'un adulte reduit.
+      gabarit: { carrure: 0.80, masse: 0.76 },
+      pas: palier.nom === 'bas' ? 0.032 : palier.nom === 'moyen' ? 0.024 : 0.020,
+    });
+  }
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.78, metalness: 0.0,
+    emissive: new THREE.Color(0x0A0806), emissiveIntensity: 1,
+  });
+  const perso = nouvelleInstance(_corpsKevin, mat, { ombres: palier.ombres });
+  // Et une echelle plus petite encore, par-dessus le gabarit : a vingt
+  // metres et de nuit, c'est elle qui achieve de le distinguer d'un adulte.
+  perso.scale.setScalar(0.82);
+  g.add(perso);
+
+  const os = perso.userData.os;
+  appliquerPose(os, POSE_KEVIN);
+
+  g.userData.jouer = (u, t, camera) => {
+    const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
     g.visible = vis > 0.01;
-    /* Aucune animation. C'est le sujet : leur RAIDEUR est ce qui rend la
-       scene inquietante, et une animation les rendrait seulement rigolos. */
-    void persos;
+    if (!g.visible) return;
+
+    /* IL TREMBLE — de froid, de peur, ou des deux a la fois. Sans ce
+       battement rapide et minuscule, la pose la plus celebre du cinema
+       familial de Noel devient une statue de cire plantee dans la neige. */
+    const tremble = Math.sin(t * 14) * 0.035 + Math.sin(t * 23 + 1.7) * 0.02;
+    os.brasD.rotation.z += tremble;
+    os.brasG.rotation.z -= tremble;
+    os.tete.rotation.z += tremble * 0.6;
+
+    // Il vous voit passer, et son hurlement silencieux se tourne vers vous.
+    regarderVers(perso, os, camera, smoothstep(0.18, 0.34, u) * 0.85);
+    void clamp;
   };
   return g;
 }
@@ -1546,7 +1671,7 @@ export function planApparitions(L) {
     { nom: 'killbill',  s: L * 0.28, cote: -1, ecart: 4.0, avant: 32, apres: 12, tourne: 0.3, degage: 5.0 },
     { nom: 'et',        s: L * 0.36, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
     { nom: 'sabres',    s: L * 0.44, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5 },
-    { nom: 'trio',      s: L * 0.52, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
+    { nom: 'kevin',     s: L * 0.52, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
     /* Le theropode marche a vingt-deux metres du chemin, derriere la ligne
        d'arbres : on ne degage donc RIEN pour lui — ce sont justement les
        troncs entre lui et nous qui font la scene. */
@@ -1554,7 +1679,14 @@ export function planApparitions(L) {
     { nom: 'patronus',  s: L * 0.70, cote: -1, ecart: 5.5, avant: 34, apres: 10, degage: 8.0 },
     { nom: 'gargantua', s: L * 0.78, cote:  0, ecart: 0,   avant: 38, apres: 28, degage: 0 },
     { nom: 'spider2',   s: L * 0.86, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
-    { nom: 'delorean',  s: L * 0.94, cote:  0, ecart: 0,   avant: 46, apres: 16, degage: 4.0 },
+    /* ECART RELEVE A QUATRE METRES. Antoine : « elle roule sur le cerf ».
+       Pose exactement sur l'axe du chemin (ecart nul), la trainee de la
+       DeLorean partageait la meme ligne que la marche du cerf — et les deux
+       s'y trouvaient au meme instant (mesure faite : le flash tombe alors
+       que le cerf n'est qu'a quelques metres de l'ancre). Decalee du meme
+       cote que tout le reste, elle file desormais sur son propre bas-cote,
+       assez large pour ne jamais toucher le corps du cerf ni ses bois. */
+    { nom: 'delorean',  s: L * 0.94, cote: -1, ecart: 4.0, avant: 46, apres: 16, degage: 4.0 },
   ];
 }
 
@@ -1692,12 +1824,12 @@ export class Apparitions {
       spider1: () => spiderSuspendu(palier),
       et: () => etDevantLaLune(),
       sabres: () => duelSabres(palier),
-      trio: () => trioSpider(palier),
+      kevin: () => seulALaMaison(palier),
       patronus: () => patronus(),
       spider2: () => spiderBalance(9, palier),
       killbill: () => killBill(palier),
       trex: () => jurassique(chemin, relief, palier),
-      gargantua: () => trouNoir(),
+      gargantua: () => trouNoir(relief),
       delorean: () => traineesDeFeu(26, palier, relief),
     };
     const plan = planApparitions(L).map((d) => ({ ...d, faire: FABRIQUES[d.nom] }));

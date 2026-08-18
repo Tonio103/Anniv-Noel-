@@ -725,8 +725,10 @@ async function demarrer() {
        contradiction qui defait un decor sans qu'on sache pourquoi. */
     const surGlace = ruisseau.surGlace(cerf.s);
     for (const p of cerf.posers) {
-      if (surGlace) sfx.sabotGlace(voixSabots?.entree, p.force);
-      else sfx.sabot(voixSabots?.entree, p.force);
+      /* Antoine : « enleve les bruits de pas du cerf, c'est horrible ». Le
+         crissement/claquement du sabot est retire ; les empreintes, la
+         poudre et les grelots restent — ce n'est que le bruit du poser
+         lui-meme qui genait. */
       /* PAS DE MUSIQUE — et les grelots en faisaient.
 
          Un poser sur deux declenchait un grelot. Au trot, cela fait douze

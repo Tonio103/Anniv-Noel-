@@ -131,7 +131,58 @@ function matiereTrouNoir() {
   return mat;
 }
 
-export function trouNoir() {
+/* LA SILHOUETTE AU SOL. Antoine : « je veux plus d'elements aussi sur
+   terre en reference a Interstellar ». Le disque seul dans le ciel est un
+   phenomene ; ce qui manque pour raconter le film, c'est quelqu'un qui le
+   REGARDE depuis le sol — la combinaison bouffante, le casque en bulle, un
+   bras leve vers ce qu'il montre, c'est la silhouette la plus citee de la
+   science-fiction juste apres le vaisseau lui-meme. Meme technique que le
+   velo d'E.T. : un contour noir peint au canevas, rien de plus. */
+function siluetteAstronaute() {
+  const n = 160;
+  const cv = document.createElement('canvas');
+  cv.width = n; cv.height = Math.round(n * 1.35);
+  const c = cv.getContext('2d');
+  c.fillStyle = '#000';
+
+  // Les jambes, ecartees, ancrees au sol.
+  c.beginPath();
+  c.moveTo(58, 216); c.lineTo(48, 148); c.lineTo(66, 146); c.lineTo(74, 214);
+  c.closePath(); c.fill();
+  c.beginPath();
+  c.moveTo(102, 216); c.lineTo(112, 148); c.lineTo(94, 146); c.lineTo(86, 214);
+  c.closePath(); c.fill();
+
+  // Le sac a dos (PLSS), qui deborde derriere les epaules.
+  c.beginPath();
+  c.ellipse(78, 96, 32, 24, 0, 0, Math.PI * 2); c.fill();
+  // Le torse, large et arrondi : la combinaison est bouffante, pas ajustee.
+  c.beginPath();
+  c.ellipse(80, 110, 34, 44, 0, 0, Math.PI * 2); c.fill();
+
+  // Les bras : un le long du corps, l'autre leve — il montre ce qu'il
+  // regarde, geste qui a lui seul raconte toute la scene.
+  c.lineWidth = 20; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(52, 92); c.lineTo(40, 152); c.stroke();
+  c.beginPath(); c.moveTo(106, 92); c.lineTo(126, 38); c.stroke();
+
+  // Le casque : une grande bulle ronde, le signe qui rend la silhouette
+  // reconnaissable entre toutes, la tete renversee vers l'arriere.
+  c.beginPath();
+  c.arc(84, 46, 30, 0, Math.PI * 2); c.fill();
+
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({
+    map: t, transparent: true, opacity: 0, color: 0x03050A,
+    depthWrite: false, fog: true, side: THREE.DoubleSide,
+  });
+  const q = new THREE.Mesh(new THREE.PlaneGeometry(1, cv.height / cv.width), mat);
+  q.renderOrder = 1;
+  return q;
+}
+
+export function trouNoir(relief) {
   const g = new THREE.Group();
   const mat = matiereTrouNoir();
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
@@ -141,11 +192,42 @@ export function trouNoir() {
      lit pas du tout. */
   quad.scale.setScalar(102);
   quad.renderOrder = 2;
-  g.add(quad);
+  /* Le disque et l'astronaute sont chacun dans leur PROPRE sous-groupe : le
+     premier suspendu dans le ciel, loin, le second pose au sol, pres — deux
+     positions qui n'ont rien a voir, mais qui doivent toutes deux faire
+     face a la camera (un panneau plat vu de travers se lit comme une
+     lame). `g` lui-meme ne bouge jamais : voir plus bas pourquoi. */
+  const discGroupe = new THREE.Group();
+  discGroupe.add(quad);
+  g.add(discGroupe);
+  const astro = siluetteAstronaute();
+  astro.scale.setScalar(2.3);
+  const astroGroupe = new THREE.Group();
+  astroGroupe.add(astro);
+  g.add(astroGroupe);
 
   const avant = new THREE.Vector3();
   const cote = new THREE.Vector3();
   g.userData.suitCamera = true;
+
+  /* ANTOINE : « les elements ciel bougent avec la camera, ca c'est
+     problematique, il ne reste pas fixe dans le ciel ». C'etait exact :
+     `g.position` etait recalcule CHAQUE IMAGE a partir de la direction
+     courante de la camera, si bien que le trou noir suivait chaque virage
+     du drone au lieu de rester un astre fixe dans le monde — un vrai objet
+     lointain, lui, DERIVE dans le cadre quand on tourne, il ne s'y
+     recentre pas tout seul.
+
+     La position n'est donc plus recalculee qu'UNE FOIS, au moment precis
+     ou la fenetre s'ouvre — a cet instant seulement, on a besoin de la
+     direction de la camera pour etre sur que l'astre nait dans le cadre.
+     Au-dela, elle reste fixe dans le monde comme le reste du decor : le
+     drone peut tourner, le trou noir derive naturellement, exactement
+     comme un vrai astre le ferait. */
+  let fige = false;
+  const posDisque = new THREE.Vector3();
+  const posAstro = new THREE.Vector3();
+  g.userData.reinit = () => { fige = false; };
 
   g.userData.jouer = (u, t, camera) => {
     /* Il se leve lentement et se retire de meme : un trou noir n'apparait
@@ -155,27 +237,37 @@ export function trouNoir() {
     if (!g.visible || !camera) return;
     mat.uniforms.uForce.value = vis;
     mat.uniforms.uTemps.value = t;
+    astro.material.opacity = vis * 0.95;
 
-    /* Le meme placement que la lune d'E.T., et pour la meme raison mesuree :
-       le drone pique vers le cerf, il ne reste qu'un bandeau de ciel au haut
-       du cadre en portrait, et c'est la qu'il faut poser les choses du ciel.
-       Un peu plus loin et un peu plus haut que la lune, parce que l'objet
-       est beaucoup plus grand. */
-    const D = 300;
-    camera.getWorldDirection(avant);
-    avant.y = 0;
-    if (avant.lengthSq() < 1e-6) avant.set(0, 0, -1);
-    avant.normalize();
-    cote.set(-avant.z, 0, avant.x);
-    g.position.copy(camera.position)
-      .addScaledVector(avant, D)
-      .addScaledVector(cote, 22);
-    /* Vingt-six metres a trois cents, soit cinq degres d'elevation : il se
-       LEVE derriere la ligne d'arbres au lieu de flotter au zenith, et sa
-       moitie basse reste mangee par la foret — ce qui est exactement ce
-       qu'on veut d'un astre a l'horizon. */
-    g.position.y = camera.position.y + 26;
-    g.lookAt(camera.position);
+    if (!fige) {
+      /* Le meme placement que la lune d'E.T., et pour la meme raison
+         mesuree : le drone pique vers le cerf, il ne reste qu'un bandeau
+         de ciel au haut du cadre en portrait. Un peu plus loin et un peu
+         plus haut que la lune, parce que l'objet est beaucoup plus grand. */
+      const D = 300;
+      camera.getWorldDirection(avant);
+      avant.y = 0;
+      if (avant.lengthSq() < 1e-6) avant.set(0, 0, -1);
+      avant.normalize();
+      cote.set(-avant.z, 0, avant.x);
+      posDisque.copy(camera.position)
+        .addScaledVector(avant, D).addScaledVector(cote, 22);
+      /* Vingt-six metres a trois cents, soit cinq degres d'elevation : il
+         se LEVE derriere la ligne d'arbres au lieu de flotter au zenith. */
+      posDisque.y = camera.position.y + 26;
+
+      /* L'astronaute, lui, est pres et au sol : trente metres devant, tres
+         legerement de cote pour ne pas boucher exactement l'axe. */
+      posAstro.copy(camera.position)
+        .addScaledVector(avant, 30).addScaledVector(cote, -9);
+      posAstro.y = relief.hauteur(posAstro.x, posAstro.z);
+
+      fige = true;
+    }
+    discGroupe.position.copy(posDisque);
+    discGroupe.lookAt(camera.position);
+    astroGroupe.position.copy(posAstro);
+    astroGroupe.lookAt(camera.position.x, posAstro.y + 1.2, camera.position.z);
   };
   return g;
 }
@@ -294,11 +386,40 @@ export function killBill(palier) {
   sabre.position.y = -0.02;
   os.mainD.add(sabre);
 
-  /* LA SEQUENCE, en quatre temps. C'est un plan de film, pas une boucle :
-     elle est de dos, elle vous entend, elle se retourne, elle se met en
-     garde — et elle NE BOUGE PLUS. L'immobilite finale est ce qui rend la
-     chose inquietante ; une pose qui continue de s'agiter devient un
-     personnage de jeu video. */
+  /* LA QUEUE-DE-CHEVAL. Antoine : « on ne reconnait pas Kill Bill ». Le
+     survetement jaune et le sabre suffisent en photo fixe, mais en
+     mouvement, de loin et de nuit, ils se lisent comme n'importe quel
+     escrimeur. La coiffure — stricte, tiree en arriere, qui fouette dans
+     les coups — est le troisieme signe reconnaissable entre tous : c'est
+     elle qui manquait. Une chaine de troncons coniques, comme la lame,
+     greffee a l'arriere du crane. */
+  const queue = new THREE.Group();
+  const matCheveux = new THREE.MeshStandardMaterial({ color: 0x1C160E, roughness: 0.55 });
+  const SEG = 5;
+  for (let i = 0; i < SEG; i++) {
+    const t0 = i / SEG;
+    const l = 0.11 - t0 * 0.045;
+    const seg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028 * (1 - t0 * 0.55), 0.032 * (1 - t0 * 0.45), l, 6),
+      matCheveux
+    );
+    seg.position.y = -t0 * 0.30 - l / 2;
+    // Elle s'ecarte legerement du crane puis retombe, jamais tout a fait droite.
+    seg.position.z = 0.05 + Math.sin(t0 * 2.4) * 0.05;
+    queue.add(seg);
+  }
+  queue.position.set(0, REPERES.crane - 0.06, 0.05);
+  os.tete.add(queue);
+
+  /* LA SEQUENCE. Antoine : « elle doit bouger, elle doit avoir une
+     choregraphie ». La pose de garde tenue jusqu'au bout etait un choix
+     assume — mais assume a tort : sans coup porte, une femme en jaune
+     immobile ne dit "Kill Bill" a personne. On garde l'arrivee en garde
+     (le sursaut, le demi-tour) puis on enchaine deux coups tres differents
+     l'un de l'autre, comme le duel au sabre l'a appris : un coup HAUT
+     abattu de haut en bas, puis un REVERS remontant de l'autre cote. La
+     garde ne revient qu'a la toute fin, desormais GAGNEE par l'action
+     plutot que donnee d'emblee. */
   const POSE = {
     dos: {
       brasD: [0.20, 0, 0.22], avantD: [0.55, 0, 0], mainD: [0, 0, -0.3],
@@ -326,14 +447,56 @@ export function killBill(palier) {
       bassin: [0, 0.34, 0], colonne: [0.08, 0.28, 0], poitrine: [0.04, 0.22, 0],
       cou: [-0.06, -0.42, 0], tete: [-0.04, -0.38, 0],
     },
+    // LE COUP HAUT : la lame se leve loin derriere l'epaule...
+    leve: {
+      brasD: [-2.55, 0.30, 0.30], avantD: [0.25, 0, 0], mainD: [0.10, 0, 0],
+      brasG: [-1.05, 0, -0.52], avantG: [1.05, 0, 0],
+      cuisseD: [-0.30, 0, 0.16], molletD: [-0.20, 0, 0],
+      cuisseG: [0.30, 0, -0.18], molletG: [-0.30, 0, 0],
+      bassin: [0, 0.10, 0], colonne: [-0.10, 0.10, 0], poitrine: [-0.12, 0.06, 0],
+      cou: [-0.04, -0.20, 0], tete: [-0.02, -0.18, 0],
+    },
+    // ...puis s'abat, le corps en fente, jusqu'au sol de l'autre cote.
+    abattu: {
+      brasD: [0.55, -0.85, 0.10], avantD: [0.95, 0, 0], mainD: [0.05, 0, 0],
+      brasG: [-0.30, 0, -0.10], avantG: [0.40, 0, 0],
+      cuisseD: [-0.85, 0, 0.30], molletD: [-0.55, 0, 0], piedD: [0.55, 0, 0],
+      cuisseG: [0.15, 0, -0.10], molletG: [-0.15, 0, 0],
+      bassin: [0, 0.55, 0], colonne: [0.20, 0.45, 0], poitrine: [0.10, 0.35, 0],
+      cou: [-0.10, 0.10, 0], tete: [-0.06, 0.12, 0],
+    },
+    // LE REVERS : la lame revient bas, de l'autre cote...
+    ramene: {
+      brasD: [0.10, -0.20, -0.85], avantD: [1.10, 0, 0], mainD: [0, 0, 0.20],
+      brasG: [-0.60, 0, -0.30], avantG: [0.70, 0, 0],
+      cuisseD: [-0.35, 0, 0.15], molletD: [-0.25, 0, 0],
+      cuisseG: [0.10, 0, -0.15], molletG: [-0.20, 0, 0],
+      bassin: [0, -0.20, 0], colonne: [-0.05, -0.15, 0], poitrine: [-0.05, -0.10, 0],
+    },
+    // ...et remonte en un revers qui balaie jusqu'a l'epaule opposee.
+    revers: {
+      brasD: [-1.70, 0.50, 0.75], avantD: [0.35, 0, 0], mainD: [0.10, 0, 0],
+      brasG: [-0.90, 0, -0.45], avantG: [0.85, 0, 0],
+      cuisseD: [-0.10, 0, 0.10], molletD: [-0.10, 0, 0],
+      cuisseG: [0.45, 0, -0.20], molletG: [-0.35, 0, 0], piedG: [-0.40, 0, 0],
+      bassin: [0, -0.30, 0], colonne: [-0.15, -0.30, 0], poitrine: [-0.10, -0.20, 0],
+      cou: [0.06, -0.30, 0], tete: [0.04, -0.28, 0],
+    },
   };
 
   const sequence = piste([
     { t: 0.00, pose: POSE.dos },
-    { t: 0.24, pose: POSE.dos },
-    { t: 0.40, pose: POSE.alerte },
-    { t: 0.52, pose: POSE.alerte },
-    { t: 0.68, pose: POSE.garde },
+    { t: 0.22, pose: POSE.dos },
+    { t: 0.36, pose: POSE.alerte },
+    { t: 0.46, pose: POSE.alerte },
+    { t: 0.56, pose: POSE.garde },
+    { t: 0.62, pose: POSE.leve },
+    { t: 0.67, pose: POSE.abattu },
+    { t: 0.70, pose: POSE.abattu },
+    { t: 0.74, pose: POSE.ramene },
+    { t: 0.78, pose: POSE.revers },
+    { t: 0.81, pose: POSE.revers },
+    { t: 0.88, pose: POSE.garde },
     { t: 1.00, pose: POSE.garde },
   ]);
 
@@ -350,25 +513,30 @@ export function killBill(palier) {
     if (!g.visible) return;
 
     sequence(os, u);
-    /* LA LAME CHANTE AU MOMENT OU ELLE SE MET EN GARDE. Un seul son, place
-       exactement sur le geste : c'est ce qui transforme une pose en un
-       evenement. Il ne se rejoue pas tant que la fenetre ne s'est pas
-       refermee. */
-    if (!lameFaite && u > 0.60) { lameFaite = true; g.userData.emettre?.('lame'); }
+    /* LA LAME CHANTE QUAND ELLE SE MET EN GARDE, juste avant le premier
+       coup : c'est ce qui transforme la pose en un evenement qui annonce
+       l'action a venir. Il ne se rejoue pas tant que la fenetre ne s'est
+       pas refermee. */
+    if (!lameFaite && u > 0.54) { lameFaite = true; g.userData.emettre?.('lame'); }
     // Le demi-tour, cale sur le deuxieme temps de la sequence.
-    const tourne = smoothstep(0.28, 0.66, u);
+    const tourne = smoothstep(0.28, 0.60, u);
     perso.rotation.y = Math.PI * (1 - tourne) + 0.35 * tourne;
-    /* Elle vous suit du regard une fois en garde — et seulement a ce
-       moment-la. Avant, elle ne vous a pas encore vu. */
-    regarderVers(perso, os, camera, smoothstep(0.62, 0.78, u) * 0.85);
+    /* Elle vous suit du regard des qu'elle se met en garde — avant, elle ne
+       vous a pas encore vu — et jusqu'au bout du combat : elle se bat pour
+       vous, pas pour un adversaire qu'on ne voit jamais. */
+    regarderVers(perso, os, camera, smoothstep(0.50, 0.60, u) * 0.85);
 
-    /* Une respiration minuscule dans la garde : trois millimetres d'epaule.
-       Sans elle, une pose tenue vingt secondes devient une statue ; avec,
+    /* Une respiration minuscule quand elle tient la garde, avant et apres
+       les coups : sans elle, une pose tenue devient une statue ; avec,
        elle est immobile mais vivante, ce qui n'est pas la meme chose. */
-    const souffle = smoothstep(0.70, 0.85, u) * Math.sin(t * 1.4) * 0.022;
+    const tientGarde = smoothstep(0.90, 0.94, u) + (1 - smoothstep(0.58, 0.62, u)) * smoothstep(0.56, 0.58, u);
+    const souffle = tientGarde * Math.sin(t * 1.4) * 0.022;
     os.poitrine.rotation.x += souffle;
     os.brasD.rotation.x += souffle * 0.8;
     os.brasG.rotation.x += souffle * 0.8;
+    // La queue-de-cheval fouette avec un leger retard sur la tete.
+    queue.rotation.x = Math.sin(t * 3.1) * 0.05 - os.tete.rotation.x * 0.35;
+    queue.rotation.z = Math.cos(t * 2.3) * 0.04 - os.tete.rotation.y * 0.25;
     void clamp;
   };
   return g;
