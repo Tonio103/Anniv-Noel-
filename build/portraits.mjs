@@ -64,7 +64,7 @@ for (const nom of noms) {
     s.cerf.s = sVue;
     s.cerf.placer(sVue);
     for (let i = 0; i < 3; i++) { s.relief.maj(s.camera, s.ciel.actuel); s.foret.maj(s.camera); }
-    for (let i = 0; i < 40; i++) s.apparitions.maj(1 / 60, 8 + i / 60, sVue, s.camera);
+    for (let i = 0; i < 40; i++) s.apparitions.maj(1 / 60, 8 + i / 60, s.cerf, s.camera, null, null, null);
 
     const o = sc.objet;
     const b = new THREE.Box3().setFromObject(o);
@@ -86,7 +86,7 @@ for (const nom of noms) {
     s.camera.lookAt(c);
     s.camera.updateMatrixWorld();
     for (let i = 0; i < 3; i++) { s.relief.maj(s.camera, s.ciel.actuel); s.foret.maj(s.camera); }
-    s.apparitions.maj(1 / 60, 9, sVue, s.camera);
+    s.apparitions.maj(1 / 60, 9, s.cerf, s.camera, null, null, null);
     s.postfx.rendre(s.scene, s.camera, s.boucle.t);
     return {
       taille: [+(b.max.x - b.min.x).toFixed(2), +(b.max.y - b.min.y).toFixed(2), +(b.max.z - b.min.z).toFixed(2)],

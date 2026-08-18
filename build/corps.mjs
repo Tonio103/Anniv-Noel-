@@ -83,7 +83,7 @@ for (const vue of ANGLES) {
     const sVue = sc.s - sc.avant * 0.5;
     s.cerf.s = sVue; s.cerf.placer(sVue);
     for (let i = 0; i < 3; i++) { s.relief.maj(s.camera, s.ciel.actuel); s.foret.maj(s.camera); }
-    s.apparitions.maj(1 / 60, 30, sVue, s.camera);
+    s.apparitions.maj(1 / 60, 30, s.cerf, s.camera, null, null, null);
 
     // Le premier des trois, cadre en pied.
     const perso = sc.objet.children[0];

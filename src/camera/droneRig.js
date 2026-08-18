@@ -84,6 +84,11 @@ export class Drone {
       approche:{ recul: 6.0, hauteur: 2.3, lateral: 2.6, fov: 55, biais: 0, bas: 0 },
       // Le cadeau sort : on passe sur le cote, presque au ras de la neige.
       halte:   { recul: 4.6, hauteur: 1.7, lateral: 3.4, fov: 52, biais: 0, bas: 0 },
+      /* LE CERF S'ARRETE POUR UNE APPARITION. Plus large que « halte » : ces
+         scenes se tiennent bien plus loin du chemin qu'un cadeau (jusqu'a
+         sept metres d'ecart), et un cadrage aussi serre les couperait au
+         bord. On recule et on elargit le champ pour les tenir entieres. */
+      apparition: { recul: 6.6, hauteur: 2.2, lateral: 5.6, fov: 58, biais: 0, bas: 0 },
       // Lecture : on s'ecarte pour laisser la place a la carte.
       lecture: { recul: 6.4, hauteur: 2.4, lateral: 3.9, fov: 54, biais: 0, bas: 0 },
       /* Depart et final : plan large. Le cerf est volontairement decale et

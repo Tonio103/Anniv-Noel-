@@ -33,7 +33,7 @@ import {
 import { creerSpider, POSES } from './spider.js';
 import { creerDuelliste, GARDES, ECHANGES } from './encapuchonne.js';
 import { coursePoursuite, delorean } from './vehicules.js';
-import { trouNoir, killBill } from './cinema.js';
+import { trouNoir, killBill, shining } from './cinema.js';
 import { creerTrex, marcheTrex } from './trex.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
@@ -1553,6 +1553,241 @@ function seulALaMaison(palier) {
 }
 
 /* ==========================================================================
+   MUGIWARA — UN CLIN D'OEIL A ONE PIECE, PAS AU CINEMA CETTE FOIS.
+
+   Antoine : « je veux one piece » — et, dans le meme message, que TOUTES
+   les apparitions donnent l'impression que la camera reagit a ce qui
+   bouge. Le geste le plus reconnaissable de la serie est aussi celui qui
+   s'y prete le mieux : le poing qui s'etire jusqu'a nous, comme si le
+   personnage frappait a travers l'ecran. Le bras n'est pas un OS qu'on
+   etire — deformer un bras skinne a ce point le tordrait affreusement —
+   c'est un ELASTIQUE a part, un cylindre redimensionne et oriente chaque
+   image pour joindre l'epaule a un poing qui vole vers la camera.
+   ========================================================================== */
+const ROUGE_VESTE = new THREE.Color(0xB0271E);
+const BLEU_SHORT = new THREE.Color(0x28345A);
+const PEAU_LUFFY = new THREE.Color(0xE0A876);
+const SANDALE_LUFFY = new THREE.Color(0x4A3320);
+
+function teinteLuffy(x, y, z, c, os) {
+  if (os === 'piedD' || os === 'piedG') { c.copy(SANDALE_LUFFY); return; }
+  if (os === 'cuisseD' || os === 'cuisseG') { c.copy(BLEU_SHORT); return; }
+  if (os === 'colonne' || os === 'poitrine') { c.copy(ROUGE_VESTE); return; }
+  c.copy(PEAU_LUFFY);
+  void x; void y; void z;
+}
+
+function chapeauPaille() {
+  const g = new THREE.Group();
+  const paille = new THREE.MeshStandardMaterial({ color: 0xE3C468, roughness: 0.88 });
+  const bandeau = new THREE.MeshStandardMaterial({ color: 0xA8222A, roughness: 0.6 });
+  const bord = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.045, 6, 16), paille);
+  bord.rotation.x = Math.PI / 2;
+  g.add(bord);
+  const calotte = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.20, 10, 1, true), paille);
+  calotte.position.y = 0.10;
+  g.add(calotte);
+  const ruban = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.245, 0.045, 10), bandeau);
+  ruban.position.y = 0.015;
+  g.add(ruban);
+  return g;
+}
+
+const _elDir = new THREE.Vector3();
+const _elUp = new THREE.Vector3(0, 1, 0);
+
+/* Le bras : un cylindre tendu entre l'epaule et le poing, redimensionne et
+   oriente chaque image — jamais un os anime, toujours une piece a part. */
+function busteElastique(couleur) {
+  const geoTube = new THREE.CylinderGeometry(0.075, 0.11, 1, 7, 1, true);
+  geoTube.translate(0, 0.5, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: couleur, roughness: 0.72 });
+  const tube = new THREE.Mesh(geoTube, mat);
+  tube.visible = false;
+  const poing = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), mat);
+  poing.visible = false;
+  const g = new THREE.Group();
+  g.add(tube, poing);
+  g.userData = { tube, poing };
+  return g;
+}
+
+function tendreElastique(el, origine, cible) {
+  const { tube, poing } = el.userData;
+  _elDir.copy(cible).sub(origine);
+  const dist = _elDir.length();
+  if (dist < 0.03) { tube.visible = false; poing.visible = false; return; }
+  _elDir.multiplyScalar(1 / dist);
+  tube.visible = true; poing.visible = true;
+  tube.position.copy(origine);
+  tube.scale.set(1, dist, 1);
+  tube.quaternion.setFromUnitVectors(_elUp, _elDir);
+  poing.position.copy(cible);
+}
+
+let _corpsLuffy = null;
+
+function mugiwara(palier) {
+  const g = new THREE.Group();
+  if (!_corpsLuffy) {
+    _corpsLuffy = construireCorps(palier, {
+      teinter: teinteLuffy,
+      gabarit: { carrure: 0.92, masse: 0.90 },
+      pas: palier.nom === 'bas' ? 0.032 : palier.nom === 'moyen' ? 0.024 : 0.020,
+    });
+  }
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.80, metalness: 0.0,
+    emissive: new THREE.Color(0x0A0806), emissiveIntensity: 1,
+  });
+  const perso = nouvelleInstance(_corpsLuffy, mat, { ombres: palier.ombres });
+  g.add(perso);
+  const os = perso.userData.os;
+
+  // Plante, jambes ecartees, le bras gauche recule pour l'appel du coup —
+  // le droit reste libre, c'est l'elastique qui en tient lieu.
+  appliquerPose(os, {
+    cuisseD: [-0.18, 0, 0.14], molletD: [0.10, 0, 0],
+    cuisseG: [-0.18, 0, -0.14], molletG: [0.10, 0, 0],
+    brasG: [-0.35, 0.10, -0.55], avantG: [-0.65, 0, 0],
+    colonne: [0.06, 0.08, 0], poitrine: [0.04, 0.05, 0],
+  });
+
+  const chapeau = chapeauPaille();
+  chapeau.position.set(0, 0.30, 0.02);
+  os.tete.add(chapeau);
+
+  const elastique = busteElastique(PEAU_LUFFY.getHex());
+  g.add(elastique);
+  const origine = new THREE.Vector3();
+  const cible = new THREE.Vector3();
+
+  g.userData.jouer = (u, t, camera) => {
+    const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
+    g.visible = vis > 0.01;
+    if (!g.visible) return;
+
+    regarderVers(perso, os, camera, smoothstep(0.04, 0.14, u) * 0.7);
+
+    /* L'ELAN — le poing recule et se crispe — puis LE TIR, qui l'envoie
+       loin devant, jusqu'a nous, avant de le laisser revenir. */
+    const arme = smoothstep(0.14, 0.32, u) * smoothstep(0.56, 0.42, u);
+    const lance = smoothstep(0.42, 0.54, u) * smoothstep(0.88, 0.64, u);
+    os.brasD.rotation.set(-0.10 - arme * 0.85, 0.05, 0.12);
+    os.avantD.rotation.set(0.08 + arme * 0.5, 0, 0);
+
+    origine.set(0.36, 1.32, -0.08);
+    const portee = lance * 6.4;
+    cible.set(
+      0.36 + Math.sin(t * 11) * 0.05 * lance,
+      1.32 + Math.sin(lance * Math.PI) * 0.5,
+      -0.08 - portee
+    );
+    tendreElastique(elastique, origine, cible);
+  };
+  return g;
+}
+
+/* ==========================================================================
+   LES HAMBURGERS QUI VOLENT
+
+   Antoine : « je veux des hamburgers qui volent car j'aime la nourriture ».
+   Rien a expliquer, rien a reconnaitre — juste une nuee qui tourbillonne
+   devant le chemin. Plantee une fois pour toutes a un point fixe : voir la
+   lune plus haut pour la raison exacte (jamais recalculee depuis la
+   camera, jamais deux fois au meme endroit par accident). */
+const matPainHB = new THREE.MeshStandardMaterial({ color: 0xD9A24B, roughness: 0.85 });
+const matSteakHB = new THREE.MeshStandardMaterial({ color: 0x5A3420, roughness: 0.92 });
+const matFromageHB = new THREE.MeshStandardMaterial({ color: 0xF0B93C, roughness: 0.45 });
+const matSaladeHB = new THREE.MeshStandardMaterial({ color: 0x4C8A3A, roughness: 0.9 });
+
+function hamburgerVolant(echelle) {
+  const g = new THREE.Group();
+  const bas = new THREE.Mesh(
+    new THREE.SphereGeometry(0.30, 10, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45),
+    matPainHB);
+  bas.position.y = -0.08;
+  g.add(bas);
+  const steak = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.10, 12), matSteakHB);
+  steak.position.y = 0.02;
+  g.add(steak);
+  const salade = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.05, 6, 14), matSaladeHB);
+  salade.rotation.x = Math.PI / 2;
+  salade.position.y = 0.09;
+  g.add(salade);
+  const fromage = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.03, 0.50), matFromageHB);
+  fromage.position.y = 0.11;
+  fromage.rotation.y = Math.PI / 4;
+  g.add(fromage);
+  const haut = new THREE.Mesh(
+    new THREE.SphereGeometry(0.31, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.62),
+    matPainHB);
+  haut.position.y = 0.16;
+  g.add(haut);
+  g.scale.setScalar(echelle);
+  return g;
+}
+
+function nueeHamburgers(chemin, palier) {
+  const g = new THREE.Group();
+  g.userData.suitCamera = true;
+
+  const N = palier.nom === 'bas' ? 6 : 10;
+  const burgers = [];
+  for (let i = 0; i < N; i++) {
+    const mesh = hamburgerVolant(1.8 + Math.random() * 1.1);
+    g.add(mesh);
+    burgers.push({
+      mesh,
+      ang: (i / N) * Math.PI * 2 + Math.random() * 0.6,
+      rayon: 1.6 + Math.random() * 1.8,
+      vAng: 0.35 + Math.random() * 0.55,
+      hauteur: -0.8 + Math.random() * 2.2,
+      dephasage: Math.random() * 10,
+      spinX: (Math.random() - 0.5) * 2.4,
+      spinZ: (Math.random() - 0.5) * 2.4,
+    });
+  }
+
+  const p = new THREE.Vector3(), tan = new THREE.Vector3(), cote = new THREE.Vector3();
+  let calcule = false;
+  const posNuee = new THREE.Vector3();
+  g.userData.reinit = () => { calcule = false; };
+
+  g.userData.jouer = (u, t, camera, sAncre) => {
+    const vis = smoothstep(0, 0.14, u) * smoothstep(1, 0.84, u);
+    g.visible = vis > 0.01;
+    if (!g.visible || !camera) return;
+
+    if (!calcule) {
+      chemin.point(sAncre, p);
+      chemin.tangente(sAncre, tan);
+      chemin.cote(sAncre, cote);
+      posNuee.copy(p).addScaledVector(tan, 10).addScaledVector(cote, -6);
+      posNuee.y = p.y + 4.4;
+      calcule = true;
+    }
+    g.position.copy(posNuee);
+    // Materialisation par l'echelle plutot que par l'opacite : les
+    // materiaux sont partages entre toutes les instances (peu couteux),
+    // et une opacite par-objet n'existe donc pas a ce niveau.
+    g.scale.setScalar(Math.max(0.001, vis));
+
+    for (const b of burgers) {
+      const a = b.ang + t * b.vAng;
+      b.mesh.position.set(
+        Math.cos(a) * b.rayon,
+        b.hauteur + Math.sin(t * 0.8 + b.dephasage) * 0.45,
+        Math.sin(a) * b.rayon
+      );
+      b.mesh.rotation.x += 0.017 * b.spinX;
+      b.mesh.rotation.z += 0.017 * b.spinZ;
+    }
+  };
+  return g;
+}
+
+/* ==========================================================================
    JURASSIC PARK
 
    La scene la plus celebre du cinema d'aventure, et la seule qui COMMENCE
@@ -1781,9 +2016,13 @@ export function planApparitions(L) {
        simultanees, ce n'est plus une surprise, c'est une brocante. */
     { nom: 'police',    s: L * 0.12, cote: -1, ecart: 6.0, avant: 46, apres: 26, degage: 0 },
     { nom: 'spider1',   s: L * 0.20, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
+    /* MUGIWARA, GLISSE DANS LE COURT INTERVALLE ENTRE SPIDER1 ET KILL BILL.
+       Une fenetre volontairement breve — on ne le voit pas arriver, on
+       tombe sur lui — meme logique que Shining plus loin sur le parcours. */
+    { nom: 'mugiwara',  s: L * 0.2212, cote: -1, ecart: 4.0, avant: 8, apres: 5, degage: 5.5 },
     { nom: 'killbill',  s: L * 0.28, cote: -1, ecart: 4.0, avant: 32, apres: 12, tourne: 0.3, degage: 5.0 },
     { nom: 'et',        s: L * 0.36, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
-    { nom: 'sabres',    s: L * 0.44, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5 },
+    { nom: 'sabres',    s: L * 0.44, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5, assombrit: 1 },
     { nom: 'kevin',     s: L * 0.52, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
     /* Le theropode marche a vingt-deux metres du chemin, derriere la ligne
        d'arbres : on ne degage donc RIEN pour lui — ce sont justement les
@@ -1797,7 +2036,17 @@ export function planApparitions(L) {
        vingt-huit metres d'ecart net entre les deux, largement plus qu'il
        n'en faut pour que le silence entre les deux se sente. */
     { nom: 'trex',      s: L * 0.61, cote: -1, ecart: 0,   avant: 48, apres: 12, degage: 0 },
+    /* SHINING, GLISSEE DANS LE GRAND ECART LAISSE ENTRE LE T-REX ET LE
+       PATRONUS (vingt-huit metres nets, voir plus haut). Une fenetre
+       courte et sans amorce : ce n'est pas une scene qu'on voit arriver,
+       c'est une scene qu'on DECOUVRE — l'effet ne marche que si l'on
+       tombe dessus. */
+    { nom: 'shining',   s: L * 0.6522, cote: -1, ecart: 5.0, avant: 12, apres: 6, degage: 6.0 },
     { nom: 'patronus',  s: L * 0.70, cote: -1, ecart: 5.5, avant: 20, apres: 10, degage: 8.0 },
+    /* LES HAMBURGERS, DANS LE COURT INTERVALLE ENTRE PATRONUS ET GARGANTUA.
+       Scene aerienne (suitCamera) : aucun degagement d'arbres a prevoir,
+       elle flotte au-dessus de tout. */
+    { nom: 'hamburgers', s: L * 0.7189, cote: 0, ecart: 0, avant: 5, apres: 3, degage: 0 },
     { nom: 'gargantua', s: L * 0.78, cote:  0, ecart: 0,   avant: 38, apres: 28, degage: 0 },
     { nom: 'spider2',   s: L * 0.86, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
     /* ECART RELEVE A QUATRE METRES. Antoine : « elle roule sur le cerf ».
@@ -1950,12 +2199,29 @@ export class Apparitions {
       spider2: () => spiderBalance(9, palier),
       killbill: () => killBill(palier),
       trex: () => jurassique(chemin, relief, palier),
+      shining: () => shining(palier),
       gargantua: () => trouNoir(relief, chemin),
       delorean: () => traineesDeFeu(26, palier, relief),
+      mugiwara: () => mugiwara(palier),
+      hamburgers: () => nueeHamburgers(chemin, palier),
     };
     const plan = planApparitions(L).map((d) => ({ ...d, faire: FABRIQUES[d.nom] }));
 
     const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
+    this._viseeInteret = new THREE.Vector3();
+    /* LE CERF S'ARRETE POUR CHAQUE APPARITION. Antoine : « ça doit être
+       vraiment une vraie scène de film ». Une silhouette entr'apercue en
+       marchant reste un decor qui defile ; on veut un ARRET, une camera qui
+       s'installe et compose, comme a une halte-cadeau — mais sans toucher
+       au minutage de chaque scene, deja regle avec soin. La vitesse
+       virtuelle avance donc la scene exactement comme l'aurait fait la
+       marche normale : arreter le cerf ne change ni le rythme ni la duree
+       de ce qu'on voit, seulement le fait que la camera n'a plus a courir
+       pour le suivre pendant qu'elle le regarde. */
+    this._vitesseVirtuelle = 3.3;
+    this._enArret = false;
+    this._vitesseAvantArret = null;
+    this._sensArc = 1;
     this.scenes = [];
     /* Le son est branche plus tard : le contexte audio n'existe qu'apres le
        premier geste du visiteur, et les apparitions, elles, sont construites
@@ -2002,10 +2268,31 @@ export class Apparitions {
   brancherSon(son) { this.son = son; }
 
   /* On ouvre la fenetre BIEN AVANT d'arriver : une apparition qu'on decouvre
-     au moment ou on la depasse est deja finie. */
-  maj(dt, t, s, camera) {
+     au moment ou on la depasse est deja finie.
+
+     `cadrageBase` est le cadrage que le cerf tiendrait s'il n'y avait pas
+     d'apparition — 'route' ou 'approche', ou rien du tout si l'on est dans
+     une halte ou une cinematique, auquel cas tout le mecanisme d'arret
+     ci-dessous se desactive de lui-meme : l'arret du cerf pour une
+     apparition ne doit jamais entrer en conflit avec l'arret pour un
+     cadeau. */
+  maj(dt, t, cerf, camera, drone, postfx, cadrageBase) {
+    const sReel = cerf.s;
+    let assombrissement = 0;
+    let teinteForce = 0;
+    let teinteCouleur;
+    let quelquUnTient = false;
+
     for (const sc of this.scenes) {
-      const u = (s - (sc.s - sc.avant)) / (sc.avant + sc.apres);
+      /* L'ABSCISSE EFFECTIVE. Tant qu'on ne retient pas la scene, elle suit
+         le cerf reel — c'est exactement le calcul d'avant. Des qu'on la
+         retient (plus bas), elle continue d'avancer TOUTE SEULE, a la
+         vitesse a laquelle le cerf aurait marche : la scene se joue donc
+         exactement comme prevu, minutee au meme rythme, que le cerf coure
+         ou qu'il se tienne immobile pendant qu'on la regarde. */
+      if (sc.sEff === undefined || !sc.enArret) sc.sEff = sReel;
+
+      const u = (sc.sEff - (sc.s - sc.avant)) / (sc.avant + sc.apres);
       const dedans = u > 0 && u < 1;
 
       /* LES DEUX BASCULES. On ne se contente pas de regarder si la scene est
@@ -2019,6 +2306,16 @@ export class Apparitions {
         else {
           this.son?.fermer(sc.nom);
           sc.objet.userData.reinit?.();
+          /* La camera cesse d'etre attiree des que la scene se referme : sans
+             ce relachement, elle resterait braquee sur un point maintenant
+             vide jusqu'a la prochaine apparition, voire jusqu'a la halte
+             suivante. Les phases de halte (PERCEE et apres) reprennent de
+             toute facon la main sur `regarder` a chaque image ; ce
+             relachement ne les concerne donc jamais. */
+          drone?.regarder(null, 0);
+          sc.enArret = false;
+          sc.arretFini = false;
+          sc.sEff = undefined;
         }
       }
 
@@ -2031,7 +2328,91 @@ export class Apparitions {
          n'en a que faire, mais celle qui se DEPLACE le long du chemin — la
          course-poursuite — a besoin de savoir ou l'on en est pour se placer
          par rapport a nous. */
-      sc.objet.userData.jouer(clamp(u, 0, 1), t, camera, sc.s, dt);
+      const uu = clamp(u, 0, 1);
+      sc.objet.userData.jouer(uu, t, camera, sc.s, dt);
+
+      /* LE CERF S'ARRETE POUR LA REGARDER. Declenche a une distance fixe de
+         l'ancre — plafonnee a la moitie de l'amorce de la scene, pour
+         qu'une fenetre courte (Shining, decouverte a dessein) ne force pas
+         un freinage qui deborderait sur ce qui la precede. Une fois
+         retenue, la scene ne l'est qu'UNE fois : `arretFini` empeche un
+         second freinage si jamais on repassait par la (recommencer()). */
+      if (cadrageBase && !sc.arretFini) {
+        const rayon = Math.min(14, sc.avant * 0.5);
+        if (!sc.enArret && sReel >= sc.s - rayon) sc.enArret = true;
+        if (sc.enArret) {
+          quelquUnTient = true;
+          sc.sEff += dt * this._vitesseVirtuelle;
+          if (sc.sEff >= sc.s + sc.apres) { sc.enArret = false; sc.arretFini = true; }
+        }
+      }
+
+      /* LA CAMERA REGARDE VERS L'ACTION. Une apparition qu'on croise sans que
+         le drone y prete attention se lit a peine, en peripherie de cadre —
+         alors que le plan de drone la doit precisement chercher, comme un
+         operateur qui reagit a ce qui bouge. On tire donc le point vise vers
+         la scene active pendant toute sa fenetre, avec une force qui monte
+         puis redescend : jamais un a-coup a l'ouverture. A l'arret, on pousse
+         bien plus fort — plus rien ne s'oppose a un cadrage compose,
+         puisqu'il n'y a plus de trajectoire a suivre en meme temps. */
+      if (drone) {
+        const pic = sc.enArret ? 0.88 : 0.6;
+        const force = smoothstep(0, 0.16, uu) * smoothstep(1, 0.80, uu) * pic;
+        if (force > 0.001) {
+          this._viseeInteret.copy(sc.objet.position);
+          drone.regarder(this._viseeInteret, force);
+        }
+      }
+
+      /* L'ASSOMBRISSEMENT D'UNIVERS. Certaines scenes — le duel de sabres —
+         doivent faire sentir qu'on bascule ailleurs, pas seulement montrer
+         un decor de plus. `assombrit` porte la force maximale voulue par la
+         scene ; l'enveloppe (monte/descend avec la fenetre) est la meme
+         logique que pour le regard camera, appliquee cette fois a l'image
+         entiere plutot qu'au cadrage. */
+      if (sc.assombrit) {
+        const env = smoothstep(0, 0.22, uu) * smoothstep(1, 0.72, uu);
+        assombrissement = Math.max(assombrissement, env * sc.assombrit);
+      }
+
+      /* MEME PRINCIPE, MAIS AU RYTHME DE LA SCENE ELLE-MEME plutot qu'a celui
+         de sa fenetre entiere : l'ascenseur de Shining ne doit assombrir et
+         teinter l'image qu'au moment precis ou le sang jaillit, pas pendant
+         toute son ouverture. La scene ecrit donc elle-meme ces valeurs dans
+         son `userData` a chaque image, et on les relit ici. */
+      if (sc.objet.userData.assombritDyn) {
+        assombrissement = Math.max(assombrissement, sc.objet.userData.assombritDyn);
+      }
+      if (sc.objet.userData.teinteForceDyn) {
+        teinteForce = Math.max(teinteForce, sc.objet.userData.teinteForceDyn);
+        teinteCouleur = sc.objet.userData.teinteDyn ?? teinteCouleur;
+      }
     }
+
+    /* LA BASCULE ARRET / REPRISE, une seule fois par changement d'etat — pas
+       a chaque image, sans quoi `cadrer` et `arc` recevraient sans cesse la
+       meme consigne (inoffensif, mais inutile) et surtout la vitesse
+       sauvegardee se ferait ecraser par du zero des la deuxieme image de
+       l'arret. */
+    if (cadrageBase) {
+      if (quelquUnTient && !this._enArret) {
+        this._enArret = true;
+        this._vitesseAvantArret = cerf.vitesseCible;
+        cerf.vitesseCible = 0;
+        // Le sens de l'orbite alterne d'une apparition a l'autre, comme aux
+        // haltes : sans quoi les douze arrets tournent tous du meme cote.
+        this._sensArc *= -1;
+        drone.cadrer('apparition');
+        drone.arc(this._sensArc * 0.05, 0.10);
+      } else if (!quelquUnTient && this._enArret) {
+        this._enArret = false;
+        cerf.vitesseCible = this._vitesseAvantArret ?? cerf.vitesseCible;
+        drone.cadrer(cadrageBase);
+        drone.arc(0, 0);
+      }
+    }
+
+    postfx?.assombrir(assombrissement, dt);
+    postfx?.teinter(teinteCouleur, teinteForce, dt);
   }
 }

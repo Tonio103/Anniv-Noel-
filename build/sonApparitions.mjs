@@ -41,17 +41,26 @@ const r = await page.evaluate(() => {
   const journal = [];
   // Le nombre de noeuds encore vivants, tel que le module le connait.
   const etat = () => [...son.continus.keys()].sort().join(',') || '—';
+  /* `apparitions.maj` prend maintenant le CERF entier, pas sa seule
+     abscisse — c'est par lui qu'elle arrete et relance la marche pour une
+     apparition. Ce banc ne teste que le son, avec des sauts d'abscisse
+     tres artificiels (loin devant, loin derriere) : on lui fournit un cerf
+     factice et on desactive le mecanisme d'arret (`cadrageBase = null`),
+     qui n'aurait aucun sens applique a un teleport plutot qu'a une vraie
+     marche. */
+  const cerfFaux = { s: 0, vitesseCible: 3.3 };
+  const majFaux = (dt, t, sVal) => { cerfFaux.s = sVal; ap.maj(dt, t, cerfFaux, s.camera, null, null, null); };
 
   for (const sc of ap.scenes) {
     // Loin de tout : rien ne doit etre ouvert.
-    ap.maj(1 / 60, 0, -5000, s.camera);
+    majFaux(1 / 60, 0, -5000);
     const avant = etat();
     // En plein milieu de la fenetre.
     const dedans = sc.s - sc.avant * 0.5;
-    for (let i = 0; i < 6; i++) ap.maj(1 / 60, 10 + i / 60, dedans, s.camera);
+    for (let i = 0; i < 6; i++) majFaux(1 / 60, 10 + i / 60, dedans);
     const pendant = etat();
     // Puis bien au-dela : la fenetre s'est refermee derriere nous.
-    ap.maj(1 / 60, 12, sc.s + sc.apres + 200, s.camera);
+    majFaux(1 / 60, 12, sc.s + sc.apres + 200);
     const apres = etat();
     journal.push({ nom: sc.nom, avant, pendant, apres, voix: son.voix.has(sc.nom) });
   }
@@ -60,8 +69,8 @@ const r = await page.evaluate(() => {
      c'est ici qu'on le verra s'accumuler. */
   const police = ap.scenes.find((x) => x.nom === 'police');
   for (let k = 0; k < 3; k++) {
-    ap.maj(1 / 60, 20 + k, police.s - police.avant * 0.5, s.camera);
-    ap.maj(1 / 60, 20.5 + k, -5000, s.camera);
+    majFaux(1 / 60, 20 + k, police.s - police.avant * 0.5);
+    majFaux(1 / 60, 20.5 + k, -5000);
   }
   const fuite = etat();
 

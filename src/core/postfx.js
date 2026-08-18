@@ -37,6 +37,7 @@
 */
 
 import * as THREE from 'three';
+import { damp } from './noise.js';
 
 /* Un seul triangle couvrant l'ecran : moins de sommets qu'un quad, et pas de
    couture diagonale au milieu de l'image. */
@@ -89,6 +90,8 @@ const FRAG_FINAL = /* glsl */ `
   uniform sampler2D uScene, uHalo, uFlou, uProfondeur;
   uniform float uExpo, uHaloForce, uVignette, uGrain, uAberr, uTemps;
   uniform float uNear, uFar, uFocus, uNet, uPlage, uDof;
+  uniform vec3 uTeinte;
+  uniform float uTeinteForce;
 
   /* Le tampon de profondeur n'est pas lineaire : la precision est concentree
      pres de la camera. Il faut le redresser pour raisonner en metres. */
@@ -186,6 +189,16 @@ const FRAG_FINAL = /* glsl */ `
 
     // Vignettage doux — il recentre le regard sans qu'on le remarque.
     col *= 1.0 - uVignette * smoothstep(0.15, 0.75, r2);
+
+    /* Une teinte dramatique et ponctuelle — le sang de l'ascenseur qui
+       envahit l'image. Elle mord davantage sur les bords que sur le centre,
+       comme un fluide qui cerne le regard plutot qu'un filtre plat plaque
+       sur tout l'ecran : c'est ce qui la fait lire comme une invasion et non
+       comme un reglage de couleur. */
+    if (uTeinteForce > 0.001) {
+      float bord = mix(0.35, 1.0, smoothstep(0.0, 0.7, r2));
+      col = mix(col, uTeinte, clamp(uTeinteForce * bord, 0.0, 1.0));
+    }
 
     /* Grain. Il vient en dernier et se renforce dans les ombres : c'est la
        que le bruit d'un vrai capteur se voit, et c'est aussi la que les
@@ -315,11 +328,16 @@ export class PostFX {
            l'ecran est petit ; le palier haut, qui vise un moniteur, le
            garde. */
         uDof: { value: complet ? 0.72 : 0.28 },
+        uTeinte: { value: new THREE.Color(0x5C0A0E) },
+        uTeinteForce: { value: 0 },
       },
       depthTest: false, depthWrite: false,
     });
 
     this.l = 2; this.h = 2;
+    // Les valeurs nominales, pour pouvoir y revenir apres un assombrissement.
+    this._expoBase = this.matFinal.uniforms.uExpo.value;
+    this._vignetteBase = this.matFinal.uniforms.uVignette.value;
   }
 
   setSize(l, h, dpr) {
@@ -384,6 +402,36 @@ export class PostFX {
     const d = Math.min(Math.max(distance, 2), 90);
     if (!isFinite(d)) return;
     u.uFocus.value += (d - u.uFocus.value) * 0.12;
+  }
+
+  /* L'ASSOMBRISSEMENT DRAMATIQUE. Une scene comme le duel de sabres a besoin
+     de se sentir AILLEURS que dans la balade paisible qui l'entoure : on
+     ferme l'exposition et on resserre la vignette, comme un objectif qui se
+     bouche pendant qu'un autre univers prend toute la place. `force` vaut 0
+     au repos et jusqu'a 1 en plein effet ; l'appelant le fait monter puis
+     redescendre lui-meme au fil de la fenetre de la scene. Le lissage est
+     ici, pas chez l'appelant, pour qu'aucun appel — meme un saut brutal de
+     force — ne se voie comme une coupe. */
+  assombrir(force, dt) {
+    const u = this.matFinal.uniforms;
+    const f = Math.min(Math.max(force, 0), 1);
+    const expoCible = this._expoBase - f * 0.46;
+    const vignetteCible = this._vignetteBase + f * 0.42;
+    u.uExpo.value = damp(u.uExpo.value, expoCible, 2.2, dt);
+    u.uVignette.value = damp(u.uVignette.value, vignetteCible, 2.2, dt);
+  }
+
+  /* UNE TEINTE PONCTUELLE, PAR-DESSUS L'IMAGE ENTIERE. Distincte de
+     l'assombrissement : celui-ci ferme l'exposition, celle-la impose une
+     couleur — le sang qui envahit l'ecran a l'ascenseur de Shining, par
+     exemple. `couleur` n'est relue que lorsque `force` redevient notable :
+     un flash qui s'eteint ne doit pas faire deriver la teinte cible vers du
+     noir au passage. */
+  teinter(couleur, force, dt) {
+    const u = this.matFinal.uniforms;
+    const f = Math.min(Math.max(force, 0), 1);
+    if (f > 0.01 && couleur !== undefined) u.uTeinte.value.set(couleur);
+    u.uTeinteForce.value = damp(u.uTeinteForce.value, f, 3.2, dt);
   }
 
   rendre(scene, camera, temps) {

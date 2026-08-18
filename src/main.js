@@ -473,6 +473,10 @@ async function demarrer() {
        toutes seules quand on saute en arriere. */
     apparitionsSon.toutFermer();
     for (const sc of apparitions.scenes) sc.ouverte = false;
+    // Meme chose pour l'attention du drone : sans ce relachement, une
+    // apparition qui tenait la camera au moment du saut la garderait braquee
+    // sur un point qui n'existe plus une fois revenu a la lisiere.
+    drone.regarder(null, 0);
     cerf.s = DEPART;
     cerf.regard = 0;
     cerf.grattage = 0;
@@ -516,7 +520,16 @@ async function demarrer() {
         break;
 
       case PHASES.APPROCHE:
-        if (cerf.s > cible.s - 1.2 || cerf.vitesse < 0.12) entrerPhase(PHASES.FOUILLE);
+        /* Le second declencheur (vitesse quasi nulle) supposait que seule
+           l'approche du cadeau pouvait immobiliser le cerf. Ce n'est plus
+           vrai depuis qu'une apparition peut, elle aussi, le retenir en
+           chemin — parfois dans cette meme zone d'approche. Sans la garde
+           de distance, un arret pour une apparition encore a plusieurs
+           metres du cadeau se lirait a tort comme une arrivee, et
+           declencherait le fouillage au mauvais endroit. */
+        if (cerf.s > cible.s - 1.2 || (cerf.vitesse < 0.12 && cerf.s > cible.s - 8)) {
+          entrerPhase(PHASES.FOUILLE);
+        }
         break;
 
       case PHASES.FOUILLE:
@@ -784,7 +797,14 @@ async function demarrer() {
     brume.maj(dt, t, camera, relief, ciel.actuel);
     details.maj(dt, t, camera, relief);
     cabanes.maj(dt);
-    apparitions.maj(dt, t, cerf.s, camera);
+    /* Le cadrage que le cerf tiendrait sans apparition en cours — c'est ce
+       que `apparitions.maj` restaure une fois l'arret termine. En dehors de
+       ces deux phases (halte, cinematique d'ouverture, fin), on lui passe
+       `null` : l'arret pour une apparition ne doit jamais entrer en
+       conflit avec celui, deja en cours, d'une halte-cadeau. */
+    const cadrageCroisiere =
+      phase === PHASES.ROUTE ? 'route' : phase === PHASES.APPROCHE ? 'approche' : null;
+    apparitions.maj(dt, t, cerf, camera, drone, postfx, cadrageCroisiere);
     habitants.maj(t);
     relief.majEmpreintes();
 
