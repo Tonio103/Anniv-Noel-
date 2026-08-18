@@ -17,7 +17,10 @@
 
 import * as THREE from 'three';
 import { smoothstep, clamp } from '../core/noise.js';
-import { REPERES, construireCorps, nouvelleInstance, piste, regarderVers } from './humanoide.js';
+import { grainRond } from '../core/dot.js';
+import {
+  REPERES, construireCorps, nouvelleInstance, piste, regarderVers, appliquerPose,
+} from './humanoide.js';
 
 /* ==========================================================================
    1. GARGANTUA — INTERSTELLAR
@@ -182,7 +185,7 @@ function siluetteAstronaute() {
   return q;
 }
 
-export function trouNoir(relief) {
+export function trouNoir(relief, chemin) {
   const g = new THREE.Group();
   const mat = matiereTrouNoir();
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
@@ -206,30 +209,28 @@ export function trouNoir(relief) {
   astroGroupe.add(astro);
   g.add(astroGroupe);
 
-  const avant = new THREE.Vector3();
-  const cote = new THREE.Vector3();
+  const p = new THREE.Vector3(), tan = new THREE.Vector3(), cote = new THREE.Vector3();
   g.userData.suitCamera = true;
 
-  /* ANTOINE : « les elements ciel bougent avec la camera, ca c'est
-     problematique, il ne reste pas fixe dans le ciel ». C'etait exact :
-     `g.position` etait recalcule CHAQUE IMAGE a partir de la direction
-     courante de la camera, si bien que le trou noir suivait chaque virage
-     du drone au lieu de rester un astre fixe dans le monde — un vrai objet
-     lointain, lui, DERIVE dans le cadre quand on tourne, il ne s'y
-     recentre pas tout seul.
+  /* ANTOINE, PUIS UNE SECONDE FOIS SUR LA LUNE D'E.T. — meme cause :
+     `g.position` etait recalcule a partir de la direction INSTANTANEE de
+     la camera au moment ou la fenetre s'ouvre, et cet instant tombe parfois
+     en pleine transition de cadrage, ou cette direction n'est pas stable
+     d'une image a l'autre : l'astre se figeait alors a un endroit
+     legerement different selon l'image exacte du declenchement, ce qui, vu
+     deux fois, se lit comme un saut plutot qu'une derive.
 
-     La position n'est donc plus recalculee qu'UNE FOIS, au moment precis
-     ou la fenetre s'ouvre — a cet instant seulement, on a besoin de la
-     direction de la camera pour etre sur que l'astre nait dans le cadre.
-     Au-dela, elle reste fixe dans le monde comme le reste du decor : le
-     drone peut tourner, le trou noir derive naturellement, exactement
-     comme un vrai astre le ferait. */
-  let fige = false;
+     LA VRAIE CORRECTION, appliquee ici comme sur la lune : on ne demande
+     plus JAMAIS a la camera OU PLACER l'astre. Le CHEMIN — fixe, connu
+     d'avance, identique a chaque image — donne un repere stable a
+     l'endroit ou la scene s'ouvre. La camera ne sert plus qu'a orienter le
+     disque face a elle. */
+  let calcule = false;
   const posDisque = new THREE.Vector3();
   const posAstro = new THREE.Vector3();
-  g.userData.reinit = () => { fige = false; };
+  g.userData.reinit = () => { calcule = false; };
 
-  g.userData.jouer = (u, t, camera) => {
+  g.userData.jouer = (u, t, camera, sAncre) => {
     /* Il se leve lentement et se retire de meme : un trou noir n'apparait
        pas d'un coup, il est LA et l'on finit par le voir. */
     const vis = smoothstep(0, 0.26, u) * smoothstep(1, 0.74, u);
@@ -239,30 +240,28 @@ export function trouNoir(relief) {
     mat.uniforms.uTemps.value = t;
     astro.material.opacity = vis * 0.95;
 
-    if (!fige) {
+    if (!calcule) {
       /* Le meme placement que la lune d'E.T., et pour la meme raison
          mesuree : le drone pique vers le cerf, il ne reste qu'un bandeau
          de ciel au haut du cadre en portrait. Un peu plus loin et un peu
          plus haut que la lune, parce que l'objet est beaucoup plus grand. */
+      chemin.point(sAncre, p);
+      chemin.tangente(sAncre, tan);
+      chemin.cote(sAncre, cote);
       const D = 300;
-      camera.getWorldDirection(avant);
-      avant.y = 0;
-      if (avant.lengthSq() < 1e-6) avant.set(0, 0, -1);
-      avant.normalize();
-      cote.set(-avant.z, 0, avant.x);
-      posDisque.copy(camera.position)
-        .addScaledVector(avant, D).addScaledVector(cote, 22);
+      posDisque.copy(p).addScaledVector(tan, D).addScaledVector(cote, 22);
       /* Vingt-six metres a trois cents, soit cinq degres d'elevation : il
-         se LEVE derriere la ligne d'arbres au lieu de flotter au zenith. */
-      posDisque.y = camera.position.y + 26;
+         se LEVE derriere la ligne d'arbres au lieu de flotter au zenith.
+         Le drone vole une dizaine de metres au-dessus du chemin : on part
+         de la hauteur DU CHEMIN, stable, pas de celle de la camera. */
+      posDisque.y = p.y + 36;
 
       /* L'astronaute, lui, est pres et au sol : trente metres devant, tres
          legerement de cote pour ne pas boucher exactement l'axe. */
-      posAstro.copy(camera.position)
-        .addScaledVector(avant, 30).addScaledVector(cote, -9);
+      posAstro.copy(p).addScaledVector(tan, 30).addScaledVector(cote, -9);
       posAstro.y = relief.hauteur(posAstro.x, posAstro.z);
 
-      fige = true;
+      calcule = true;
     }
     discGroupe.position.copy(posDisque);
     discGroupe.lookAt(camera.position);
@@ -357,6 +356,127 @@ function katana() {
   return g;
 }
 
+/* L'ADVERSAIRE. Antoine : « elle ne combat personne, il n'y a pas
+   d'animation de combat, il faut vraiment que ce soit du Tarantino avec
+   beaucoup de sang ». Une choregraphie solo, aussi enchainee soit-elle,
+   ne raconte jamais un combat — il faut quelqu'un en face, et quelqu'un
+   qui PERD. Un des hommes masques du film — costume noir, masque blanc —
+   affronte donc le sabre de Kill Bill et n'y survit pas : deux coups
+   portes, deux reactions, une chute, et le sang sur la neige qui reste
+   bien apres que tout le reste s'est efface. */
+const NOIR_MASQUE = new THREE.Color(0x101114);
+const MASQUE_BLANC = new THREE.Color(0xE8E4DA);
+
+function teinteMasque(x, y, z, c, os) {
+  if (os === 'tete') {
+    // Le masque couvre tout sauf une bande etroite autour des yeux.
+    if (Math.abs(x) < 0.045 && y > REPERES.menton - 0.01 && y < REPERES.crane - 0.03) {
+      c.setHex(0x0A0A0C);
+      return;
+    }
+    c.copy(MASQUE_BLANC);
+    return;
+  }
+  if (os === 'piedD' || os === 'piedG') { c.setHex(0x08090B); return; }
+  c.copy(NOIR_MASQUE);
+  void z;
+}
+
+let _corpsAdversaire = null;
+
+function adversaireMasque(palier) {
+  const g = new THREE.Group();
+  if (!_corpsAdversaire) {
+    _corpsAdversaire = construireCorps(palier, {
+      teinter: teinteMasque,
+      // Plus large qu'elle : c'est ce rapport, encore, qui fait lire un
+      // homme en face d'une femme, avant tout autre detail.
+      gabarit: { carrure: 1.12, masse: 1.14 },
+      pas: palier.nom === 'bas' ? 0.032 : palier.nom === 'moyen' ? 0.024 : 0.020,
+    });
+  }
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.72, metalness: 0.02,
+    emissive: new THREE.Color(0x0A0A0C), emissiveIntensity: 1,
+  });
+  const perso = nouvelleInstance(_corpsAdversaire, mat, { ombres: palier.ombres });
+  g.add(perso);
+  const os = perso.userData.os;
+
+  const sabre = katana();
+  sabre.rotation.x = -0.30;
+  sabre.position.y = -0.02;
+  os.mainD.add(sabre);
+
+  const POSE = {
+    garde: {
+      brasD: [-0.95, 0, 0.30], avantD: [1.15, 0, 0], mainD: [0, 0, 0.15],
+      brasG: [-0.70, 0, -0.40], avantG: [0.90, 0, 0],
+      cuisseD: [-0.30, 0, 0.14], molletD: [-0.20, 0, 0],
+      cuisseG: [0.30, 0, -0.16], molletG: [-0.24, 0, 0],
+      colonne: [0.04, 0, 0], poitrine: [0.03, 0, 0],
+    },
+    /* LE PREMIER COUP LE TOUCHE : le corps se casse en arriere, le sabre
+       echappe presque de la main. */
+    touche1: {
+      brasD: [-0.30, 0.60, -0.50], avantD: [0.30, 0, 0], mainD: [0, 0, -0.4],
+      brasG: [0.40, 0, -0.70], avantG: [0.20, 0, 0],
+      cuisseD: [0.20, 0, 0.10], molletD: [0.10, 0, 0],
+      cuisseG: [-0.35, 0, -0.20], molletG: [0.30, 0, 0],
+      bassin: [0, -0.30, 0], colonne: [-0.45, -0.20, 0.20], poitrine: [-0.35, -0.15, 0.15],
+      cou: [0.10, -0.10, 0.20], tete: [0.15, -0.10, 0.25],
+    },
+    /* LE SECOND LE COUCHE : les genoux cedent, le sabre part au sol. */
+    chute: {
+      brasD: [0.10, 0.30, -0.90], avantD: [0.60, 0, 0], mainD: [0, 0, 0],
+      brasG: [0.30, 0, -0.60], avantG: [0.70, 0, 0],
+      cuisseD: [-1.35, 0, 0.30], molletD: [-1.65, 0, 0], piedD: [0.80, 0, 0],
+      cuisseG: [-1.20, 0, -0.30], molletG: [-1.55, 0, 0], piedG: [0.75, 0, 0],
+      bassin: [0, 0.70, 0.60], colonne: [0.55, 0.30, 0.30], poitrine: [0.45, 0.20, 0.20],
+      cou: [0.30, 0.10, 0], tete: [0.35, 0.15, 0],
+    },
+  };
+
+  g.userData.os = os;
+  g.userData.POSE = POSE;
+  return g;
+}
+
+/* LE SANG. Antoine : « beaucoup de sang ». Une gerbe de points sombres qui
+   jaillit au contact — pas un jet propre et brillant, une projection
+   irreguliere qui retombe vite — et une tache qui grandit sur la neige et
+   y reste, parce que c'est elle qui raconte ce qui vient de se passer une
+   fois le mouvement fini. */
+function gerbeDeSang() {
+  const N = 46;
+  const pos = new Float32Array(N * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02, color: 0x8A0F14, size: 0.10,
+    transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  const dirs = Array.from({ length: N }, () => {
+    const a = Math.random() * Math.PI * 2, e = Math.random() * 0.6 + 0.15;
+    return [Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e)];
+  });
+  pts.userData.dirs = dirs;
+  pts.userData.mat = mat;
+  return pts;
+}
+
+function tacheDeSang() {
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x5A0B0F, transparent: true, opacity: 0, depthWrite: false,
+  });
+  const m = new THREE.Mesh(new THREE.CircleGeometry(0.55, 10), mat);
+  m.rotation.x = -Math.PI / 2;
+  m.renderOrder = 1;
+  return m;
+}
+
 let _corpsKB = null;
 
 export function killBill(palier) {
@@ -410,6 +530,28 @@ export function killBill(palier) {
   }
   queue.position.set(0, REPERES.crane - 0.06, 0.05);
   os.tete.add(queue);
+
+  /* L'ADVERSAIRE, plante la ou ses coups portent — voir plus bas, la
+     sequence l'attaque a u=0,67 puis u=0,78. Il lui fait face, de l'autre
+     cote de l'axe qu'elle prend une fois retournee. */
+  const adversaire = adversaireMasque(palier);
+  adversaire.position.set(0.55, 0, -1.95);
+  adversaire.rotation.y = Math.PI - 0.35;
+  g.add(adversaire);
+  const osAdv = adversaire.userData.os;
+  const POSE_ADV = adversaire.userData.POSE;
+  appliquerPose(osAdv, POSE_ADV.garde);
+
+  // Deux gerbes — une par coup — et une tache qui grandit au sol.
+  const sangs = [gerbeDeSang(), gerbeDeSang()];
+  for (const s of sangs) { s.position.copy(adversaire.position).add(new THREE.Vector3(0, 1.1, 0)); g.add(s); }
+  const tache = tacheDeSang();
+  tache.position.set(adversaire.position.x, 0.02, adversaire.position.z + 0.3);
+  g.add(tache);
+  g.userData.poser = (relief) => {
+    tache.position.y = relief.hauteur(
+      g.position.x + tache.position.x, g.position.z + tache.position.z) - g.position.y + 0.02;
+  };
 
   /* LA SEQUENCE. Antoine : « elle doit bouger, elle doit avoir une
      choregraphie ». La pose de garde tenue jusqu'au bout etait un choix
@@ -484,20 +626,45 @@ export function killBill(palier) {
     },
   };
 
+  /* LE COMBAT DOIT SE JOUER TOT DANS LA FENETRE, ET C'EST UNE MESURE, PAS
+     UNE INTUITION.
+
+     La halte suivante tombe a peine six metres apres l'ancre de cette
+     scene (193,3 contre 187,4) : des u=0,33 environ, la camera bascule en
+     'approche' et se met a cadrer le cadeau de la halte, pas le duel — a
+     u=0,67, la ou le coup haut atterrissait, l'ancrage etait deja a
+     x=-1,3 a l'ecran et sortait du champ dans la foulee. Toute la
+     choregraphie, aussi reussie soit-elle, se jouait donc hors champ.
+     Mesure faite avec une vraie marche simulee (pas une reconstitution) :
+     le combat entier — demi-tour compris — est donc resserre pour se
+     terminer avant u=0,46, largement dans la fenetre ou le cadrage tient
+     encore. La garde finale, elle, peut deriver hors champ sans dommage :
+     rien n'y bouge plus. */
   const sequence = piste([
     { t: 0.00, pose: POSE.dos },
-    { t: 0.22, pose: POSE.dos },
-    { t: 0.36, pose: POSE.alerte },
-    { t: 0.46, pose: POSE.alerte },
-    { t: 0.56, pose: POSE.garde },
-    { t: 0.62, pose: POSE.leve },
-    { t: 0.67, pose: POSE.abattu },
-    { t: 0.70, pose: POSE.abattu },
-    { t: 0.74, pose: POSE.ramene },
-    { t: 0.78, pose: POSE.revers },
-    { t: 0.81, pose: POSE.revers },
-    { t: 0.88, pose: POSE.garde },
+    { t: 0.10, pose: POSE.dos },
+    { t: 0.16, pose: POSE.alerte },
+    { t: 0.20, pose: POSE.alerte },
+    { t: 0.26, pose: POSE.garde },
+    { t: 0.30, pose: POSE.leve },
+    { t: 0.34, pose: POSE.abattu },
+    { t: 0.36, pose: POSE.abattu },
+    { t: 0.39, pose: POSE.ramene },
+    { t: 0.42, pose: POSE.revers },
+    { t: 0.44, pose: POSE.revers },
+    { t: 0.50, pose: POSE.garde },
     { t: 1.00, pose: POSE.garde },
+  ]);
+
+  /* L'ADVERSAIRE ENCAISSE LES DEUX COUPS, cale sur les memes instants que
+     `sequence` ci-dessus (abattu a t=0,34 ; revers a t=0,42). */
+  const sequenceAdv = piste([
+    { t: 0.00, pose: POSE_ADV.garde },
+    { t: 0.33, pose: POSE_ADV.garde },
+    { t: 0.37, pose: POSE_ADV.touche1 },
+    { t: 0.40, pose: POSE_ADV.touche1 },
+    { t: 0.44, pose: POSE_ADV.chute },
+    { t: 1.00, pose: POSE_ADV.chute },
   ]);
 
   /* Elle commence DE DOS, tournee vers la foret. Le demi-tour se fait sur le
@@ -505,7 +672,13 @@ export function killBill(palier) {
      vertebrale sans deplacer ses appuis se lit comme une poupee sur un
      socle. */
   let lameFaite = false;
-  g.userData.reinit = () => { lameFaite = false; };
+  let coup1Fait = false, coup2Fait = false;
+  let coup1T = 0, coup2T = 0;
+  g.userData.reinit = () => {
+    lameFaite = false; coup1Fait = false; coup2Fait = false;
+    sangs[0].material.opacity = 0; sangs[1].material.opacity = 0;
+    tache.material.opacity = 0; tache.scale.setScalar(1);
+  };
 
   g.userData.jouer = (u, t, camera) => {
     const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
@@ -517,19 +690,19 @@ export function killBill(palier) {
        coup : c'est ce qui transforme la pose en un evenement qui annonce
        l'action a venir. Il ne se rejoue pas tant que la fenetre ne s'est
        pas refermee. */
-    if (!lameFaite && u > 0.54) { lameFaite = true; g.userData.emettre?.('lame'); }
+    if (!lameFaite && u > 0.24) { lameFaite = true; g.userData.emettre?.('lame'); }
     // Le demi-tour, cale sur le deuxieme temps de la sequence.
-    const tourne = smoothstep(0.28, 0.60, u);
+    const tourne = smoothstep(0.12, 0.28, u);
     perso.rotation.y = Math.PI * (1 - tourne) + 0.35 * tourne;
     /* Elle vous suit du regard des qu'elle se met en garde — avant, elle ne
        vous a pas encore vu — et jusqu'au bout du combat : elle se bat pour
        vous, pas pour un adversaire qu'on ne voit jamais. */
-    regarderVers(perso, os, camera, smoothstep(0.50, 0.60, u) * 0.85);
+    regarderVers(perso, os, camera, smoothstep(0.22, 0.28, u) * 0.85);
 
     /* Une respiration minuscule quand elle tient la garde, avant et apres
        les coups : sans elle, une pose tenue devient une statue ; avec,
        elle est immobile mais vivante, ce qui n'est pas la meme chose. */
-    const tientGarde = smoothstep(0.90, 0.94, u) + (1 - smoothstep(0.58, 0.62, u)) * smoothstep(0.56, 0.58, u);
+    const tientGarde = smoothstep(0.50, 0.54, u) + (1 - smoothstep(0.26, 0.30, u)) * smoothstep(0.24, 0.26, u);
     const souffle = tientGarde * Math.sin(t * 1.4) * 0.022;
     os.poitrine.rotation.x += souffle;
     os.brasD.rotation.x += souffle * 0.8;
@@ -537,7 +710,40 @@ export function killBill(palier) {
     // La queue-de-cheval fouette avec un leger retard sur la tete.
     queue.rotation.x = Math.sin(t * 3.1) * 0.05 - os.tete.rotation.x * 0.35;
     queue.rotation.z = Math.cos(t * 2.3) * 0.04 - os.tete.rotation.y * 0.25;
-    void clamp;
+
+    // L'adversaire encaisse, recule, tombe — sans jamais bouger de place :
+    // c'est elle qui se deplace pour porter les coups, pas lui.
+    sequenceAdv(osAdv, u);
+    adversaire.position.y = u > 0.435 ? -0.62 * smoothstep(0.435, 0.50, u) : 0;
+
+    /* LES DEUX COUPS. Chacun declenche sa propre gerbe, une seule fois, au
+       moment exact ou la lame de `sequence` touche (voir les temps cles
+       0,34 et 0,42 ci-dessus). */
+    if (!coup1Fait && u > 0.335) { coup1Fait = true; coup1T = t; g.userData.emettre?.('choc'); }
+    if (!coup2Fait && u > 0.415) { coup2Fait = true; coup2T = t; g.userData.emettre?.('choc'); }
+
+    for (const [fait, depuisT, gerbe] of [[coup1Fait, coup1T, sangs[0]], [coup2Fait, coup2T, sangs[1]]]) {
+      if (!fait) continue;
+      const dt = t - depuisT;
+      const pos = gerbe.geometry.attributes.position;
+      const dirs = gerbe.userData.dirs;
+      for (let i = 0; i < dirs.length; i++) {
+        const [dx, dy, dz] = dirs[i];
+        const vol = Math.min(dt, 0.7);
+        pos.setXYZ(i,
+          dx * vol * 1.8,
+          dy * vol * 1.6 - dt * dt * 2.2,
+          dz * vol * 1.8);
+      }
+      pos.needsUpdate = true;
+      gerbe.userData.mat.opacity = Math.max(0, 1 - dt * 1.3) * vis;
+    }
+    if (coup2Fait) {
+      // La tache s'etale une fois au sol, et y reste jusqu'a la fin.
+      const depuis = clamp((t - coup2T) * 0.5, 0, 1);
+      tache.material.opacity = depuis * 0.85 * vis;
+      tache.scale.setScalar(0.3 + depuis * 1.4);
+    }
   };
   return g;
 }

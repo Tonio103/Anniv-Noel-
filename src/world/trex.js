@@ -231,14 +231,17 @@ export function creerTrex(palier) {
   });
   const bete = nouvelleInstance(_corps, mat, { ombres: palier.ombres });
 
-  /* LES YEUX. Deux points ambres, tres petits et legerement emissifs. C'est
-     le seul detail qu'on ajoute a la tete, et c'est celui qui fait qu'on se
-     sent regarde. */
+  /* LES YEUX. Antoine : « il ne fait pas peur ». Rapprochee, la bete se
+     voit enfin, mais un regard trop discret reste un detail qu'on manque
+     a vingt metres de nuit. Deux braises, plus grandes et franchement
+     lumineuses (MeshBasicMaterial ignore l'eclairage de la scene : elles
+     restent vives meme a contre-jour) — c'est ce qui fait qu'on se sent
+     REGARDE avant meme de distinguer la silhouette entiere. */
   const os = bete.userData.os;
   for (const sx of [-1, 1]) {
     const oeil = new THREE.Mesh(
-      new THREE.SphereGeometry(0.052, 8, 6),
-      new THREE.MeshBasicMaterial({ color: 0xE8A030 })
+      new THREE.SphereGeometry(0.075, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xFFB020 })
     );
     // L'os du crane part de (0, tete, -3.00) : coordonnees comptees de la.
     oeil.position.set(sx * 0.24, 0.14, -0.34);

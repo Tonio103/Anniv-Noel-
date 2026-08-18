@@ -653,7 +653,7 @@ function siluetteVelo() {
   return q;
 }
 
-function etDevantLaLune() {
+function etDevantLaLune(chemin) {
   const g = new THREE.Group();
 
   /* SA PROPRE LUNE, ET C'EST UNE DECISION MESUREE.
@@ -661,15 +661,14 @@ function etDevantLaLune() {
      L'idee de depart etait de faire passer la silhouette devant la vraie
      lune du ciel. Mesure faite le long de tout le chemin : la lune est dans
      une direction FIXE du monde, le chemin serpente, et l'ecart entre l'axe
-     de la camera et la lune ne descend jamais sous 47° — bien au-dela du
-     champ, surtout en portrait. Elle n'est donc JAMAIS dans le cadre pendant
-     la balade. Une silhouette noire sur un ciel noir n'aurait rien donne.
+     de la camera et la lune ne descend jamais sous 30° — bien au-dela du
+     champ, surtout en portrait, et l'eclat de la vraie lune (un lobe
+     specular a la puissance soixante-deux dans le nuanceur du ciel) s'y
+     eteint de toute facon completement. Elle n'est donc JAMAIS visible
+     pendant la balade. Une silhouette noire sur un ciel noir n'aurait rien
+     donne.
 
-     La scene porte donc son propre disque, pose devant la camera. Il n'y a
-     aucun risque de voir deux lunes : la vraie est a plus de quarante-sept
-     degres de la, donc jamais dans la meme image. Et un grand disque pale
-     qui se leve entre les arbres est, en soi, exactement le genre
-     d'apparition demandee. */
+     La scene porte donc son propre disque, pose devant la camera. */
   const disque = new THREE.Sprite(new THREE.SpriteMaterial({
     map: lueurDiffuse(), transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
@@ -683,52 +682,55 @@ function etDevantLaLune() {
   velo.scale.setScalar(13);
   g.add(velo);
 
-  const avant = new THREE.Vector3();
-  const cote = new THREE.Vector3();
   g.userData.suitCamera = true;
 
-  /* ANTOINE : « les elements ciel bougent avec la camera... l'ombre de E.T.
-     sur le velo bouge, ne reste pas fixe sur la lune ». Deux plaintes, une
-     seule cause : `g.position` etait recalcule CHAQUE IMAGE a partir de la
-     direction courante de la camera — la lune entiere suivait donc chaque
-     virage du drone au lieu de rester un astre fixe, et comme le velo n'est
-     qu'un decalage local a l'interieur de ce groupe qui se recentre sans
-     cesse, sa propre traversee se noyait dans ce mouvement d'ensemble : vu
-     de la camera, l'assemblage entier restait a peu pres a la meme place a
-     l'ecran, silhouette comprise. La position n'est donc plus recalculee
-     qu'UNE FOIS, au moment ou la fenetre s'ouvre ; au-dela, la lune reste
-     fixe dans le monde comme un vrai astre, et c'est desormais le velo, et
-     lui seul, qui bouge dedans. */
-  let fige = false;
-  const posLune = new THREE.Vector3();
-  g.userData.reinit = () => { fige = false; };
+  /* ANTOINE, DEUX FOIS : « la lune bouge toujours avec la camera, et en
+     plus ca fait deux lunes ». Le premier correctif figeait la position au
+     moment ou la fenetre s'ouvre — mais il la calculait a partir de la
+     direction INSTANTANEE de la camera a cet instant precis, et cet
+     instant tombe parfois pendant une transition (approche d'une halte,
+     ajustement du cadrage) ou cette direction n'est pas stable d'une image
+     a l'autre. Un simple decalage d'une image dans le declenchement du gel
+     suffit alors a figer la lune a un endroit legerement different a
+     chaque essai — ce qui, revu comme un « saut », se lit comme deux lunes
+     distinctes plutot qu'une derive.
 
-  g.userData.jouer = (u, t, camera) => {
+     LA VRAIE CORRECTION : ne plus jamais interroger la camera pour
+     PLACER la lune. On se sert du CHEMIN — fixe, connu d'avance, identique
+     a chaque image — pour batir un repere stable a l'endroit ou la scene
+     s'ouvre, une fois pour toutes. La camera ne sert plus qu'a orienter le
+     disque face a elle (un panneau plat vu de travers se lit comme une
+     lame) et a le faire naitre au bon moment ; plus jamais a le DEPLACER. */
+  const p = new THREE.Vector3(), tan = new THREE.Vector3(), cote = new THREE.Vector3();
+  let calcule = false;
+  const posLune = new THREE.Vector3();
+  g.userData.reinit = () => { calcule = false; };
+
+  g.userData.jouer = (u, t, camera, sAncre) => {
     const vis = smoothstep(0, 0.16, u) * smoothstep(1, 0.80, u);
     disque.material.opacity = vis * 0.55;
     velo.material.opacity = vis * 0.98;
     g.visible = vis > 0.01;
     if (!camera) return;
 
-    if (!fige) {
-      /* Devant la camera, haut dans le ciel, assez loin pour etre derriere
-         toute la foret : la silhouette doit se detacher sur le disque,
-         jamais sur des branches. */
+    if (!calcule) {
+      /* Devant l'axe general du chemin a cet endroit, haut dans le ciel,
+         assez loin pour etre derriere toute la foret : la silhouette doit
+         se detacher sur le disque, jamais sur des branches. */
+      chemin.point(sAncre, p);
+      chemin.tangente(sAncre, tan);
+      chemin.cote(sAncre, cote);
       const D = 265;
-      camera.getWorldDirection(avant);
-      avant.y = 0;
-      if (avant.lengthSq() < 1e-6) avant.set(0, 0, -1);
-      avant.normalize();
-      cote.set(-avant.z, 0, avant.x);
-      posLune.copy(camera.position)
-        .addScaledVector(avant, D).addScaledVector(cote, -14);
+      posLune.copy(p).addScaledVector(tan, D).addScaledVector(cote, -50);
       /* HAUTEUR MESUREE, PAS DEVINEE. A 62 m pour 240 de distance, cela
          faisait 14,5° d'elevation — et comme le drone pique legerement vers
          le cerf, le disque sortait par le haut du cadre. A 34 m pour 265,
          on est a 7,3°, ce qui le pose au-dessus de la ligne d'arbres sans
-         jamais toucher le bord. */
-      posLune.y = camera.position.y + 29;
-      fige = true;
+         jamais toucher le bord. Le drone vole une dizaine de metres
+         au-dessus du chemin : on part donc de la hauteur DU CHEMIN, pas de
+         celle, instable, de la camera. */
+      posLune.y = p.y + 39;
+      calcule = true;
     }
     g.position.copy(posLune);
     g.lookAt(camera.position);
@@ -793,9 +795,20 @@ function halolame(couleur, longueur, largeur) {
 function lame(couleur, halos) {
   const g = new THREE.Group();
   const LONG = 1.15, R = 0.035;
+  /* ANTOINE : « j'ai pas compris la reference au film Star Wars ». Le coeur
+     de la lame etait blanc pur, quelle que soit l'arme — c'est le HALO
+     seul qui portait la couleur, et un halo additif se noie facilement
+     dans le blanc du posttraitement (bloom) ou de la neige environnante.
+     Deux sabres qui different seulement par une lueur autour d'un meme
+     coeur blanc se lisent comme « deux epees lumineuses », pas comme
+     « vert contre rouge » — or c'est justement cette opposition de
+     couleur, avant tout le reste, qui EST la reference. Le coeur porte
+     donc lui-meme la teinte, adoucie vers le blanc pour garder l'aspect
+     incandescent plutot qu'un simple baton peint. */
+  const teinte = new THREE.Color(couleur).lerp(new THREE.Color(1, 1, 1), 0.32);
   const l = new THREE.Mesh(
     new THREE.CapsuleGeometry(R, LONG, 4, 8),
-    new THREE.MeshBasicMaterial({ color: 0xF2FFF6 })
+    new THREE.MeshBasicMaterial({ color: teinte })
   );
   l.position.y = LONG / 2 + 0.10;
   g.add(l);
@@ -832,7 +845,6 @@ function lame(couleur, halos) {
   g.add(poignee);
   g.userData.halos = [...halosLame, pointe];
   g.userData.lame = l;
-  void couleur;
   return g;
 }
 
@@ -1304,10 +1316,84 @@ function cerfDeLumiere() {
   return g;
 }
 
-function patronus() {
+/* LE SORCIER. Antoine : « on doit voir Harry Potter qui tient sa baguette,
+   qui fait un sort et qui invoque le patronus ». Le cerf de lumiere seul
+   est un beau fantome, mais rien ne dit QUI l'a fait naitre. Une
+   silhouette encapuchonnee, la baguette tendue vers la trajectoire du
+   cerf, plantee la ou il surgit : c'est elle qui transforme l'apparition
+   en sort lance, et non en hasard lumineux. */
+const CAPE_SOMBRE = new THREE.Color(0x14161C);
+const PEAU_HARRY = new THREE.Color(0xD8B48C);
+
+function teinteHarry(x, y, z, c, os) {
+  if (os === 'piedD' || os === 'piedG') { c.setHex(0x0C0D10); return; }
+  if (os === 'tete') { c.copy(PEAU_HARRY); return; }
+  c.copy(CAPE_SOMBRE);
+  void x; void y; void z;
+}
+
+let _corpsHarry = null;
+
+function sorcierPatronus(palier) {
+  const g = new THREE.Group();
+  if (!_corpsHarry) {
+    _corpsHarry = construireCorps(palier, {
+      teinter: teinteHarry,
+      gabarit: { carrure: 0.86, masse: 0.84 },
+      pas: palier.nom === 'bas' ? 0.032 : palier.nom === 'moyen' ? 0.024 : 0.020,
+    });
+  }
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.85, metalness: 0.0,
+    emissive: new THREE.Color(0x06070A), emissiveIntensity: 1,
+  });
+  const perso = nouvelleInstance(_corpsHarry, mat, { ombres: palier.ombres });
+  g.add(perso);
+  const os = perso.userData.os;
+
+  // Le bras tendu, la baguette au bout du poing, le corps legerement en
+  // fente vers l'avant — l'effort du sort, pas une pose de repos.
+  appliquerPose(os, {
+    brasD: [-1.15, 0.05, 0.35], avantD: [0.20, 0, 0], mainD: [0, 0, 0],
+    brasG: [0.10, 0, -0.16], avantG: [0.35, 0, 0],
+    cuisseD: [-0.16, 0, 0.10], molletD: [0.10, 0, 0],
+    cuisseG: [0.10, 0, -0.10], molletG: [0.06, 0, 0],
+    colonne: [0.05, 0, 0], poitrine: [0.04, 0, 0], cou: [0, 0, 0], tete: [0.02, 0, 0],
+  });
+
+  // La baguette : un fin fuseau de bois, greffe sur le poing.
+  const baguette = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.010, 0.016, 0.34, 5),
+    new THREE.MeshStandardMaterial({ color: 0x3A2A18, roughness: 0.7 })
+  );
+  baguette.rotation.x = Math.PI / 2;
+  baguette.position.set(0, 0, -0.20);
+  os.mainD.add(baguette);
+
+  // L'etincelle a la pointe : c'est elle qui vend le sort, au moment ou
+  // le cerf de lumiere jaillit.
+  const etincelle = halo([1.4, 2.2, 3.6], 1.3);
+  etincelle.position.set(0, 0, -0.37);
+  os.mainD.add(etincelle);
+
+  g.userData.os = os;
+  g.userData.etincelle = etincelle;
+  return g;
+}
+
+function patronus(palier) {
   const g = new THREE.Group();
   const bete = cerfDeLumiere();
   g.add(bete);
+
+  /* Harry se tient la ou le cerf de lumiere surgit — l'origine de son
+     trajet local, voir plus bas — face a la trajectoire, un peu de cote
+     pour ne jamais se trouver sur le passage de la bete. */
+  const harry = sorcierPatronus(palier);
+  harry.position.set(0.9, 0, -13);
+  harry.rotation.y = Math.PI;
+  g.add(harry);
+  const osHarry = harry.userData.os;
 
   /* Une trainee de particules derriere lui : un patronus laisse toujours
      derriere soi un sillage qui se dissipe. Des points suffisent, la
@@ -1326,7 +1412,7 @@ function patronus() {
   g.add(pts);
   const vies = new Float32Array(N).map(() => Math.random());
 
-  g.userData.jouer = (u, t) => {
+  g.userData.jouer = (u, t, camera) => {
     /* Il surgit vite et se defait lentement : une apparition surnaturelle
        ne s'installe pas en fondu, elle EST la d'un coup. */
     const vis = smoothstep(0, 0.06, u) * smoothstep(1, 0.62, u);
@@ -1335,6 +1421,25 @@ function patronus() {
     bete.userData.aura.material.opacity = vis * 0.34 * scint;
     ptsMat.opacity = vis * 0.7;
     g.visible = vis > 0.01;
+
+    /* LE SORT. La pointe de la baguette s'embrase juste avant que le cerf
+       ne jaillisse — c'est CE flash, et non une simple apparition de
+       fantome, qui doit se lire en premier — puis retombe a une braise
+       discrete qui tient pendant toute la course : Harry ne range pas sa
+       baguette tant que le sort dure. */
+    const jaillit = smoothstep(0, 0.05, u) * smoothstep(0.22, 0.09, u);
+    const brasedure = smoothstep(0, 0.10, u) * smoothstep(1, 0.55, u);
+    harry.userData.etincelle.material.opacity = vis * (brasedure * 0.28 + jaillit * 0.9);
+    /* Le poignet accuse le coup au moment du sort : un petit recul suivi
+       d'une tension qui tient tant que le sort dure — pas un mouvement
+       continu, sinon on croirait qu'il agite betement sa baguette. */
+    const kick = Math.max(0, 1 - Math.abs(u - 0.05) * 14);
+    osHarry.avantD.rotation.x = 0.20 - kick * 0.55;
+    osHarry.mainD.rotation.z = kick * 0.4;
+    // Un bref regard vers vous, une fois le sort lance — pas plus, il
+    // regarde surtout ou son cerf de lumiere s'en va.
+    const regard = smoothstep(0.25, 0.35, u) * smoothstep(0.55, 0.45, u);
+    regarderVers(harry, osHarry, camera, regard * 0.7);
 
     // Il avance le long de son axe local, et bondit.
     const av = (u - 0.5) * 26;
@@ -1549,7 +1654,15 @@ function jurassique(chemin, relief, palier) {
      mais la moitie de cette marge est mangee par le brouillard et les
      troncs, ce qui est justement l'effet voulu : on l'aperçoit, on ne le
      fixe pas. */
-  const VOIE = 13, COTE = -1;
+  /* ANTOINE : « le T-Rex ne ressemble a rien, il ne fait pas peur, on le
+     voit de loin ». Le parti pris d'origine — le tenir loin, a demi mange
+     par le brouillard — etait une lecture du plan du film ; pour Antoine
+     ca ne marche pas, la bete est trop petite et trop floue pour qu'on la
+     reconnaisse, et une menace qu'on ne reconnait pas ne fait pas peur. On
+     la rapproche nettement : neuf metres de voie au lieu de treize, ce qui
+     la rapproche ET l'ecarte moins de l'axe de la camera (l'angle depend
+     du rapport voie/avance, donc les deux s'ameliorent ensemble). */
+  const VOIE = 9, COTE = -1;
   const DEPART = 8, ARRIVEE = 58;
   const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
 
@@ -1675,8 +1788,16 @@ export function planApparitions(L) {
     /* Le theropode marche a vingt-deux metres du chemin, derriere la ligne
        d'arbres : on ne degage donc RIEN pour lui — ce sont justement les
        troncs entre lui et nous qui font la scene. */
-    { nom: 'trex',      s: L * 0.61, cote: -1, ecart: 0,   avant: 48, apres: 26, degage: 0 },
-    { nom: 'patronus',  s: L * 0.70, cote: -1, ecart: 5.5, avant: 34, apres: 10, degage: 8.0 },
+    /* ANTOINE : « le T-Rex part en meme temps que le patronus ». Les deux
+       fenetres ne se recouvraient que de vingt-deux centimetres sur le
+       papier — assez pour paraitre reglees a la main — mais la traine du
+       theropode qui s'efface et l'amorce du patronus qui se leve se
+       lisaient bel et bien comme un seul instant a deux endroits. On
+       raccourcit la traine du premier et on retarde l'amorce du second :
+       vingt-huit metres d'ecart net entre les deux, largement plus qu'il
+       n'en faut pour que le silence entre les deux se sente. */
+    { nom: 'trex',      s: L * 0.61, cote: -1, ecart: 0,   avant: 48, apres: 12, degage: 0 },
+    { nom: 'patronus',  s: L * 0.70, cote: -1, ecart: 5.5, avant: 20, apres: 10, degage: 8.0 },
     { nom: 'gargantua', s: L * 0.78, cote:  0, ecart: 0,   avant: 38, apres: 28, degage: 0 },
     { nom: 'spider2',   s: L * 0.86, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
     /* ECART RELEVE A QUATRE METRES. Antoine : « elle roule sur le cerf ».
@@ -1822,14 +1943,14 @@ export class Apparitions {
     const FABRIQUES = {
       police: () => coursePoursuite(chemin, relief, palier),
       spider1: () => spiderSuspendu(palier),
-      et: () => etDevantLaLune(),
+      et: () => etDevantLaLune(chemin),
       sabres: () => duelSabres(palier),
       kevin: () => seulALaMaison(palier),
-      patronus: () => patronus(),
+      patronus: () => patronus(palier),
       spider2: () => spiderBalance(9, palier),
       killbill: () => killBill(palier),
       trex: () => jurassique(chemin, relief, palier),
-      gargantua: () => trouNoir(relief),
+      gargantua: () => trouNoir(relief, chemin),
       delorean: () => traineesDeFeu(26, palier, relief),
     };
     const plan = planApparitions(L).map((d) => ({ ...d, faire: FABRIQUES[d.nom] }));
