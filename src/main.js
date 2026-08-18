@@ -808,12 +808,15 @@ async function demarrer() {
     habitants.maj(t);
     relief.majEmpreintes();
 
-    /* Mise au point sur le sujet — le cerf, ou le paquet quand il est sorti.
-       Elle se met a jour ICI, dans le pas de simulation, et non dans la
-       boucle de rendu : sinon elle ne converge pas quand le temps est
-       avance sans dessiner, et le plan de nettete reste ou il etait. */
+    /* Mise au point sur le sujet — le cerf, le paquet quand il est sorti, ou
+       l'apparition quand le cerf s'est arrete pour elle (un vrai point-tire
+       de cinema : le flou d'arriere-plan se resserre sur ce qu'on regarde
+       vraiment plutot que de rester fige sur l'animal). Elle se met a jour
+       ICI, dans le pas de simulation, et non dans la boucle de rendu :
+       sinon elle ne converge pas quand le temps est avance sans dessiner,
+       et le plan de nettete reste ou il etait. */
     postfx.viser(camera.position.distanceTo(
-      halte.cadeau ? halte.ancre(ancre) : cerf.ancre(ancre)
+      apparitions.cibleFocus || (halte.cadeau ? halte.ancre(ancre) : cerf.ancre(ancre))
     ));
     // Altitude reelle du drone au-dessus du terrain qu'il survole, pour
     // moduler le vent (voir Son.maj) — pas sa hauteur absolue, qui ne dirait

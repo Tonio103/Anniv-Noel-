@@ -2205,6 +2205,8 @@ export class Apparitions {
     this._enArret = false;
     this._vitesseAvantArret = null;
     this._sensArc = 1;
+    // Le point-tire de mise au point pendant un arret : voir `maj()`.
+    this.cibleFocus = null;
     this.scenes = [];
     /* Le son est branche plus tard : le contexte audio n'existe qu'apres le
        premier geste du visiteur, et les apparitions, elles, sont construites
@@ -2277,6 +2279,7 @@ export class Apparitions {
     let teinteForce = 0;
     let teinteCouleur;
     let quelquUnTient = false;
+    let cibleFocus = null;
 
     for (const sc of this.scenes) {
       /* L'ABSCISSE EFFECTIVE. Tant qu'on ne retient pas la scene, elle suit
@@ -2387,6 +2390,14 @@ export class Apparitions {
              ce qu'elles montrent. */
           this._viseeInteret.copy(sc.objet.userData.pointRegard || sc.objet.position);
           drone.regarder(this._viseeInteret, force);
+          /* LA MISE AU POINT SUIT LE MEME POINT, MAIS SEULEMENT A L'ARRET.
+             Pendant une simple traversee, le plan de nettete doit rester sur
+             le cerf — sans quoi l'image entiere se brouille a chaque
+             apparition croisee en marchant. A l'arret, en revanche, rien ne
+             s'oppose plus a un point de vue compose : la mise au point
+             glisse vers ce qu'on regarde vraiment, comme un vrai
+             point-tire de cinema. */
+          if (sc.enArret) cibleFocus = sc.objet.userData.pointRegard || sc.objet.position;
         }
       }
 
@@ -2440,5 +2451,7 @@ export class Apparitions {
 
     postfx?.assombrir(assombrissement, dt);
     postfx?.teinter(teinteCouleur, teinteForce, dt);
+    // Lu par `main.js` pour le point-tire de mise au point : voir plus haut.
+    this.cibleFocus = cibleFocus;
   }
 }
