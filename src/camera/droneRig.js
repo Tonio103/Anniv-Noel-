@@ -66,6 +66,25 @@ export class Drone {
     this.orbiteVitesse = 0;
     this.descente = 0;
     this.descenteCible = 0;
+
+    // Le choc camera : voir la methode `choc()` plus bas.
+    this._chocMag = 0;
+    this._chocT = 0;
+  }
+
+  /* UN CHOC. Un coup de sabre, un coffre qui claque, une explosion de
+     temps — jusqu'ici, ces instants n'existaient que dans ce qu'ils
+     montraient. La camera, elle, ne reagissait jamais : un plan parfaitement
+     stable au moment de l'impact se lit comme un plan qui n'a rien vu.
+     `choc(force)` secoue breievement la position (un tremblement bien plus
+     ample et bien plus rapide que le flottement de main levee permanent) et
+     resserre le champ d'un coup avant de le relacher — exactement le reflexe
+     d'un operateur surpris par ce qui se passe devant lui. La decroissance
+     est exponentielle et rapide : un choc qui durerait doit se rejouer, pas
+     s'etirer, sans quoi il se lit comme une vibration plutot qu'un impact. */
+  choc(force) {
+    const decroissance = this._chocMag * Math.exp(-this._chocT * 14);
+    if (force > decroissance) { this._chocMag = force; this._chocT = 0; }
   }
 
   /* Un point a regarder en plus du cerf — typiquement le cadeau qui sort de
@@ -415,6 +434,20 @@ export class Drone {
 
     this.camera.position.copy(this.pos);
 
+    /* --- LE CHOC, S'IL Y EN A UN --------------------------------------------
+       Une secousse breve et rapide, bien plus vive que le flottement de main
+       levee permanent : c'est ce qui distingue un CHOC d'un simple tremblement.
+       Des frequences elevees et sans rapport entre elles (37, 41, 33) evitent
+       tout effet de vibration reguliere ; l'amplitude decroit d'elle-meme via
+       `_chocT`, entretenu plus bas. */
+    this._chocT += dt;
+    const chocAmpl = this._chocMag * Math.exp(-this._chocT * 14);
+    if (chocAmpl > 0.001) {
+      this.camera.position.x += this.bruit(temps * 37, 71.0) * chocAmpl * 0.55;
+      this.camera.position.y += this.bruit(temps * 41, 12.0) * chocAmpl * 0.38;
+      this.camera.position.z += this.bruit(temps * 33, 55.0) * chocAmpl * 0.55;
+    }
+
     /* --- point vise -------------------------------------------------------
        On ne vise pas le cerf lui-meme mais legerement DEVANT lui : le regard
        precede l'animal, comme celui d'un pilote qui anticipe. */
@@ -459,9 +492,13 @@ export class Drone {
     const roulisCible = clamp(-courbure * 0.42, -0.055, 0.055) * clamp(cerf.vitesse / 5, 0, 1);
     this.roulis = damp(this.roulis, roulisCible, 1.6, dt);
     this.camera.rotateZ(clamp(this.roulis, -0.07, 0.07));
+    if (chocAmpl > 0.001) this.camera.rotateZ(this.bruit(temps * 45, 3.3) * chocAmpl * 0.05);
 
-    /* --- respiration de l'objectif ---------------------------------------- */
-    const fovVivant = (this.fov + Math.sin(temps * 0.19) * 0.55)
+    /* --- respiration de l'objectif, et le resserrement du choc ------------
+       Le champ se referme d'un coup au moment de l'impact — le reflexe d'un
+       operateur qui se rapproche instinctivement de ce qui vient de le
+       surprendre — puis se rouvre en meme temps que le tremblement s'eteint. */
+    const fovVivant = (this.fov + Math.sin(temps * 0.19) * 0.55 - chocAmpl * 4.2)
                     * (this.camera.userData.fovEchelle || 1);
     if (Math.abs(this.camera.fov - fovVivant) > 0.01) {
       this.camera.fov = fovVivant;

@@ -261,6 +261,12 @@ export function trouNoir(relief, chemin) {
       posAstro.copy(p).addScaledVector(tan, 30).addScaledVector(cote, -9);
       posAstro.y = relief.hauteur(posAstro.x, posAstro.z);
 
+      /* La racine `g`, elle, ne bouge jamais — seuls ses deux sous-groupes
+         sont positionnes. Sans ce repere, le mecanisme qui tourne la camera
+         vers la scene active viserait l'origine du monde, tres loin derriere
+         nous, au lieu du disque. */
+      g.userData.pointRegard = posDisque;
+
       calcule = true;
     }
     discGroupe.position.copy(posDisque);

@@ -2217,10 +2217,19 @@ export class Apparitions {
       /* Le canal par lequel une scene declenche un bruit ponctuel — le choc
          des lames, le bang de la DeLorean. Les scenes ne connaissent ni le
          moteur audio ni leur propre nom : elles disent seulement « ceci vient
-         de se produire », et c'est ici qu'on sait a qui l'adresser. */
+         de se produire », et c'est ici qu'on sait a qui l'adresser.
+
+         LE MEME EVENEMENT SECOUE AUSSI LA CAMERA. Un choc de lames, un rugissement,
+         un ascenseur qui claque n'existaient jusqu'ici que dans ce qu'ils
+         montraient — la camera, elle, ne reagissait jamais. `regler` (un simple
+         ajustement continu de volume) et `pas` (repete a chaque foulee) sont
+         exclus : les secouer donnerait une vibration permanente, pas un choc. */
       o.userData.emettre = (quoi, valeur) => {
         const s = this.son;
         if (s && typeof s[quoi] === 'function') s[quoi](d.nom, valeur);
+        if (quoi !== 'regler' && quoi !== 'pas') {
+          this._droneCourant?.choc(typeof valeur === 'number' ? clamp(valeur, 0.35, 1) : 0.6);
+        }
       };
       if (!o.userData.suitCamera && !o.userData.suitChemin) {
         chemin.point(d.s, p);
@@ -2261,6 +2270,9 @@ export class Apparitions {
      cadeau. */
   maj(dt, t, cerf, camera, drone, postfx, cadrageBase) {
     const sReel = cerf.s;
+    // Pour que `emettre` (ferme plus bas, sur chaque scene) puisse secouer
+    // la camera sans qu'on ait a le lui passer explicitement.
+    this._droneCourant = drone;
     let assombrissement = 0;
     let teinteForce = 0;
     let teinteCouleur;
@@ -2314,15 +2326,36 @@ export class Apparitions {
       const uu = clamp(u, 0, 1);
       sc.objet.userData.jouer(uu, t, camera, sc.s, dt);
 
-      /* LE CERF S'ARRETE POUR LA REGARDER. Declenche a une distance fixe de
-         l'ancre — plafonnee a la moitie de l'amorce de la scene, pour
-         qu'une fenetre courte (Shining, decouverte a dessein) ne force pas
-         un freinage qui deborderait sur ce qui la precede. Une fois
-         retenue, la scene ne l'est qu'UNE fois : `arretFini` empeche un
-         second freinage si jamais on repassait par la (recommencer()). */
-      if (cadrageBase && !sc.arretFini) {
+      /* LE CERF S'ARRETE POUR LA REGARDER — SAUF CE QUI COURT DEJA TOUT SEUL.
+         Une poursuite de police ou un theropode en marche sont choregraphies
+         pour un observateur qui AVANCE : ils parcourent leurs quarante a
+         soixante-dix metres pendant que la camera les longe, restant a peu
+         pres a distance constante. Le cerf arrete, cette distance n'est plus
+         bornee par rien — l'engin continue son trajet tout seul, s'eloigne
+         sans plus jamais revenir, et la moitie de l'arret se passe braquee
+         sur un point vide (mesure faite : les voitures sortent du champ des
+         146 m et y restent sept secondes). Ces scenes-la gardent donc leur
+         defile d'origine, deja regle ; seules celles qui restent SUR PLACE
+         meritent qu'on s'y arrete.
+
+         Declenche a une distance fixe de l'ancre — plafonnee a la moitie de
+         l'amorce de la scene, pour qu'une fenetre courte (Shining, decouverte
+         a dessein) ne force pas un freinage qui deborderait sur ce qui la
+         precede. Une fois retenue, la scene ne l'est qu'UNE fois : `arretFini`
+         empeche un second freinage si jamais on repassait par la
+         (recommencer()). */
+      if (cadrageBase && !sc.arretFini && !sc.objet.userData.suitChemin) {
         const rayon = Math.min(14, sc.avant * 0.5);
-        if (!sc.enArret && sReel >= sc.s - rayon) sc.enArret = true;
+        if (!sc.enArret && sReel >= sc.s - rayon) {
+          sc.enArret = true;
+          /* LE CIEL A BESOIN D'UN AUTRE CADRAGE. « apparition » decale
+             fortement la camera de cote — le bon choix pour un personnage
+             plante en bordure de chemin, mais un contresens pour la lune ou
+             Gargantua : centres sur l'axe (cote:0), places tres loin, ils
+             sortent purement et simplement du cadre des qu'on s'ecarte
+             autant. Ces scenes-la gardent donc le cadrage de croisiere. */
+          this._holdVersLeCiel = !!sc.objet.userData.suitCamera;
+        }
         if (sc.enArret) {
           quelquUnTient = true;
           sc.sEff += dt * this._vitesseVirtuelle;
@@ -2342,7 +2375,17 @@ export class Apparitions {
         const pic = sc.enArret ? 0.88 : 0.6;
         const force = smoothstep(0, 0.16, uu) * smoothstep(1, 0.80, uu) * pic;
         if (force > 0.001) {
-          this._viseeInteret.copy(sc.objet.position);
+          /* La plupart des scenes placent leur GROUPE RACINE a l'endroit
+             meme qu'elles occupent, et sa position suffit donc a designer
+             ou regarder. Ce n'est pas vrai de toutes : une scene « suitCamera »
+             dont les elements sont chacun positionnes independamment (le
+             disque de Gargantua, loin dans le ciel ; l'astronaute, pres du
+             sol) peut laisser sa racine a l'origine du monde — auquel cas
+             viser `sc.objet.position` braque la camera vers un point vide,
+             souvent a l'oppose de la scene reelle. Ces scenes-la exposent
+             donc leur propre `pointRegard`, tenu a jour a la meme place que
+             ce qu'elles montrent. */
+          this._viseeInteret.copy(sc.objet.userData.pointRegard || sc.objet.position);
           drone.regarder(this._viseeInteret, force);
         }
       }
@@ -2385,7 +2428,7 @@ export class Apparitions {
         // Le sens de l'orbite alterne d'une apparition a l'autre, comme aux
         // haltes : sans quoi les douze arrets tournent tous du meme cote.
         this._sensArc *= -1;
-        drone.cadrer('apparition');
+        drone.cadrer(this._holdVersLeCiel ? cadrageBase : 'apparition');
         drone.arc(this._sensArc * 0.05, 0.10);
       } else if (!quelquUnTient && this._enArret) {
         this._enArret = false;
