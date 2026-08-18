@@ -35,6 +35,7 @@ import { creerDuelliste, GARDES, ECHANGES } from './encapuchonne.js';
 import { coursePoursuite, delorean } from './vehicules.js';
 import { trouNoir, killBill, shining } from './cinema.js';
 import { creerTrex, marcheTrex } from './trex.js';
+import { creerCerf } from '../deer/deerMesh.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
    porte a distance, bien plus que la geometrie. */
@@ -1246,8 +1247,22 @@ function traineesDeFeu(longueur, palier, relief) {
    pas la lumiere, il en emet. La silhouette suffit largement — a cette
    distance et a cette vitesse, personne ne cherchera le detail d'un bois.
    ========================================================================== */
-function cerfDeLumiere() {
-  const g = new THREE.Group();
+/* LE CERF DE LUMIERE. Antoine : « le patronus n'est pas beau ». Il avait
+   raison — trois capsules pour le corps et deux eventails de baguettes
+   pour les bois ne composent pas un cerf, seulement son idee la plus
+   grossiere. La foret, elle, en contient deja un vrai : un maillage lisse,
+   extrait d'un champ implicite, corne et ramure comprises, construit avec
+   tout le soin qu'on a mis a le rendre reconnaissable. Le patronus REPREND
+   ce maillage plutot que d'en refaire un au rabais — meme squelette, meme
+   silhouette, meme ramure detaillee — et le rend en lumiere plutot qu'en
+   pelage : une seule matiere additive remplace toutes celles du vrai
+   corps, l'ombre au sol et la buee des naseaux disparaissent (un fantome
+   n'a ni l'une ni l'autre), et c'est tout. La beaute du sort tient a la
+   qualite du corps qu'il anime, pas a un habillage special. */
+function cerfDeLumiere(palier) {
+  const corps = creerCerf(palier);
+  const { racine, ombre, souffle } = corps;
+
   /* UN BLEU FRANC, PAS UN BLANC BLEUTE. Le patronus passe au-dessus d'une
      clairiere enneigee : une matiere additive presque blanche, ajoutee a du
      blanc, donne du blanc, et le cerf de lumiere disparaissait dans le sol.
@@ -1258,62 +1273,30 @@ function cerfDeLumiere() {
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
   });
   mat.color.setRGB(0.26, 0.80, 1.60);
+
+  /* TOUTE PIECE RIGIDE DU VRAI CERF — mufle, oreilles, yeux, ramure —
+     portait sa propre matiere de pelage. On les fait toutes basculer vers
+     la meme lumiere additive, ce qui a aussi pour effet d'unifier la
+     silhouette : plus aucun detail sombre ne casse le glow. */
   const pieces = [];
-  const P = (r, l, x, y, z, rx, rz) => {
-    const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 3, 7), mat);
-    m.position.set(x, y, z);
-    if (rx) m.rotation.x = rx;
-    if (rz) m.rotation.z = rz;
-    g.add(m); pieces.push(m);
-    return m;
-  };
-
-  // Le tronc, l'encolure, la tete : trois capsules, pas une de plus.
-  P(0.30, 1.05, 0, 1.02, 0.05, Math.PI / 2, 0);
-  P(0.17, 0.52, 0, 1.28, -0.72, 0.75, 0);
-  P(0.12, 0.28, 0, 1.56, -1.06, 1.15, 0);
-
-  // Les quatre membres.
-  for (const sx of [-1, 1]) {
-    P(0.055, 0.62, sx * 0.16, 0.52, -0.42);
-    P(0.058, 0.66, sx * 0.17, 0.50, 0.58);
-  }
-
-  /* LA RAMURE. Deux eventails de segments qui montent et s'ecartent : c'est
-     la seule partie ou l'on met du detail, parce que c'est elle qui NOMME
-     l'animal. Sans bois, un cerf de lumiere est un chien de lumiere. */
-  for (const sx of [-1, 1]) {
-    const base = new THREE.Group();
-    base.position.set(sx * 0.09, 1.66, -1.00);
-    base.rotation.z = sx * 0.42;
-    g.add(base);
-    let x = 0, y = 0;
-    for (let i = 0; i < 4; i++) {
-      const l = 0.30 - i * 0.045;
-      const b = new THREE.Mesh(new THREE.CapsuleGeometry(0.022 - i * 0.003, l, 3, 6), mat);
-      b.position.set(x, y + l / 2, 0);
-      b.rotation.z = sx * (-0.12 - i * 0.06);
-      base.add(b); pieces.push(b);
-      // Un andouiller sur deux part vers l'avant.
-      if (i % 2 === 0) {
-        const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.16, 3, 6), mat);
-        a.position.set(x + sx * 0.05, y + l * 0.7, -0.06);
-        a.rotation.set(-0.9, 0, sx * 0.5);
-        base.add(a); pieces.push(a);
-      }
-      y += l * 0.86;
-      x += sx * 0.03;
-    }
-  }
+  racine.traverse((o) => {
+    if (!o.isMesh && !o.isSkinnedMesh) return;
+    o.material = mat;
+    o.castShadow = false;
+    o.receiveShadow = false;
+    pieces.push(o);
+  });
+  ombre.visible = false;
+  souffle.visible = false;
 
   // Le halo qui l'enveloppe : c'est lui qui porte a distance.
   const aura = halo([0.55, 1.15, 1.9], 5.4);
   aura.position.set(0, 1.15, -0.1);
-  g.add(aura);
+  racine.add(aura);
 
-  g.userData.pieces = pieces;
-  g.userData.aura = aura;
-  return g;
+  racine.userData.pieces = pieces;
+  racine.userData.aura = aura;
+  return racine;
 }
 
 /* LE SORCIER. Antoine : « on doit voir Harry Potter qui tient sa baguette,
@@ -1383,7 +1366,7 @@ function sorcierPatronus(palier) {
 
 function patronus(palier) {
   const g = new THREE.Group();
-  const bete = cerfDeLumiere();
+  const bete = cerfDeLumiere(palier);
   g.add(bete);
 
   /* Harry se tient la ou le cerf de lumiere surgit — l'origine de son
