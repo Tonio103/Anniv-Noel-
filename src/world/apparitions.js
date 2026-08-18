@@ -2278,6 +2278,7 @@ export class Apparitions {
     let assombrissement = 0;
     let teinteForce = 0;
     let teinteCouleur;
+    let distorsion = 0;
     let quelquUnTient = false;
     let cibleFocus = null;
 
@@ -2424,6 +2425,9 @@ export class Apparitions {
         teinteForce = Math.max(teinteForce, sc.objet.userData.teinteForceDyn);
         teinteCouleur = sc.objet.userData.teinteDyn ?? teinteCouleur;
       }
+      if (sc.objet.userData.distorsionDyn) {
+        distorsion = Math.max(distorsion, sc.objet.userData.distorsionDyn);
+      }
     }
 
     /* LA BASCULE ARRET / REPRISE, une seule fois par changement d'etat — pas
@@ -2451,6 +2455,7 @@ export class Apparitions {
 
     postfx?.assombrir(assombrissement, dt);
     postfx?.teinter(teinteCouleur, teinteForce, dt);
+    postfx?.distordre(distorsion, dt);
     // Lu par `main.js` pour le point-tire de mise au point : voir plus haut.
     this.cibleFocus = cibleFocus;
   }

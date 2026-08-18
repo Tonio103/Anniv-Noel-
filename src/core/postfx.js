@@ -338,6 +338,7 @@ export class PostFX {
     // Les valeurs nominales, pour pouvoir y revenir apres un assombrissement.
     this._expoBase = this.matFinal.uniforms.uExpo.value;
     this._vignetteBase = this.matFinal.uniforms.uVignette.value;
+    this._aberrBase = this.matFinal.uniforms.uAberr.value;
   }
 
   setSize(l, h, dpr) {
@@ -432,6 +433,21 @@ export class PostFX {
     const f = Math.min(Math.max(force, 0), 1);
     if (f > 0.01 && couleur !== undefined) u.uTeinte.value.set(couleur);
     u.uTeinteForce.value = damp(u.uTeinteForce.value, f, 3.2, dt);
+  }
+
+  /* UNE DISTORSION PONCTUELLE — l'aberration chromatique poussee bien
+     au-dela de son reglage discret habituel. Ecrite pour Gargantua : un
+     trou noir courbe la lumiere qui passe pres de lui, et l'aberration
+     chromatique — les canaux qui se decalent radialement — est exactement
+     la texture visuelle de cette courbure, deja presente dans le moteur
+     pour un tout autre usage (l'objectif). On ne l'ajoute donc pas, on la
+     PLIE : au repos elle retombe sur son reglage normal (nul sur les
+     paliers qui ne l'activent pas), jamais en dessous. */
+  distordre(force, dt) {
+    const u = this.matFinal.uniforms;
+    const f = Math.min(Math.max(force, 0), 1);
+    const cible = this._aberrBase + f * 0.032;
+    u.uAberr.value = damp(u.uAberr.value, cible, 2.6, dt);
   }
 
   rendre(scene, camera, temps) {

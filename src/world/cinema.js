@@ -239,6 +239,12 @@ export function trouNoir(relief, chemin) {
     mat.uniforms.uForce.value = vis;
     mat.uniforms.uTemps.value = t;
     astro.material.opacity = vis * 0.95;
+    /* LA LUMIERE SE COURBE PRES DE LUI. L'aberration chromatique du moteur —
+       jusqu'ici un simple reglage discret d'objectif — devient ici l'effet
+       lui-meme : une vraie lentille gravitationnelle, pas une texture
+       plaquee. Elle suit `vis` : nulle tant qu'on ne le voit pas, pleine
+       quand il domine le cadre. */
+    g.userData.distorsionDyn = vis * 0.85;
 
     if (!calcule) {
       /* Le meme placement que la lune d'E.T., et pour la meme raison
