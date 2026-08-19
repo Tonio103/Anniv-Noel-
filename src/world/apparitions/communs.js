@@ -230,3 +230,38 @@ export function tacheDeSang() {
   g.userData.taches = taches;
   return g;
 }
+
+/* --------------------------------------------------------------------------
+   L'ONDE DE CHOC AU SOL.
+
+   Nee avec Mugiwara (un poing qui ebranle la neige a chaque coup), puis
+   reprise telle quelle par Kill Bill (la lame qui frappe l'adversaire) des
+   qu'un second fichier en a eu besoin — c'est la regle de ce module :
+   partager des le DEUXIEME usage reel, jamais par anticipation du premier.
+   Un anneau additif qui nait au point de contact, s'elargit d'un bond puis
+   s'efface : la gerbe de particules dit la MATIERE projetee, l'onde dit la
+   FORCE elle-meme, et les deux ensemble lisent un impact bien plus lourd
+   que l'un ou l'autre seul. */
+export function ondeChoc(couleur = 0xEAF2FF, rayon = 0.4, epaisseur = 0.16) {
+  const geo = new THREE.RingGeometry(rayon, rayon + epaisseur, 24, 1);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({
+    color: couleur, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.y = 0.03;
+  m.renderOrder = 1;
+  return m;
+}
+
+/* `dtE` : le temps ecoule depuis le declenchement. L'onde bondit vite puis
+   ralentit (`sqrt`) — a vitesse d'expansion constante, un anneau qui
+   grossit se lit comme un cercle qui grossit, pas comme un choc. */
+export function majOndeChoc(onde, dtE, duree = 0.5) {
+  if (dtE < 0 || dtE > duree) { onde.material.opacity = 0; return; }
+  const k = dtE / duree;
+  const echelle = 1 + Math.sqrt(k) * 7;
+  onde.scale.set(echelle, 1, echelle);
+  onde.material.opacity = (1 - k) * 0.5;
+}

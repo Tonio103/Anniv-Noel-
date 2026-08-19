@@ -4,7 +4,7 @@ import { smoothstep, clamp } from '../../core/noise.js';
 import {
   REPERES, construireCorps, nouvelleInstance, piste, regarderVers, appliquerPose,
 } from '../humanoide.js';
-import { tacheDeSang } from './communs.js';
+import { tacheDeSang, ondeChoc, majOndeChoc } from './communs.js';
 
 /* ==========================================================================
    2. KILL BILL
@@ -76,18 +76,59 @@ function katana() {
   }));
   g.add(lame);
 
+  /* LE HABAKI. Le collier de metal qui cale la lame contre la garde —
+     sans lui, la lame semblait simplement PLANTEE dans un disque, comme
+     un couteau de cuisine dans un bloc. Un petit manchon dore, plus clair
+     que le reste de la monture, suffit a suggerer la piece technique qui
+     porte tout le poids de la lame vers la garde. */
+  const habaki = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.020, 0.024, 0.028, 10),
+    new THREE.MeshStandardMaterial({ color: 0xB08A3C, roughness: 0.35, metalness: 0.85 })
+  );
+  habaki.position.y = 0.014;
+  g.add(habaki);
+
   // La garde ronde, puis la poignee tressee.
   const tsuba = new THREE.Mesh(
     new THREE.CylinderGeometry(0.042, 0.042, 0.008, 14),
     new THREE.MeshStandardMaterial({ color: 0x24282F, roughness: 0.45, metalness: 0.7 })
   );
   g.add(tsuba);
+  /* LES SEPPA. Deux rondelles fines, l'une contre l'autre cote lame, qui
+     absorbent le jeu entre la garde et le habaki — un detail minuscule,
+     mais c'est la somme de ces details qui empeche la monture de se lire
+     comme un empilement de cylindres au lieu d'un assemblage mecanique. */
+  for (const dy of [0.007, -0.007]) {
+    const seppa = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.030, 0.030, 0.004, 14),
+      new THREE.MeshStandardMaterial({ color: 0x8A7248, roughness: 0.5, metalness: 0.75 })
+    );
+    seppa.position.y = dy;
+    g.add(seppa);
+  }
   const poignee = new THREE.Mesh(
     new THREE.CylinderGeometry(0.017, 0.019, 0.24, 8),
     new THREE.MeshStandardMaterial({ color: 0x14161B, roughness: 0.85 })
   );
   poignee.position.y = -0.13;
   g.add(poignee);
+  /* LE MENUKI ET LE POMMEAU. Un petit orne au tiers de la poignee (la
+     ficelle tressee d'un vrai tsuka en cache un sous chaque croisement) et
+     une olive plate au bout — sans elle, la poignee se terminait en
+     cylindre coupe net, une extremite qu'aucune arme reelle ne montre. */
+  const menuki = new THREE.Mesh(
+    new THREE.SphereGeometry(0.010, 6, 5),
+    new THREE.MeshStandardMaterial({ color: 0xC9A84A, roughness: 0.4, metalness: 0.7 })
+  );
+  menuki.position.set(0.016, -0.07, 0);
+  menuki.scale.set(1, 1.6, 0.6);
+  g.add(menuki);
+  const pommeau = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.020, 0.017, 0.014, 8),
+    new THREE.MeshStandardMaterial({ color: 0x24282F, roughness: 0.45, metalness: 0.7 })
+  );
+  pommeau.position.y = -0.253;
+  g.add(pommeau);
   return g;
 }
 
@@ -138,10 +179,18 @@ function adversaireMasque(palier) {
   g.add(perso);
   const os = perso.userData.os;
 
-  const sabre = katana();
-  sabre.rotation.x = -0.30;
-  sabre.position.y = -0.02;
-  os.mainD.add(sabre);
+  /* LUI AUSSI BRANDIT UN SABRE. Un homme masque les mains vides face a une
+     lame ne raconte pas un DUEL, il raconte une execution — juste, et ce
+     n'est pas ce que la scene doit dire avant le premier coup. Il porte
+     donc le meme katana qu'elle (`katana()`, deja partagee au sein de ce
+     fichier), tenu en garde jusqu'a ce qu'il le perde : voir plus bas,
+     `g.userData.perdreArme`, qui le detache de sa main pour le laisser
+     tomber, lame plantee dans la neige — le geste classique du duelliste
+     desarme. */
+  const sabreAdv = katana();
+  sabreAdv.rotation.x = -0.30;
+  sabreAdv.position.y = -0.02;
+  os.mainD.add(sabreAdv);
 
   const POSE = {
     garde: {
@@ -174,6 +223,11 @@ function adversaireMasque(palier) {
 
   g.userData.os = os;
   g.userData.POSE = POSE;
+  // Expose : c'est `killBill()` qui orchestre la chute de l'arme (voir
+  // plus bas, « L'ARME QUI TOMBE »), pas ce fichier — l'instant du
+  // desarmement est cale sur le second coup DE KILL BILL, une donnee que
+  // seule la scene appelante possede.
+  g.userData.sabre = sabreAdv;
   return g;
 }
 
@@ -228,6 +282,92 @@ function fontaineDeSang() {
   pts.userData.dephasages = dephasages;
   pts.userData.mat = mat;
   return pts;
+}
+
+/* --------------------------------------------------------------------------
+   LA TRAINEE DE LAME.
+
+   Un katana qui balaie l'ecran en trois images, dessine plein a chaque
+   image, se lit comme une arme qui TELEPORTE d'une pose a l'autre — le
+   defaut classique d'une animation trop rapide pour sa cadence
+   d'echantillonnage. Le cinema de sabre resout ca depuis toujours avec un
+   arc de lumiere qui trace le passage de la lame : c'est exactement ce
+   qu'on reconstruit ici, en ruban dynamique plutot qu'en simple traine de
+   points — une lame est un plan, pas un nuage, et un ruban qui relie
+   POINTE et GARDE a chaque echantillon en respecte la forme.
+
+   La geometrie est rebatie chaque image (position ET couleur), avec une
+   plage de dessin (`setDrawRange`) qui grandit progressivement tant que
+   l'historique n'est pas encore plein — sans ca, les tout premiers
+   instants du coup afficheraient un ruban degenere, tire vers l'origine. */
+function traineeLame(n) {
+  const pos = new Float32Array(n * 2 * 3);
+  const col = new Float32Array(n * 2 * 3);
+  const idx = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2, b = a + 2;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.setDrawRange(0, 0);
+  const mat = new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.frustumCulled = false;
+  const pointes = Array.from({ length: n }, () => new THREE.Vector3());
+  const gardes = Array.from({ length: n }, () => new THREE.Vector3());
+  m.userData = { pointes, gardes, n, remplis: 0 };
+  return m;
+}
+
+const _pointeLocale = new THREE.Vector3();
+const _gardeLocale = new THREE.Vector3();
+
+/* Echantillonne la pointe et la garde de LA LAME REELLE — pas une
+   trajectoire synthetisee — via sa matrice monde du jour, convertie dans
+   le repere de la scene englobante (`groupe`, qui ne bouge jamais une
+   fois posee : un seul aller-retour de matrices suffit donc, pas de cache
+   a invalider). `sabreObj.updateWorldMatrix(true, false)` force la mise a
+   jour de cette seule branche avant lecture : sans lui, la matrice lue
+   serait celle de l'image PRECEDENTE, puisque three.js ne recalcule les
+   matrices du monde qu'a l'interieur de `renderer.render()`, apres que ce
+   code a deja tourne. */
+function majTraineeLame(trainee, sabreObj, groupe, actif) {
+  const { pointes, gardes, n } = trainee.userData;
+  for (let i = n - 1; i > 0; i--) {
+    pointes[i].copy(pointes[i - 1]);
+    gardes[i].copy(gardes[i - 1]);
+  }
+  sabreObj.updateWorldMatrix(true, false);
+  _pointeLocale.set(0.028, 0.70, 0).applyMatrix4(sabreObj.matrixWorld);
+  groupe.worldToLocal(_pointeLocale);
+  pointes[0].copy(_pointeLocale);
+  _gardeLocale.set(0, -0.02, 0).applyMatrix4(sabreObj.matrixWorld);
+  groupe.worldToLocal(_gardeLocale);
+  gardes[0].copy(_gardeLocale);
+  trainee.userData.remplis = Math.min(n, trainee.userData.remplis + 1);
+
+  const pos = trainee.geometry.attributes.position.array;
+  const col = trainee.geometry.attributes.color.array;
+  for (let i = 0; i < n; i++) {
+    const o = i * 6;
+    pos[o] = pointes[i].x; pos[o + 1] = pointes[i].y; pos[o + 2] = pointes[i].z;
+    pos[o + 3] = gardes[i].x; pos[o + 4] = gardes[i].y; pos[o + 5] = gardes[i].z;
+    const age = i / (n - 1);
+    const inten = actif * (1 - age) * (1 - age);
+    col[o] = col[o + 1] = col[o + 2] = inten;
+    col[o + 3] = col[o + 4] = col[o + 5] = inten;
+  }
+  trainee.geometry.attributes.position.needsUpdate = true;
+  trainee.geometry.attributes.color.needsUpdate = true;
+  trainee.geometry.setDrawRange(0, Math.max(0, (Math.min(n, trainee.userData.remplis) - 1) * 6));
+  trainee.geometry.computeBoundingSphere();
+  trainee.material.opacity = actif;
 }
 
 let _corpsKB = null;
@@ -308,6 +448,33 @@ export function killBill(palier) {
     tache.position.y = relief.hauteur(
       g.position.x + tache.position.x, g.position.z + tache.position.z) - g.position.y + 0.02;
   };
+
+  // La traine de SA lame : voir `traineeLame`/`majTraineeLame` plus haut.
+  const trainee = traineeLame(9);
+  g.add(trainee);
+
+  // L'onde de choc, repositionnee a chaque coup — meme logique que la
+  // gerbe d'impact de Mugiwara : un seul exemplaire, jamais deux
+  // declencheurs actifs en meme temps.
+  const onde = ondeChoc(0xF0E8E4, 0.42, 0.18);
+  onde.position.set(adversaire.position.x, 0.03, adversaire.position.z + 0.35);
+  g.add(onde);
+
+  /* L'ARME QUI TOMBE. Au second coup, celui qui l'acheve, son propre
+     katana lui echappe : detache de sa main, il tombe et se plante dans
+     la neige a ses pieds — le geste que « le sabre echappe presque de la
+     main » (voir `touche1` dans `adversaireMasque`) annoncait sans
+     l'accomplir. `origineChute`/`quatOrigine` sont figes au moment exact
+     du detachement (la position REELLE de la lame a cet instant, pas une
+     approximation) ; `cibleChute`/`quatCible` sont le point d'arrivee,
+     choisi a la main pres du pied de l'adversaire, pointe vers le bas. */
+  const sabreAdv = adversaire.userData.sabre;
+  let armeDetachee = false;
+  let chuteArmeT = 0;
+  const origineChute = new THREE.Vector3(), quatOrigine = new THREE.Quaternion();
+  const cibleChute = new THREE.Vector3(0.85, 0.06, -1.55);
+  const quatCible = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI * 0.5, 0.4, 0.15));
+  const _qTmp = new THREE.Quaternion();
 
   /* LA SEQUENCE. Antoine : « elle doit bouger, elle doit avoir une
      choregraphie ». La pose de garde tenue jusqu'au bout etait un choix
@@ -430,11 +597,27 @@ export function killBill(palier) {
   let lameFaite = false;
   let coup1Fait = false, coup2Fait = false;
   let coup1T = 0, coup2T = 0;
+  let derniereOndeT = -999;
   g.userData.reinit = () => {
     lameFaite = false; coup1Fait = false; coup2Fait = false;
     sangs[0].material.opacity = 0; sangs[1].material.opacity = 0;
     for (const m of tache.userData.taches) m.opacity = 0;
     tache.scale.setScalar(1);
+    derniereOndeT = -999;
+    onde.material.opacity = 0;
+    trainee.material.opacity = 0;
+    trainee.userData.remplis = 0;
+    trainee.geometry.setDrawRange(0, 0);
+    // L'arme retourne dans la main de l'adversaire si la balade rejoue la
+    // scene — sans ca, un second passage la trouverait deja au sol.
+    if (armeDetachee) {
+      g.remove(sabreAdv);
+      sabreAdv.position.set(0, -0.02, 0);
+      sabreAdv.rotation.set(-0.30, 0, 0);
+      sabreAdv.scale.setScalar(1);
+      osAdv.mainD.add(sabreAdv);
+      armeDetachee = false;
+    }
   };
 
   g.userData.jouer = (u, t, camera) => {
@@ -473,11 +656,53 @@ export function killBill(palier) {
     sequenceAdv(osAdv, u);
     adversaire.position.y = u > 0.435 ? -0.62 * smoothstep(0.435, 0.50, u) : 0;
 
+    /* LA TRAINEE DE LAME suit la vraie geometrie du sabre en permanence
+       (voir `majTraineeLame`) ; seule son OPACITE est module par une
+       enveloppe qui isole les deux instants ou la lame balaie vraiment —
+       en dehors, la garde et les temps morts ne meritent aucune trace. */
+    const balayage1 = smoothstep(0.27, 0.305, u) * smoothstep(0.41, 0.345, u);
+    const balayage2 = smoothstep(0.375, 0.40, u) * smoothstep(0.49, 0.425, u);
+    majTraineeLame(trainee, sabre, g, Math.max(balayage1, balayage2));
+
     /* LES DEUX COUPS. Chacun declenche sa propre gerbe, une seule fois, au
        moment exact ou la lame de `sequence` touche (voir les temps cles
        0,34 et 0,42 ci-dessus). */
-    if (!coup1Fait && u > 0.335) { coup1Fait = true; coup1T = t; g.userData.emettre?.('choc'); }
-    if (!coup2Fait && u > 0.415) { coup2Fait = true; coup2T = t; g.userData.emettre?.('choc'); }
+    if (!coup1Fait && u > 0.335) {
+      coup1Fait = true; coup1T = t; derniereOndeT = t; g.userData.emettre?.('choc');
+    }
+    if (!coup2Fait && u > 0.415) {
+      coup2Fait = true; coup2T = t; derniereOndeT = t; g.userData.emettre?.('choc');
+
+      /* L'ARME LUI ECHAPPE. Capturee au moment exact du coup fatal — sa
+         transformation MONDE reelle, pas une approximation — puis
+         convertie dans le repere de `g` pour pouvoir continuer d'animer
+         sa chute independamment du bras qui vient de la lacher. */
+      if (!armeDetachee) {
+        armeDetachee = true; chuteArmeT = t;
+        g.updateWorldMatrix(true, false);
+        sabreAdv.updateWorldMatrix(true, false);
+        origineChute.setFromMatrixPosition(sabreAdv.matrixWorld);
+        g.worldToLocal(origineChute);
+        _qTmp.setFromRotationMatrix(sabreAdv.matrixWorld);
+        quatOrigine.copy(g.quaternion).invert().multiply(_qTmp);
+        osAdv.mainD.remove(sabreAdv);
+        sabreAdv.position.copy(origineChute);
+        sabreAdv.quaternion.copy(quatOrigine);
+        g.add(sabreAdv);
+      }
+    }
+    majOndeChoc(onde, t - derniereOndeT, 0.45);
+
+    /* LA CHUTE ELLE-MEME : une demi-seconde pour rejoindre la neige, lame
+       la premiere — le geste s'accelere puis freine (`smoothstep`), comme
+       n'importe quel objet qui tombe et rencontre une resistance a
+       l'arrivee plutot que de s'arreter net. */
+    if (armeDetachee) {
+      const dtE = clamp((t - chuteArmeT) / 0.5, 0, 1);
+      const k = smoothstep(0, 1, dtE);
+      sabreAdv.position.lerpVectors(origineChute, cibleChute, k);
+      sabreAdv.quaternion.copy(quatOrigine).slerp(quatCible, k);
+    }
 
     /* LE PREMIER COUP : une gerbe large, qui gicle loin et met deux fois
        plus longtemps qu'avant a s'effacer. */

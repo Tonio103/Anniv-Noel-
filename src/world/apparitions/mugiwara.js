@@ -4,7 +4,7 @@ import { smoothstep, clamp } from '../../core/noise.js';
 import {
   construireCorps, nouvelleInstance, appliquerPose, regarderVers,
 } from '../humanoide.js';
-import { halo } from './communs.js';
+import { halo, ondeChoc, majOndeChoc } from './communs.js';
 
 /* ==========================================================================
    MUGIWARA — UN CLIN D'OEIL A ONE PIECE, PAS AU CINEMA CETTE FOIS.
@@ -314,39 +314,12 @@ function majImpact(pts, dtE) {
   pts.material.opacity = Math.max(0, 1 - dtE * 2.0);
 }
 
-/* --------------------------------------------------------------------------
-   L'ONDE DE CHOC AU SOL.
-
-   La gerbe d'impact (ci-dessus) suggere la MATIERE projetee ; elle ne dit
-   rien de la FORCE elle-meme. Un anneau additif qui nait sous les pieds du
-   personnage, s'elargit d'un bond et s'efface, est la signature visuelle
-   qui manquait : les deux effets ensemble lisent un coup bien plus lourd
-   que la particule seule. Elle nait sous les PIEDS et non au point
-   d'impact du poing — un bras elastique n'ebranle pas le sol la ou il
-   frappe, six metres devant ; c'est le corps qui encaisse le contrecoup,
-   et c'est donc lui qui secoue la neige. */
-function ondeChoc() {
-  const geo = new THREE.RingGeometry(0.4, 0.56, 24, 1);
-  geo.rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0xEAF2FF, transparent: true, opacity: 0,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true,
-  });
-  const m = new THREE.Mesh(geo, mat);
-  m.position.y = 0.03;
-  m.renderOrder = 1;
-  return m;
-}
-
-function majOndeChoc(onde, dtE) {
-  if (dtE < 0 || dtE > 0.5) { onde.material.opacity = 0; return; }
-  const k = dtE / 0.5;
-  // Elle bondit vite puis ralentit — une onde qui s'elargit a vitesse
-  // constante se lit comme un cercle qui grossit, pas comme un choc.
-  const echelle = 1 + Math.sqrt(k) * 7.5;
-  onde.scale.set(echelle, 1, echelle);
-  onde.material.opacity = (1 - k) * 0.5;
-}
+/* L'ONDE DE CHOC AU SOL — `ondeChoc()`/`majOndeChoc()`, importees de
+   `communs.js`. Nee ici (un anneau additif qui nait sous les pieds du
+   personnage, s'elargit d'un bond et s'efface — la gerbe d'impact dit la
+   MATIERE projetee, l'onde dit la FORCE elle-meme), puis remontee au
+   moment ou Kill Bill en a eu besoin a son tour : voir le banc partage
+   pour le detail. */
 
 /* --------------------------------------------------------------------------
    LE DEN DEN MUSHI — UN HABITANT DE PLUS, DISCRET.
