@@ -23,7 +23,7 @@ import { Neige } from './world/snowfall.js';
 import { Brume } from './world/mist.js';
 import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
-import { Apparitions, sitesApparitions } from './world/apparitions.js';
+import { Apparitions, sitesApparitions } from './world/apparitions/index.js';
 import { coutSpider } from './world/spider.js';
 import { Cabanes } from './world/cabins.js';
 import { Fouillis } from './world/props.js';
