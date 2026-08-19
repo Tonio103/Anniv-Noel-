@@ -1,45 +1,79 @@
-# Le T-Rex ne laisse pas d'empreintes
+# Le T-Rex ne laisse pas d'empreintes — corrigé cette session
 
 Plainte d'Antoine, telle quelle : « y a pas d'empreinte de pas ». Le cerf,
-lui, en laisse (visible dans toutes les captures d'écran de cette session) —
-donc la plainte vise très probablement le T-Rex, qui n'en laisse aucune.
-Non corrigé cette session sur consigne explicite.
+lui, en laisse — donc la plainte visait le T-Rex, qui n'en laissait
+aucune. Le diagnostic ci-dessous (rédigé une session plus tôt, non
+corrigé alors « sur consigne explicite ») reste exact ; seule la
+conclusion change : c'est fait.
+
+## Diagnostic (toujours valable)
+
+`Empreintes` (`src/world/footprints.js`) est un système générique — une
+seule instance globale, créée dans `main.js` — mais un seul appelant
+existait dans tout le code : la boucle qui traite les posers de sabot du
+cerf. Rien dans `jurassique()` n'appelait jamais `empreintes.ajouter()`
+pour les pieds du théropode.
+
+Un second problème, identifié dans cette fiche AVANT d'être vérifié, s'est
+confirmé à la lecture du code : le tampon existant (`tamponSabot`) est
+peint une fois pour toutes sous la forme d'un sabot fourchu de cervide — y
+poser la patte d'un théropode de plusieurs tonnes aurait laissé une trace
+de sabot géante, fausse dans sa forme autant que dans son échelle. Il a
+donc fallu étendre le système, pas seulement l'appeler.
+
+## Ce qui a été fait
+
+1. **Un second tampon**, `tamponTrex()` dans `footprints.js` : trois
+   griffes en éventail depuis un talon commun (au lieu des deux onglons en
+   V du cerf), et un talon bien plus massif — un pied digitigrade de
+   plusieurs tonnes s'enfonce sur toute sa longueur, pas seulement à
+   l'arrière comme un sabot léger.
+2. **`Empreintes.ajouter(x, z, angle, force, type)`** accepte désormais un
+   cinquième paramètre `type` (`'sabot'` par défaut, `'trex'` pour le
+   théropode). Chaque maille de la réserve de tampons porte déjà sa PROPRE
+   instance de matériau (jamais partagée) : lui faire changer de `map` à
+   la demande, image par image, ne touche jamais les autres pas en
+   attente. La taille de base suit aussi le type — un pied de théropode
+   fait plus de soixante-dix centimètres, un rapport qu'aucun réglage de
+   `force` seul n'aurait pu produire sans devenir absurde pour le cerf.
+3. **`jurassique()` accepte un nouveau paramètre `deposerEmpreinte`**, une
+   fermeture construite dans `Apparitions` (voir `index.js`,
+   `brancherEmpreintes`) qui lit `this.empreintes` À L'APPEL et non à la
+   construction — nécessaire parce que `Empreintes` est construite APRÈS
+   les apparitions dans `main.js`, donc la référence n'existe pas encore
+   au moment où `FABRIQUES.trex` capture la fermeture.
+4. **Le déclenchement réutilise l'horloge du pas déjà existante** (le même
+   bloc `if (neuf)` qui joue le son `'pas'`) plutôt qu'une horloge séparée
+   — image, son et empreinte ne peuvent donc jamais dériver les uns des
+   autres. La parité de `numero` dit sans ambiguïté quel pied
+   (`os.piedD`/`os.piedG`) vient de se poser, parce que `marcheTrex`
+   alterne les deux pattes sur exactement le même demi-tour de phase (voir
+   `trex.js` : `dec=0` pour D, `dec=Math.PI` pour G). La position déposée
+   est la VRAIE position monde du pied (`updateWorldMatrix` +
+   `getWorldPosition` sur le bone), pas une approximation depuis le centre
+   de la bête — à neuf mètres de voie et avec le roulis du bassin, les
+   deux pattes ne sont jamais à la même distance du chemin.
 
 ## Fichiers concernés
 
-- `src/world/footprints.js` — `class Empreintes`, notamment `ajouter(x, z,
-  rotation, force)`
-- `src/main.js` — ligne ~153 (`const empreintes = new Empreintes(...)`),
-  ligne ~766 (seul appel à `empreintes.ajouter(...)`, dans la boucle du pas
-  de simulation, alimenté par les poses du cerf)
-- `src/world/apparitions.js` — `jurassique(chemin, relief, palier)`, et
-  `src/world/trex.js` — `marcheTrex(...)` (la démarche, qui doit déjà savoir
-  quand chaque patte touche le sol puisque c'est ce qui anime la marche)
+- `src/world/footprints.js` — `tamponTrex()` (nouveau), `Empreintes`
+  (réserve à deux textures, `ajouter(...,type)`, taille par type)
+- `src/world/apparitions/index.js` — `Apparitions.brancherEmpreintes(...)`,
+  la fermeture `deposerEmpreinte`
+- `src/main.js` — `apparitions.brancherEmpreintes(empreintes)`, juste
+  après la construction d'`Empreintes`
+- `src/world/apparitions/jurassique.js` — `jurassique(chemin, relief,
+  palier, deposerEmpreinte)`
 
-## Diagnostic
+## Vérifié
 
-`Empreintes` est un système générique (une seule instance globale,
-`empreintes`, créée dans `main.js`) : n'importe qui peut lui dire
-« pose une trace ici ». Mais dans tout le code, un seul appelant existe :
-la boucle qui traite `cerf.posers` (les instants où un sabot touche le sol,
-calculés par le rig du cerf) et appelle `empreintes.ajouter(...)` pour
-chacun. **Rien dans `jurassique()` ou `marcheTrex()` n'appelle jamais
-`empreintes.ajouter()` pour les pieds du théropode.** Ce n'est pas un bug
-subtil — la fonctionnalité pour le T-Rex n'a simplement jamais été écrite.
+Marche complète simulée (`build/parcours.mjs`) : zéro erreur avec le
+nouveau code branché de bout en bout — la fermeture tardive
+(`Apparitions` construite avant `Empreintes`) ne casse rien.
 
-## Pistes, non vérifiées
+## Idées non explorées
 
-- Il faut d'abord savoir si `marcheTrex()` expose (ou peut exposer) les
-  instants de pose de pied, comme le rig du cerf le fait via `cerf.posers` —
-  sinon il faut d'abord ajouter cette détection au cycle de marche du
-  théropode.
-- Une fois les instants connus, appeler `empreintes.ajouter(x, z, rotation,
-  force)` pour chaque pied, avec une `force` sans doute plus grande que
-  celle du cerf (un théropode pèse infiniment plus lourd) — voir comment
-  `force` influence la profondeur/la taille de l'empreinte dans
-  `footprints.js` avant de choisir une valeur.
-- Vérifier que le système supporte une empreinte de forme différente
-  (le cerf laisse une trace de sabot fourchu ; un théropode laisse une
-  empreinte tridactyle, bien plus grande) — si `Empreintes` suppose une
-  seule forme fixe, il faudra l'étendre plutôt que de simplement l'appeler
-  tel quel.
+- Les empreintes du T-Rex ne varient pas leur profondeur avec le poids
+  apparent du pas (l'appui est toujours pareil dans `marcheTrex`) — un
+  raffinement possible mais non tenté, la variation naturelle de `alea`
+  suffit déjà à casser l'effet de tampon répété.

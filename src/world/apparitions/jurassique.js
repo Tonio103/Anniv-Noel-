@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { grainRond } from '../../core/dot.js';
 import { smoothstep, clamp } from '../../core/noise.js';
 import { creerTrex, marcheTrex } from '../trex.js';
+import { buee, majBuee } from './communs.js';
 
 /* ==========================================================================
    JURASSIC PARK
@@ -15,14 +16,69 @@ import { creerTrex, marcheTrex } from '../trex.js';
    pas une economie : un dinosaure entierement visible invite a l'examiner,
    et il ne resiste jamais a l'examen. Entrevu entre deux troncs, il est
    enorme.
+
+   « Y A PAS D'EMPREINTE DE PAS. » Antoine, a propos de cette scene
+   precisement (voir `notes/son/empreintes-trex.md`) — et il avait raison :
+   le systeme d'empreintes (`footprints.js`) n'avait jamais qu'un seul
+   appelant, le cerf, avec un tampon cale sur sa forme. Le theropode
+   laisse desormais les siennes, tridactyles et bien plus profondes (voir
+   `tamponTrex` dans `footprints.js`), deposees au moment exact ou
+   `marcheTrex` pose chaque pied — pas a une cadence arbitraire, la MEME
+   horloge que celle qui declenche deja le bruit du pas, pour que l'image
+   et le son ne derivent jamais l'un de l'autre.
    ========================================================================== */
-export function jurassique(chemin, relief, palier) {
+export function jurassique(chemin, relief, palier, deposerEmpreinte) {
   const g = new THREE.Group();
   g.userData.suitChemin = true;
 
   const bete = creerTrex(palier);
   g.add(bete);
   const os = bete.userData.os;
+
+  /* LA BUEE. Une nuit assez froide pour que la neige tombe des branches au
+     moindre pas merite un souffle visible — et pour une masse de cette
+     taille, un souffle bien plus large et bien plus lent que celui d'un
+     enfant qui tremble (voir `kevin.js`, meme helper partage).
+
+     ELLE N'EST PAS UN ENFANT DU CRANE — un choix qui n'a PAS ete dicte
+     par la cause qu'on lui a d'abord pretee. Premier essai : accrochee
+     directement a `os.crane`, comme n'importe quel accessoire ailleurs
+     dans ce dossier (le chapeau de Mugiwara sur `os.tete`, la baguette de
+     Harry sur `os.mainD`...). A ce moment-la, le banc de cadrage des
+     scenes mobiles (`build/apparitions.mjs`, qui calcule la boite
+     englobante de la scene ENTIERE via `Box3.setFromObject`) s'est mis a
+     mesurer plus de deux cents metres au lieu de soixante. Le coupable
+     SEMBLAIT etre la chaine de transformation du sprite a travers un
+     grand squelette anime — mais deplacer le sprite en enfant simple de
+     `g` (ce qui suit) n'a RIEN change a la mesure : la piste etait
+     fausse.
+
+     LE VRAI COUPABLE : `SkinnedMesh.boundingBox`. Cette propriete n'est
+     JAMAIS calculee automatiquement par le moteur (la doc de three.js est
+     explicite : « must be called by your app », « should be recomputed
+     per frame » si l'objet est anime) — elle reste `null` jusqu'au
+     premier `Box3.setFromObject` qui la rencontre, moment ou elle se fige
+     DEFINITIVEMENT a partir des matrices de squelette EN VIGUEUR A CET
+     INSTANT. Or ces matrices ne sont elles-memes rafraichies que par
+     `renderer.render()` — jamais par la simulation manuelle a coups de
+     `s.apparitions.maj(...)` de ce banc. Le tout premier calcul de boite
+     venu pouvait donc figer une pose fantome (bind pose, ou la pose d'un
+     tout autre instant deja rendu plus tot dans la page) et fausser la
+     mesure de plusieurs centaines de metres pour le reste de
+     l'execution — un defaut du BANC DE MESURE, pas du rendu (l'image
+     elle-meme restait juste a l'ecran). Corrige directement dans
+     `apparitions.mjs` : squelette rafraichi et cache invalide juste avant
+     de mesurer.
+
+     Le sprite reste neanmoins ENFANT DE `g` (plus simple a raisonner,
+     jamais mesure qu'a travers une transformation simple) et suit la
+     position du crane en LISANT sa matrice-monde chaque image — le meme
+     principe que la traine de lame de Kill Bill et du duel de sabres,
+     deplace ici du cas d'une arme a celui d'un souffle. */
+  const nuageTrex = buee([0.82, 0.86, 0.92]);
+  g.add(nuageTrex);
+  let dernierSouffleTrexT = -999;
+  const museauMonde = new THREE.Vector3();
 
   /* LA NEIGE QUI TOMBE DES BRANCHES. C'est le premier temps de la scene, et
      c'est le seul moment ou elle repose entierement sur autre chose que la
@@ -116,9 +172,14 @@ export function jurassique(chemin, relief, palier) {
   const VOIE = 9, COTE = -1;
   const DEPART = 8, ARRIVEE = 58;
   const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
+  const piedMonde = new THREE.Vector3();
 
   let dernierPas = -1, rugi = false;
-  g.userData.reinit = () => { dernierPas = -1; rugi = false; };
+  g.userData.reinit = () => {
+    dernierPas = -1; rugi = false;
+    dernierSouffleTrexT = -999;
+    nuageTrex.material.opacity = 0;
+  };
 
   g.userData.jouer = (u, t, camera, sAncre, dt) => {
     /* LES TROIS TEMPS.
@@ -163,7 +224,37 @@ export function jurassique(chemin, relief, palier) {
     if (neuf) {
       dernierPas = numero;
       if (u > 0.02) g.userData.emettre?.('pas');
+
+      /* L'EMPREINTE, DEPOSEE AU PIED QUI VIENT REELLEMENT DE SE POSER.
+         `marcheTrex` alterne les pattes sur un demi-tour de phase (voir
+         `trex.js` : dec=0 pour D, dec=PI pour G), et `numero` change de
+         parite exactement a ces memes demi-tours — la parite dit donc
+         sans ambiguite quel pied touche le sol a CET instant, sans avoir
+         a lire l'etat interne de la marche. On lit la position REELLE du
+         pied (sa matrice-monde du jour, pas une approximation a partir du
+         centre de la bete) : a neuf metres de voie et avec le roulis du
+         bassin, les deux pattes ne sont jamais a la meme distance du
+         chemin. */
+      if (bete.visible && deposerEmpreinte) {
+        const piedActif = numero % 2 === 0 ? os.piedG : os.piedD;
+        piedActif.updateWorldMatrix(true, false);
+        piedActif.getWorldPosition(piedMonde);
+        deposerEmpreinte(piedMonde.x, piedMonde.z, g.rotation.y, 1.3, 'trex');
+      }
+
+      // Le souffle, une fois par foulee complete (donc deux fois moins
+      // souvent que les pas) — une respiration plus lente que la marche,
+      // comme chez n'importe quel grand animal.
+      if (bete.visible && numero % 2 === 0) dernierSouffleTrexT = t;
     }
+    if (bete.visible) {
+      g.updateWorldMatrix(true, false);
+      os.crane.updateWorldMatrix(true, false);
+      os.crane.getWorldPosition(museauMonde);
+      g.worldToLocal(museauMonde);
+      nuageTrex.position.copy(museauMonde);
+    }
+    majBuee(nuageTrex, t, dernierSouffleTrexT, vis, 0.62, 1.6);
     // La force de la secousse decroit apres chaque impact.
     const depuis = (cadence * 2) % 1;
     const secousse = Math.pow(1 - depuis, 3);

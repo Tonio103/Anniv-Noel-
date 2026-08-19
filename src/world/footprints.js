@@ -104,6 +104,70 @@ function tamponSabot() {
   return t;
 }
 
+/* Empreinte de theropode : trois griffes qui s'ouvrent en eventail depuis
+   un talon commun. Antoine, dans l'esprit de « y a pas d'empreinte de
+   pas » (voir `notes/son/empreintes-trex.md`) : le systeme existant ne
+   servait qu'au cerf, avec un tampon a onglons cale sur sa forme — y
+   poser la patte d'un theropode de plusieurs tonnes aurait laisse une
+   trace de sabot geante, fausse dans sa forme autant que dans son
+   echelle. Meme principe de construction que `tamponSabot` (un degrade
+   radial par doigt, dans le repere du doigt), mais trois griffes larges
+   et longues plutot que deux onglons fins, et un talon bien plus massif
+   — un pied digitigrade de plusieurs tonnes s'enfonce profondement, sur
+   toute sa longueur, pas seulement a l'arriere. */
+function tamponTrex() {
+  const n = 128;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, n, n);
+
+  const doigt = (cx, cy, demiLarge, demiLong, incline) => {
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(incline);
+    c.scale(demiLarge, demiLong);
+
+    const g = c.createRadialGradient(0, 0.1, 0.05, 0, 0, 1.05);
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.50, 'rgba(255,255,255,0.92)');
+    g.addColorStop(0.82, 'rgba(255,255,255,0.55)');
+    g.addColorStop(1.00, 'rgba(255,255,255,0)');
+
+    // Meme profil de goutte que l'onglon du cerf — large a l'arriere,
+    // effile en pointe de griffe vers l'avant.
+    c.beginPath();
+    c.moveTo(0, -1);
+    c.bezierCurveTo(0.62, -0.60, 0.80, 0.46, 0, 1);
+    c.bezierCurveTo(-0.80, 0.46, -0.62, -0.60, 0, -1);
+    c.closePath();
+    c.fillStyle = g;
+    c.fill();
+    c.restore();
+  };
+
+  /* Trois doigts en eventail, celui du milieu le plus long — la
+     signature d'un pas tridactyle, bien differente de l'ecartement en V
+     serre des deux onglons du cerf. */
+  doigt(n * 0.28, n * 0.42, n * 0.145, n * 0.30, -0.42);
+  doigt(n * 0.50, n * 0.34, n * 0.155, n * 0.36, 0);
+  doigt(n * 0.72, n * 0.42, n * 0.145, n * 0.30, 0.42);
+
+  /* Le talon : bien plus large et bien plus present que celui du cerf —
+     un pied de plusieurs tonnes ne se contente pas d'effleurer la neige a
+     l'arriere, il s'y enfonce sur toute la plante. */
+  const talon = c.createRadialGradient(n * 0.5, n * 0.68, 0, n * 0.5, n * 0.68, n * 0.30);
+  talon.addColorStop(0, 'rgba(255,255,255,0.55)');
+  talon.addColorStop(0.6, 'rgba(255,255,255,0.28)');
+  talon.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = talon;
+  c.fillRect(0, n * 0.42, n, n * 0.58);
+
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 /* Cote de la fenetre, en metres.
 
    C'ETAIT LE VRAI PLAFOND SUR TELEPHONE. Soixante-douze metres pour 512
@@ -149,8 +213,17 @@ export class Empreintes {
 
     this.scene = new THREE.Scene();
 
-    /* Reserve de tampons : on en pose au plus quelques-uns par image. */
+    /* Reserve de tampons : on en pose au plus quelques-uns par image.
+       DEUX TAMPONS DIFFERENTS PARTAGENT LA MEME RESERVE — le sabot du
+       cerf et la patte du theropode (voir `tamponTrex` plus haut). Chaque
+       maille de la reserve porte deja sa PROPRE instance de materiau
+       (jamais partagee entre mailles) : lui faire changer de `map` a la
+       demande, image par image, ne touche donc jamais les autres pas en
+       attente. C'est ce qui permet d'ajouter un second type de trace sans
+       toucher a la structure de la file ni au rendu. */
     const tex = tamponSabot();
+    const texTrex = tamponTrex();
+    this.textures = { sabot: tex, trex: texTrex };
     this.reserve = [];
     for (let i = 0; i < 12; i++) {
       const m = new THREE.Mesh(
@@ -217,11 +290,14 @@ export class Empreintes {
     };
   }
 
-  /* Un sabot vient de se poser. On enregistre, le rendu suivra. */
-  ajouter(x, z, angle, force = 1) {
+  /* Un pied vient de se poser. On enregistre, le rendu suivra. `type`
+     choisit le tampon — `'sabot'` par defaut (le cerf, seul appelant
+     jusqu'a cette session), `'trex'` pour la trace tridactyle du
+     theropode. */
+  ajouter(x, z, angle, force = 1, type = 'sabot') {
     if (!this.actif) return;
     if (this.file.length < this.reserve.length) {
-      this.file.push({ x, z, angle, force, alea: Math.random() });
+      this.file.push({ x, z, angle, force, type, alea: Math.random() });
     }
   }
 
@@ -304,7 +380,17 @@ export class Empreintes {
            creuse en s'enfoncant, dont la neige se referme autour. Ce puits
            fait bel et bien vingt-cinq centimetres. Se caler dessus est a la
            fois plus juste et assez large pour que la carte le porte. */
-        const taille = (0.20 + e.force * 0.09) * (0.88 + e.alea * 0.24);
+        /* LA TAILLE DE BASE SUIT LE TYPE, PAS SEULEMENT LA FORCE. Un pied
+           de theropode digitigrade mesure plus de soixante-dix
+           centimetres de long chez un adulte — le rapport avec le sabot
+           d'un cervide (huit a neuf centimetres) est d'environ un a huit,
+           bien plus qu'aucun reglage de `force` ne pourrait a lui seul
+           produire sans devenir absurde pour le cerf. */
+        const estTrex = e.type === 'trex';
+        m.material.map = this.textures[estTrex ? 'trex' : 'sabot'];
+        const taille = estTrex
+          ? (0.62 + e.force * 0.22) * (0.90 + e.alea * 0.20)
+          : (0.20 + e.force * 0.09) * (0.88 + e.alea * 0.24);
         m.visible = true;
         m.position.set(e.x, 0, e.z);
         m.scale.set(taille, taille * (1.30 + e.alea * 0.18), 1);

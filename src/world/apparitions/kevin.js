@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { lueurDiffuse } from '../../core/dot.js';
 import { smoothstep, clamp } from '../../core/noise.js';
 import {
   REPERES, construireCorps, nouvelleInstance, appliquerPose, regarderVers,
 } from '../humanoide.js';
-import { halo } from './communs.js';
+import { halo, buee, majBuee } from './communs.js';
 
 /* ==========================================================================
    8. SEUL A LA MAISON
@@ -198,32 +197,12 @@ function majPorche(porche, t, vis) {
   lueurFenetre.material.opacity = vis * 0.55;
 }
 
-/* --------------------------------------------------------------------------
-   LA BUEE. « Il tremble de froid » etait deja ecrit ici avant cette
+/* LA BUEE — `buee()`/`majBuee()`, importees de `communs.js`. Nee ici
+   (« il tremble de froid » etait deja ecrit dans ce fichier avant cette
    session, mais rien ne le PROUVAIT visuellement — un enfant qui tremble
    sans jamais souffler un nuage, par une nuit visiblement glaciale,
-   contredit ce que la scene raconte deja. Un petit nuage additif, qui
-   nait devant sa bouche et grandit en s'estompant, se redeclenche a un
-   rythme lent et irregulier — jamais un metronome, qui trahirait un
-   souffle artificiel.
-   -------------------------------------------------------------------------- */
-function buee() {
-  const m = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: lueurDiffuse(), transparent: true, opacity: 0,
-    blending: THREE.NormalBlending, depthWrite: false, fog: true,
-  }));
-  m.material.color.setRGB(0.85, 0.88, 0.94);
-  m.scale.setScalar(0.001);
-  return m;
-}
-
-function majBuee(nuage, t, dernierSouffleT, vis) {
-  const dtE = t - dernierSouffleT;
-  if (dtE < 0 || dtE > 1.1) { nuage.material.opacity = 0; return; }
-  const k = dtE / 1.1;
-  nuage.scale.setScalar(0.10 + k * 0.34);
-  nuage.material.opacity = vis * Math.sin(k * Math.PI) * 0.32;
-}
+   contredit ce que la scene raconte deja), puis remontee des que le
+   theropode de Jurassic Park en a eu besoin a son tour. */
 
 let _corpsKevin = null;
 

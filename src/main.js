@@ -152,6 +152,9 @@ async function demarrer() {
      par le shader de neige pour assombrir et creuser la surface. */
   const empreintes = new Empreintes(renderer, palier);
   relief.brancherEmpreintes(empreintes);
+  // Le theropode de Jurassic Park en a besoin pour laisser ses propres
+  // traces — voir `jurassique.js` et le tampon dedie dans `footprints.js`.
+  apparitions.brancherEmpreintes(empreintes);
 
   /* Et la neige qu'il chasse a chaque poser. L'empreinte dit ou il est passe,
      la poudre dit qu'il passe MAINTENANT. */

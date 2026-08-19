@@ -401,3 +401,32 @@ export function majTraineeLame(trainee, armeObj, groupe, actif, pointeLocale, ba
   trainee.geometry.computeBoundingSphere();
   trainee.material.opacity = actif;
 }
+
+/* --------------------------------------------------------------------------
+   LA BUEE.
+
+   Nee avec Kevin (« il tremble de froid » restait une affirmation non
+   prouvee tant qu'aucun souffle visible ne sortait de sa bouche par une
+   nuit visiblement glaciale), puis reprise ici des que le theropode de
+   Jurassic Park en a eu besoin a son tour — la meme regle que partout
+   ailleurs dans ce module. Un petit nuage additif qui nait, grandit puis
+   s'estompe ; `echelle` et `duree` laissent chaque appelant regler
+   l'ampleur du souffle a la taille de qui le pousse — un enfant n'exhale
+   pas comme un theropode de plusieurs tonnes. */
+export function buee(teinte = [0.85, 0.88, 0.94]) {
+  const m = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: lueurDiffuse(), transparent: true, opacity: 0,
+    blending: THREE.NormalBlending, depthWrite: false, fog: true,
+  }));
+  m.material.color.setRGB(teinte[0], teinte[1], teinte[2]);
+  m.scale.setScalar(0.001);
+  return m;
+}
+
+export function majBuee(nuage, t, dernierSouffleT, vis, echelle = 0.34, duree = 1.1) {
+  const dtE = t - dernierSouffleT;
+  if (dtE < 0 || dtE > duree) { nuage.material.opacity = 0; return; }
+  const k = dtE / duree;
+  nuage.scale.setScalar(0.10 + k * echelle);
+  nuage.material.opacity = vis * Math.sin(k * Math.PI) * 0.32;
+}

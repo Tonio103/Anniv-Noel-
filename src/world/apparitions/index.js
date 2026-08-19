@@ -267,6 +267,12 @@ export class Apparitions {
        chemin ; c'est sans consequence, aucune n'est au sol devant le cerf —
        Spider-Man pend en hauteur, le patronus est un fantome, et le duel se
        tient assez loin pour qu'on n'ait pas a le contourner. */
+    /* Le pont vers les empreintes — une fermeture, pas la reference
+       directe : voir `brancherEmpreintes` ci-dessus pour la raison. */
+    const deposerEmpreinte = (x, z, angle, force, type) => {
+      this.empreintes?.ajouter(x, z, angle, force, type);
+    };
+
     /* Les fabriques, indexees par nom. La table des positions vit desormais
        hors de la classe (voir `planApparitions`) parce que la foret doit la
        lire avant de semer ses arbres ; il ne reste ici que ce qui construit
@@ -280,7 +286,7 @@ export class Apparitions {
       patronus: () => patronus(palier),
       spider2: () => spiderBalance(9, palier),
       killbill: () => killBill(palier),
-      trex: () => jurassique(chemin, relief, palier),
+      trex: () => jurassique(chemin, relief, palier, deposerEmpreinte),
       shining: () => shining(palier),
       gargantua: () => trouNoir(relief, chemin),
       delorean: () => traineesDeFeu(26, palier, relief),
@@ -359,6 +365,15 @@ export class Apparitions {
 
   /* Le moteur audio des apparitions, branche une fois le contexte ouvert. */
   brancherSon(son) { this.son = son; }
+
+  /* Les empreintes, sur le meme principe et pour la meme raison : le
+     systeme (`Empreintes`, dans `footprints.js`) est construit APRES les
+     apparitions dans `main.js`, donc `this.empreintes` n'existe pas
+     encore au moment ou `FABRIQUES.trex` capture `deposerEmpreinte` dans
+     son constructeur. La fermeture, elle, ne lit `this.empreintes` qu'au
+     moment ou elle est APPELEE — bien plus tard, une fois le branchement
+     fait — donc l'ordre de construction n'a aucune importance. */
+  brancherEmpreintes(empreintes) { this.empreintes = empreintes; }
 
   /* On ouvre la fenetre BIEN AVANT d'arriver : une apparition qu'on decouvre
      au moment ou on la depasse est deja finie.
