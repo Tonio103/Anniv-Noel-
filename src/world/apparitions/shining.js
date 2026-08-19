@@ -4,7 +4,7 @@ import { smoothstep } from '../../core/noise.js';
 import {
   REPERES, construireCorps, nouvelleInstance, regarderVers, appliquerPose,
 } from '../humanoide.js';
-import { tacheDeSang } from './communs.js';
+import { tacheDeSang, halo, gerbeImpact, majImpact } from './communs.js';
 
 /* ==========================================================================
    3. SHINING
@@ -95,17 +95,93 @@ function ascenseurOverlook() {
   trou.position.set(0, 1.72, 0.09);
   cage.add(trou);
 
-  // Deux vantaux de laiton qui coulissent horizontalement, comme au film.
+  /* LE LAITON NE PEUT PAS RESTER DEUX PLAQUES PLATES. Un ascenseur d'hotel
+     de 1921, aussi entrevu soit-il, se reconnait a son ORNEMENT : des
+     panneaux en relief, des poignees verticales, des rivets aux angles du
+     cadre — rien de tout cela n'ajoute de mouvement, mais chacun ajoute du
+     VOLUME reel, la difference entre un aplat et un objet qu'on pourrait
+     toucher. On construit donc chaque vantail comme un petit assemblage
+     plutot qu'une seule boite. */
   const matPorte = new THREE.MeshStandardMaterial({ color: 0xAD8A47, roughness: 0.30, metalness: 0.80 });
-  const porteD = new THREE.Mesh(new THREE.BoxGeometry(1.08, 3.10, 0.10), matPorte);
-  const porteG = porteD.clone();
+  const matPorteCreux = new THREE.MeshStandardMaterial({ color: 0x8A6C34, roughness: 0.42, metalness: 0.75 });
+  const matRivet = new THREE.MeshStandardMaterial({ color: 0xE8CE86, roughness: 0.22, metalness: 0.88 });
+
+  function vantail() {
+    const v = new THREE.Group();
+    const plaque = new THREE.Mesh(new THREE.BoxGeometry(1.08, 3.10, 0.10), matPorte);
+    v.add(plaque);
+    /* Deux panneaux en creux, comme sur les portes d'ascenseur d'epoque :
+       une plaque legerement plus sombre et plus mate, en LEGER retrait,
+       jamais coplanaire avec le vantail — c'est ce retrait de deux
+       centimetres qui lit comme un panneau embouti plutot qu'un
+       autocollant. */
+    for (const cy of [0.92, -0.92]) {
+      const panneau = new THREE.Mesh(new THREE.BoxGeometry(0.74, 1.28, 0.05), matPorteCreux);
+      panneau.position.set(0, cy, -0.03);
+      v.add(panneau);
+    }
+    // La poignee verticale, sur le bord interieur du vantail.
+    const poignee = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.028, 1.55, 8), matRivet);
+    poignee.position.set(0.46, 0, 0.09);
+    v.add(poignee);
+    for (const cy of [0.66, -0.66]) {
+      const bras = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.03, 0.05), matRivet);
+      bras.position.set(0.40, cy, 0.075);
+      v.add(bras);
+    }
+    return v;
+  }
+  const porteD = vantail();
+  const porteG = vantail();
+  porteG.scale.x = -1; // la poignee doit rester sur le bord interieur
   porteD.position.set(0.54, 1.72, -0.10);
   porteG.position.set(-0.54, 1.72, -0.10);
   cage.add(porteD, porteG);
 
+  /* LES RIVETS DU CADRE. Quatre studs de laiton aux coins de l'ouverture —
+     un detail minuscule, mais c'est le genre de detail qui, en gros plan,
+     separe un decor construit d'un decor suggere. */
+  for (const cx of [-1.18, 1.18]) {
+    for (const cy of [0.35, 3.15]) {
+      const riv = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), matRivet);
+      riv.position.set(cx, cy, 0.10);
+      cadre.add(riv);
+    }
+  }
+
+  /* LES PILASTRES. Deux colonnes fines qui prolongent le cadre vers le
+     haut et s'evasent en un chapiteau simple — la suggestion d'une facade
+     d'hotel plutot qu'un cadre pose seul dans la neige, sans construire
+     un mur entier que personne n'a le temps de regarder. */
+  const matPilastre = new THREE.MeshStandardMaterial({ color: 0x2E2013, roughness: 0.68, metalness: 0.15 });
+  for (const cx of [-1.55, 1.55]) {
+    const fut = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.9, 0.30), matPilastre);
+    fut.position.set(cx, 1.95, 0);
+    cage.add(fut);
+    const chapiteau = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.42), matRivet);
+    chapiteau.position.set(cx, 3.86, 0);
+    cage.add(chapiteau);
+  }
+
+  /* LA LANTERNE D'ETAGE. Un petit hublot au-dessus des portes qui s'allume
+     au moment precis ou la cage acheve sa montee — le « ding » qu'on
+     n'entend jamais mais que l'oeil reconnait quand meme, une fraction de
+     seconde avant que les portes ne commencent a s'ecarter. */
+  const logeLanterne = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.13, 0.13, 0.06, 14),
+    new THREE.MeshStandardMaterial({ color: 0x1C140C, roughness: 0.5, metalness: 0.4 }));
+  logeLanterne.rotation.x = Math.PI / 2;
+  logeLanterne.position.set(0, 3.62, 0.14);
+  cadre.add(logeLanterne);
+  const lanterne = halo([2.4, 2.0, 1.2], 0.55);
+  lanterne.position.set(0, 3.62, 0.20);
+  cadre.add(lanterne);
+
   g.userData.cage = cage;
   g.userData.porteD = porteD;
   g.userData.porteG = porteG;
+  g.userData.lanterne = lanterne;
   return g;
 }
 
@@ -172,6 +248,49 @@ export function shining(palier) {
   flaqueAsc.scale.setScalar(0.4);
   ascenseur.add(flaqueAsc);
 
+  /* LE TAPIS DE L'OVERLOOK, JUSTE AU SEUIL. Pas le motif exact du film —
+     le reproduire en geometrie plate serait un decalque, pas une
+     reference — mais son PRINCIPE : des anneaux concentriques bordeaux et
+     creme, le genre de moquette a motif geometrique qu'aucun autre
+     batiment de cette balade n'a de raison de porter. Il ne s'etend que
+     sous l'ascenseur, jamais sous les jumelles : ce sont elles qui sont
+     REELLEMENT dans la neige, lui qui est une intrusion de l'hotel.
+     Legerement enneige sur les bords (opacite degressive vers l'exterieur)
+     pour qu'il se lise comme un sol qui emerge de la neige plutot qu'un
+     tapis pose dessus. */
+  const tapis = new THREE.Group();
+  const TEINTES_TAPIS = [0x5B0F13, 0xC9A968, 0x4A0C10, 0xB89454];
+  for (let i = 0; i < 4; i++) {
+    const rOut = 1.0 + i * 0.42, rIn = i === 0 ? 0 : 0.58 + i * 0.42;
+    const mat = new THREE.MeshStandardMaterial({
+      color: TEINTES_TAPIS[i], roughness: 0.95, metalness: 0,
+      transparent: true, opacity: 0,
+    });
+    const anneau = i === 0
+      ? new THREE.CircleGeometry(rOut, 24)
+      : new THREE.RingGeometry(rIn, rOut, 24);
+    const m = new THREE.Mesh(anneau, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.renderOrder = 1;
+    tapis.add(m);
+  }
+  tapis.position.set(0, 0.008, -0.85);
+  tapis.scale.set(1.15, 1, 0.85);
+  ascenseur.add(tapis);
+
+  /* LES ECLABOUSSURES AU SOL. Le deluge dessine deja le jaillissement du
+     seuil vers nous ; il lui manquait l'instant de CONTACT — la ou chaque
+     paquet de sang qui retombe fait vraiment gicler ce qu'il touche. Meme
+     fonction que l'impact des lames de Kill Bill et du duel de sabres
+     (`gerbeImpact`/`majImpact`), redeclenchee a intervalle court tant que
+     le deluge coule, exactement comme le grincement de blocage du duel de
+     sabres — un seul jeu de particules, retriggee par simple ecart de
+     temps. */
+  const eclaboussures = gerbeImpact(20, 0x8A0C10, 0.09);
+  eclaboussures.position.set(0, 0.05, -1.4);
+  ascenseur.add(eclaboussures);
+  let dernierEclabT = -999, indexEclab = -1;
+
   g.userData.poser = (relief) => {
     const solIci = relief.hauteur(g.position.x, g.position.z) - g.position.y;
     tache.position.y = solIci + 0.02;
@@ -191,6 +310,7 @@ export function shining(palier) {
   neon.position.set(0, 2.5, -0.2);
   g.add(neon);
 
+  const { lanterne } = ascenseur.userData;
   let clacFait = false;
   g.userData.reinit = () => {
     clacFait = false;
@@ -200,6 +320,10 @@ export function shining(palier) {
     deluge.userData.mat.opacity = 0;
     for (const m of flaqueAsc.userData.taches) m.opacity = 0;
     flaqueAsc.scale.setScalar(0.4);
+    for (const m of tapis.children) m.material.opacity = 0;
+    lanterne.material.opacity = 0;
+    eclaboussures.material.opacity = 0;
+    dernierEclabT = -999; indexEclab = -1;
     g.userData.assombritDyn = 0;
     g.userData.teinteForceDyn = 0;
   };
@@ -239,6 +363,22 @@ export function shining(palier) {
     porteG.position.x = PORTE_G_FERMEE + (PORTE_G_OUVERTE - PORTE_G_FERMEE) * ouvre;
     if (!clacFait && ouvre > 0.97) { clacFait = true; g.userData.emettre?.('choc', 1); }
 
+    /* LA LANTERNE, LE « DING » QU'ON NE ENTEND JAMAIS. Elle s'allume juste
+       apres que la cage a fini de monter et juste avant que les portes ne
+       commencent a bouger — l'oeil recoit l'information une fraction de
+       seconde avant le geste, exactement comme une vraie lanterne
+       d'etage precede le mouvement des portes. */
+    const ding = smoothstep(0.54, 0.585, u) * smoothstep(0.74, 0.62, u);
+    lanterne.material.opacity = vis * ding * 0.9;
+
+    /* LE TAPIS EMERGE AVEC LA CAGE, PAS AVANT. Les anneaux exterieurs
+       restent plus etouffes que le centre — la neige qui grignote le bord
+       d'un tapis qu'on ne devrait pas trouver ici. */
+    const tapisVis = smoothstep(0.42, 0.58, u);
+    tapis.children.forEach((m, i) => {
+      m.material.opacity = vis * tapisVis * Math.max(0.10, 0.40 - i * 0.08);
+    });
+
     /* LE DELUGE. Il jaillit du seuil des portes et coule vers nous — pas
        une explosion instantanee, un FLOT continu tant que l'enveloppe
        reste ouverte. Chaque particule reboucle sur son propre cycle, donc
@@ -256,7 +396,25 @@ export function shining(palier) {
         pos.setXYZ(i, x, y, z);
       }
       pos.needsUpdate = true;
+
+      /* L'ECLABOUSSURE DE CONTACT. Le deluge dit la CHUTE, elle dit l'
+         ARRIVEE — un paquet distinct qui gicle a chaque fraction de
+         seconde tant que le flot coule, jamais a un rythme regulier
+         reconnaissable (le multiplicateur non entier evite qu'elle ne
+         retombe en phase avec le cycle des particules du deluge). Position
+         un peu tiree au hasard a chaque declenchement, comme un vrai jet
+         qui ne touche jamais deux fois le meme point. */
+      const indexEclabCourant = Math.floor(t * 4.3);
+      if (indexEclabCourant !== indexEclab) {
+        indexEclab = indexEclabCourant;
+        dernierEclabT = t;
+        eclaboussures.position.set(
+          (Math.random() - 0.5) * 1.3, 0.05, -0.9 - Math.random() * 1.1);
+      }
     }
+    majImpact(eclaboussures, t - dernierEclabT, {
+      duree: 0.34, plateau: 0.20, portee: 1.5, monte: 1.4, gravite: 5.5, decroissance: 4.2,
+    });
 
     // La mare de l'ascenseur, qui engloutit tout l'espace devant les portes.
     const etaleAsc = smoothstep(0.64, 1.0, u);
