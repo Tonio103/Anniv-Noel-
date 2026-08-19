@@ -267,6 +267,56 @@ export class ApparitionsSon {
   }
 
   /* ======================================================================
+     LE DERAPAGE
+
+     Sur la neige, un derapage ne CRISSE pas comme sur l'asphalte — il
+     CRAQUE et RACLE : la neige tassee qui se dechire sous des pneus qui
+     perdent l'adherence, puis un bref emballement moteur, roues folles,
+     avant que la traction ne revienne. Pas de crissement aigu de film
+     policier urbain : ce monde-ci est entierement fait de neige, et le
+     son doit s'en souvenir — c'est la meme logique qui a donne au pas du
+     T-Rex un craquement plutot qu'un choc sec.
+     ====================================================================== */
+  derapage(nom) {
+    const v = this.voix.get(nom);
+    if (!this.pret || !v) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+
+    // Le raclement : du bruit large, dont le filtre s'effondre vite — la
+    // neige tassee qui se dechire sous les pneus qui glissent de travers.
+    const s = this._bruit(0.6);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(3400, t);
+    f.frequency.exponentialRampToValueAtTime(320, t + 0.42);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.30, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.55);
+    s.connect(f); f.connect(g); g.connect(v.entree);
+    s.stop(t + 0.6);
+
+    // Les roues qui patinent : un grondement qui monte en regime avant de
+    // retomber quand la traction revient — la meme forme qu'un moteur qui
+    // s'emballe, mais bien plus breve.
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70, t);
+    o.frequency.linearRampToValueAtTime(150, t + 0.20);
+    o.frequency.exponentialRampToValueAtTime(55, t + 0.55);
+    const fo = ctx.createBiquadFilter();
+    fo.type = 'lowpass';
+    fo.frequency.setValueAtTime(900, t);
+    fo.frequency.exponentialRampToValueAtTime(260, t + 0.5);
+    const go = ctx.createGain();
+    go.gain.setValueAtTime(0, t);
+    go.gain.linearRampToValueAtTime(0.16, t + 0.05);
+    go.gain.exponentialRampToValueAtTime(0.0006, t + 0.58);
+    o.connect(fo); fo.connect(go); go.connect(v.entree);
+    o.start(t); o.stop(t + 0.6);
+  }
+
+  /* ======================================================================
      LE SCINTILLEMENT DU PATRONUS
 
      Une matiere, pas un evenement : du bruit tres aigu, filtre etroit et
@@ -772,17 +822,34 @@ export class ApparitionsSon {
 
     let c = null;
     if (nom === 'police') {
-      /* DEUX MOTEURS ET UNE SIRENE. Le fuyard tourne plus haut et plus
-         nerveux que la voiture de police : c'est une petite cylindree qui
-         se fait poursuivre par une grosse, et cet ecart de hauteur suffit a
-         faire entendre qu'ils sont deux. */
+      /* DEUX OU TROIS MOTEURS ET UNE SIRENE. Le fuyard tourne plus haut et
+         plus nerveux que la voiture de tete : c'est une petite cylindree
+         qui se fait poursuivre par une grosse, et cet ecart de hauteur
+         suffit a faire entendre qu'ils sont deux.
+
+         LE RENFORT N'EXISTE QUE SI LA SCENE LE MONTRE. `police.js` ecrit
+         `renfortActif` sur son propre objet — c'est le seul palier bas qui
+         l'omet — et c'est ce drapeau, pas un troisieme oscillateur
+         construit d'office, qui decide s'il faut lui donner une voix.
+         Construire un moteur qu'aucune image ne viendra jamais piloter via
+         `regler()` le laisserait bourdonner en continu a son volume
+         initial : un bruit de fond que personne n'a demande. */
       const sir = this._sirene(v.entree);
       const mPolice = this._moteur(v.entree, { base: 40, volume: 0.085 });
       const mFuyard = this._moteur(v.entree, { base: 58, volume: 0.070 });
+      const moteurs = [mPolice, mFuyard];
+      const noeuds = [...sir.noeuds, ...mPolice.noeuds, ...mFuyard.noeuds];
+      const gains = [sir.gain, mPolice.gain, mFuyard.gain];
+      if (objet?.userData?.renfortActif) {
+        // Legerement plus grave que la tete : un vehicule plus lourd,
+        // charge du materiel d'intervention, qui suit sans forcer.
+        const mRenfort = this._moteur(v.entree, { base: 34, volume: 0.062 });
+        moteurs.push(mRenfort);
+        noeuds.push(...mRenfort.noeuds);
+        gains.push(mRenfort.gain);
+      }
       c = {
-        noeuds: [...sir.noeuds, ...mPolice.noeuds, ...mFuyard.noeuds],
-        gains: [sir.gain, mPolice.gain, mFuyard.gain],
-        moteurs: [mPolice, mFuyard],
+        noeuds, gains, moteurs,
       };
     } else if (nom === 'delorean') {
       /* Un seul moteur, tres tendu, et le crepitement du condensateur qui

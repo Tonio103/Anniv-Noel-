@@ -32,7 +32,7 @@
 
 import * as THREE from 'three';
 import { smoothstep, clamp } from '../../core/noise.js';
-import { coursePoursuite } from '../vehicules.js';
+import { coursePoursuite } from './police.js';
 import { spiderSuspendu } from './spider1.js';
 import { spiderBalance } from './spider2.js';
 import { etDevantLaLune } from './et.js';

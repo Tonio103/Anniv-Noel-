@@ -33,7 +33,7 @@ déclencher avant que la séquence de fin ne prenne la main.
 ## Mécanique commune
 
 Toutes les apparitions passent par la même classe `Apparitions` dans
-`src/world/apparitions.js` : `planApparitions(L)` fixe leur position et la
+`src/world/apparitions/index.js` : `planApparitions(L)` fixe leur position et la
 taille de leur fenêtre (`avant`/`apres`, en mètres, avant/après l'ancrage),
 `Apparitions.maj()` les fait apparaître/disparaître, gère l'arrêt du cerf,
 tire la caméra vers l'action (`drone.regarder`), et relit les hooks

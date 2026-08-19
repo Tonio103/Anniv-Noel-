@@ -128,7 +128,7 @@ for (const a of liste) {
       s.drone.maj(1 / 60, T0 + i / 60, s.cerf);
       s.relief.maj(s.camera, s.ciel.actuel);
       s.foret.maj(s.camera);
-      s.apparitions.maj(1 / 60, T0 + i / 60, cible, s.camera);
+      s.apparitions.maj(1 / 60, T0 + i / 60, s.cerf, s.camera, null, null, null);
     }
 
     // Est-elle effectivement dans le champ de la camera ?
