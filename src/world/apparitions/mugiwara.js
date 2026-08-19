@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { grainRond } from '../../core/dot.js';
 import { smoothstep, clamp } from '../../core/noise.js';
 import {
   construireCorps, nouvelleInstance, appliquerPose, regarderVers,
 } from '../humanoide.js';
-import { halo, ondeChoc, majOndeChoc } from './communs.js';
+import {
+  halo, ondeChoc, majOndeChoc, gerbeImpact, majImpact,
+} from './communs.js';
 
 /* ==========================================================================
    MUGIWARA — UN CLIN D'OEIL A ONE PIECE, PAS AU CINEMA CETTE FOIS.
@@ -262,57 +263,19 @@ function majTrainee(trainee, poingPos, intensite) {
   }
 }
 
-/* --------------------------------------------------------------------------
-   LA GERBE D'IMPACT.
+/* LA GERBE D'IMPACT — `gerbeImpact()`/`majImpact()`, importees de
+   `communs.js`. Nee ici (le poing qui gicle de la glace/poudreuse a
+   l'impact, meme technique que la gerbe de debris de la course-poursuite
+   de police ou l'embardee du moineau chez Spider-Man), puis remontee au
+   moment ou le duel de sabres en a eu besoin a son tour, avec ses propres
+   couleurs et sa propre echelle (des etincelles, pas des eclats de
+   glace).
 
-   Meme technique que la gerbe de debris de la course-poursuite de police
-   ou celle de l'embardee du moineau chez Spider-Man : un eclatement
-   UNIQUE de points, positions tirees une fois, rejouees en fonction du
-   temps ecoule depuis le declenchement. Ici, ce n'est pas de la neige qui
-   gicle d'un obstacle mais de la glace/poudreuse projetee par le choc du
-   poing lui-meme — un cercle de particules qui part du point d'impact
-   dans toutes les directions, plutot qu'en parabole vers le bas comme une
-   gerbe de roue.
-
-   LA MEME GERBE SERT AUX QUATRE DECLENCHEURS DE LA SCENE (l'arrivee, les
-   deux gros coups, chacun des coups de la rafale) : elle se REPOSITIONNE
-   a chaque declenchement plutot que d'exister en plusieurs exemplaires,
-   puisqu'aucun des evenements ne chevauche un autre dans le temps — voir
-   les fenetres de `jouer()` plus bas. */
-function gerbeImpact(n) {
-  const pos = new Float32Array(n * 3);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.PointsMaterial({
-    map: grainRond(), alphaTest: 0.02, color: 0xEEF4FC, size: 0.06,
-    transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true,
-  });
-  const pts = new THREE.Points(geo, mat);
-  pts.frustumCulled = false;
-  // Presque toutes dans le plan de l'impact, avec juste assez de derive en
-  // profondeur pour que l'eclatement ait une epaisseur plutot qu'un disque.
-  const dirs = Array.from({ length: n }, () => {
-    const a = Math.random() * Math.PI * 2;
-    return [Math.cos(a), Math.sin(a) * 0.7 + 0.3, (Math.random() - 0.5) * 0.6];
-  });
-  pts.userData = { dirs, n };
-  return pts;
-}
-
-function majImpact(pts, dtE) {
-  if (dtE < 0 || dtE > 0.55) { pts.material.opacity = 0; return; }
-  const { dirs, n } = pts.userData;
-  const pos = pts.geometry.attributes.position.array;
-  for (let i = 0; i < n; i++) {
-    const [dx, dy, dz] = dirs[i];
-    const vol = Math.min(dtE, 0.45);
-    pos[i * 3] = dx * vol * 5.5;
-    pos[i * 3 + 1] = dy * vol * 5.0 - dtE * dtE * 3.0;
-    pos[i * 3 + 2] = dz * vol * 5.5;
-  }
-  pts.geometry.attributes.position.needsUpdate = true;
-  pts.material.opacity = Math.max(0, 1 - dtE * 2.0);
-}
+   LA MEME GERBE SERT AUX QUATRE DECLENCHEURS DE CETTE SCENE (l'arrivee,
+   les deux gros coups, chacun des coups de la rafale) : elle se
+   REPOSITIONNE a chaque declenchement plutot que d'exister en plusieurs
+   exemplaires, puisqu'aucun des evenements ne chevauche un autre dans le
+   temps — voir les fenetres de `jouer()` plus bas. */
 
 /* L'ONDE DE CHOC AU SOL — `ondeChoc()`/`majOndeChoc()`, importees de
    `communs.js`. Nee ici (un anneau additif qui nait sous les pieds du

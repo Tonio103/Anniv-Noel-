@@ -67,12 +67,13 @@ membre étiré.
   `chapeauPaille()`, `detailCostume(os)` (nouveau), `busteElastique(couleur)`
   (tube désormais ondulé), `tendreElastique(el, origine, cible)`,
   `traineeElastique(n, couleur)`/`majTrainee(...)` (nouveau),
-  `gerbeImpact(n)`/`majImpact(...)`, `ondeChoc()`/`majOndeChoc(...)`
-  (nouveau), `denDenMushi()`/`majDenDenMushi(...)` (nouveau),
+  `denDenMushi()`/`majDenDenMushi(...)` (nouveau),
   `monticuleNeige(rayon)` (nouveau), `teinteLuffy(...)`
 - `src/world/apparitions/communs.js` — `halo(...)`, réutilisé tel quel
-  pour la montée en puissance ; rien n'y a été ajouté, c'est un
-  consommateur de plus d'un helper déjà partagé
+  pour la montée en puissance ; `gerbeImpact(n)`/`majImpact(...)` et
+  `ondeChoc()`/`majOndeChoc(...)`, nées dans ce fichier puis remontées ici
+  dès que Kill Bill (et, pour la seconde, le duel de sabres) en ont eu
+  besoin à leur tour — voir `killbill.md`/`sabres.md`
 
 ## Comment marche le bras élastique
 

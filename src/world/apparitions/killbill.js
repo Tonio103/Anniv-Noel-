@@ -4,7 +4,9 @@ import { smoothstep, clamp } from '../../core/noise.js';
 import {
   REPERES, construireCorps, nouvelleInstance, piste, regarderVers, appliquerPose,
 } from '../humanoide.js';
-import { tacheDeSang, ondeChoc, majOndeChoc } from './communs.js';
+import {
+  tacheDeSang, ondeChoc, majOndeChoc, traineeLame, majTraineeLame,
+} from './communs.js';
 
 /* ==========================================================================
    2. KILL BILL
@@ -20,6 +22,11 @@ import { tacheDeSang, ondeChoc, majOndeChoc } from './communs.js';
    ========================================================================== */
 const JAUNE = new THREE.Color(0xC9A215);
 const NOIR = new THREE.Color(0x0B0C10);
+
+// Les deux points, en repere local du katana, entre lesquels la traine de
+// lame se tend — voir `traineeLame`/`majTraineeLame` dans communs.js.
+const POINTE_KATANA = new THREE.Vector3(0.028, 0.70, 0);
+const BASE_KATANA = new THREE.Vector3(0, -0.02, 0);
 
 function teinteKillBill(x, y, z, c, os, nx, ny, nz) {
   // Les chaussures, jaunes elles aussi mais plus sombres.
@@ -284,91 +291,11 @@ function fontaineDeSang() {
   return pts;
 }
 
-/* --------------------------------------------------------------------------
-   LA TRAINEE DE LAME.
-
-   Un katana qui balaie l'ecran en trois images, dessine plein a chaque
-   image, se lit comme une arme qui TELEPORTE d'une pose a l'autre — le
-   defaut classique d'une animation trop rapide pour sa cadence
-   d'echantillonnage. Le cinema de sabre resout ca depuis toujours avec un
-   arc de lumiere qui trace le passage de la lame : c'est exactement ce
-   qu'on reconstruit ici, en ruban dynamique plutot qu'en simple traine de
-   points — une lame est un plan, pas un nuage, et un ruban qui relie
-   POINTE et GARDE a chaque echantillon en respecte la forme.
-
-   La geometrie est rebatie chaque image (position ET couleur), avec une
-   plage de dessin (`setDrawRange`) qui grandit progressivement tant que
-   l'historique n'est pas encore plein — sans ca, les tout premiers
-   instants du coup afficheraient un ruban degenere, tire vers l'origine. */
-function traineeLame(n) {
-  const pos = new Float32Array(n * 2 * 3);
-  const col = new Float32Array(n * 2 * 3);
-  const idx = [];
-  for (let i = 0; i < n - 1; i++) {
-    const a = i * 2, b = a + 2;
-    idx.push(a, b, a + 1, a + 1, b, b + 1);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.setIndex(idx);
-  geo.setDrawRange(0, 0);
-  const mat = new THREE.MeshBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true,
-  });
-  const m = new THREE.Mesh(geo, mat);
-  m.frustumCulled = false;
-  const pointes = Array.from({ length: n }, () => new THREE.Vector3());
-  const gardes = Array.from({ length: n }, () => new THREE.Vector3());
-  m.userData = { pointes, gardes, n, remplis: 0 };
-  return m;
-}
-
-const _pointeLocale = new THREE.Vector3();
-const _gardeLocale = new THREE.Vector3();
-
-/* Echantillonne la pointe et la garde de LA LAME REELLE — pas une
-   trajectoire synthetisee — via sa matrice monde du jour, convertie dans
-   le repere de la scene englobante (`groupe`, qui ne bouge jamais une
-   fois posee : un seul aller-retour de matrices suffit donc, pas de cache
-   a invalider). `sabreObj.updateWorldMatrix(true, false)` force la mise a
-   jour de cette seule branche avant lecture : sans lui, la matrice lue
-   serait celle de l'image PRECEDENTE, puisque three.js ne recalcule les
-   matrices du monde qu'a l'interieur de `renderer.render()`, apres que ce
-   code a deja tourne. */
-function majTraineeLame(trainee, sabreObj, groupe, actif) {
-  const { pointes, gardes, n } = trainee.userData;
-  for (let i = n - 1; i > 0; i--) {
-    pointes[i].copy(pointes[i - 1]);
-    gardes[i].copy(gardes[i - 1]);
-  }
-  sabreObj.updateWorldMatrix(true, false);
-  _pointeLocale.set(0.028, 0.70, 0).applyMatrix4(sabreObj.matrixWorld);
-  groupe.worldToLocal(_pointeLocale);
-  pointes[0].copy(_pointeLocale);
-  _gardeLocale.set(0, -0.02, 0).applyMatrix4(sabreObj.matrixWorld);
-  groupe.worldToLocal(_gardeLocale);
-  gardes[0].copy(_gardeLocale);
-  trainee.userData.remplis = Math.min(n, trainee.userData.remplis + 1);
-
-  const pos = trainee.geometry.attributes.position.array;
-  const col = trainee.geometry.attributes.color.array;
-  for (let i = 0; i < n; i++) {
-    const o = i * 6;
-    pos[o] = pointes[i].x; pos[o + 1] = pointes[i].y; pos[o + 2] = pointes[i].z;
-    pos[o + 3] = gardes[i].x; pos[o + 4] = gardes[i].y; pos[o + 5] = gardes[i].z;
-    const age = i / (n - 1);
-    const inten = actif * (1 - age) * (1 - age);
-    col[o] = col[o + 1] = col[o + 2] = inten;
-    col[o + 3] = col[o + 4] = col[o + 5] = inten;
-  }
-  trainee.geometry.attributes.position.needsUpdate = true;
-  trainee.geometry.attributes.color.needsUpdate = true;
-  trainee.geometry.setDrawRange(0, Math.max(0, (Math.min(n, trainee.userData.remplis) - 1) * 6));
-  trainee.geometry.computeBoundingSphere();
-  trainee.material.opacity = actif;
-}
+/* LA TRAINEE DE LAME — `traineeLame()`/`majTraineeLame()`, importees de
+   `communs.js`. Nee ici (un katana qui balaie l'ecran en trois images se
+   lit comme une arme qui TELEPORTE d'une pose a l'autre), puis remontee
+   au moment ou le duel de sabres en a eu besoin a son tour, pour la meme
+   raison. */
 
 let _corpsKB = null;
 
@@ -662,7 +589,7 @@ export function killBill(palier) {
        en dehors, la garde et les temps morts ne meritent aucune trace. */
     const balayage1 = smoothstep(0.27, 0.305, u) * smoothstep(0.41, 0.345, u);
     const balayage2 = smoothstep(0.375, 0.40, u) * smoothstep(0.49, 0.425, u);
-    majTraineeLame(trainee, sabre, g, Math.max(balayage1, balayage2));
+    majTraineeLame(trainee, sabre, g, Math.max(balayage1, balayage2), POINTE_KATANA, BASE_KATANA);
 
     /* LES DEUX COUPS. Chacun declenche sa propre gerbe, une seule fois, au
        moment exact ou la lame de `sequence` touche (voir les temps cles

@@ -53,12 +53,14 @@ d'au moins mille lignes ET que « ça doit être dingue visuellement » :
 - `src/world/apparitions/killbill.js` — `katana()` (habaki/seppa/menuki/
   pommeau ajoutés), `adversaireMasque(palier)` (brandit et expose son
   propre sabre via `g.userData.sabre`), `teinteMasque(...)`,
-  `traineeLame(n)`/`majTraineeLame(...)` (nouveau), `gerbeDeSang(N)`,
-  `fontaineDeSang()`, `killBill(palier)` (choréographie de la chute
-  d'arme, déclenchement de l'onde de choc et de la traînée de lame)
+  `gerbeDeSang(N)`, `fontaineDeSang()`, `killBill(palier)`
+  (choréographie de la chute d'arme, déclenchement de l'onde de choc et
+  de la traînée de lame)
 - `src/world/apparitions/communs.js` — `ondeChoc(...)`/`majOndeChoc(...)`
-  (déplacées ici depuis `mugiwara.js` cette session, désormais partagées
-  entre les deux scènes)
+  (déplacées ici depuis `mugiwara.js` le temps de ce commit, désormais
+  partagées entre les deux scènes), `traineeLame(n)`/`majTraineeLame(...)`
+  (nées ici, remontées à leur tour dès que le duel de sabres en a eu
+  besoin — voir `sabres.md`)
 
 ## Comment marche la traînée de lame
 

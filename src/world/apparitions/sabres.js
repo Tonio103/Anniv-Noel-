@@ -3,7 +3,10 @@ import { lueurDiffuse } from '../../core/dot.js';
 import { smoothstep } from '../../core/noise.js';
 import { creerDuelliste, GARDES, ECHANGES } from '../encapuchonne.js';
 import { piste } from '../humanoide.js';
-import { halo, flaque, epouserLeSol } from './communs.js';
+import {
+  halo, flaque, epouserLeSol, ondeChoc, majOndeChoc, gerbeImpact, majImpact,
+  traineeLame, majTraineeLame,
+} from './communs.js';
 
 /* ==========================================================================
    4. LE DUEL DE SABRES
@@ -135,6 +138,48 @@ export function duelSabres(palier) {
   gauche.userData.os.mainD.add(vert);
   droite.userData.os.mainD.add(rouge);
 
+  /* LES TRAINEES DE LAME. A vingt-cinq metres et de nuit, deux sabres qui
+     changent de pose en trois images se lisaient comme des batons qui
+     sautent d'un angle a l'autre plutot que comme des lames qui balaient
+     l'air. Meme technique que Kill Bill (voir `traineeLame` dans
+     communs.js), une par duelliste. */
+  const POINTE_LAME = new THREE.Vector3(0, 1.27, 0);
+  const BASE_LAME = new THREE.Vector3(0, 0, 0);
+  const traineeVert = traineeLame(8);
+  const traineeRouge = traineeLame(8);
+  g.add(traineeVert, traineeRouge);
+
+  /* LES ETINCELLES DU CHOC. Deux lames qui se heurtent projettent de la
+     lumiere, pas de la matiere — des grains blanc-bleu, minuscules et
+     tres rapides, bien differents des eclats de glace de Mugiwara ou du
+     sang de Kill Bill. Meme fonction partagee (`gerbeImpact`), juste
+     reparametree. */
+  const etincellesClash = gerbeImpact(28, 0xEAF6FF, 0.05);
+  etincellesClash.position.set(0, 1.55, 0);
+  g.add(etincellesClash);
+
+  // L'onde de choc au sol, sous le point de contact des lames.
+  const ondeClash = ondeChoc(0xD8ECFF, 0.30, 0.13);
+  ondeClash.position.set(0, 0.04, 0);
+  g.add(ondeClash);
+  let clashT = -999;
+
+  /* LE CORPS A CORPS. Antoine, en commentaire deja present dans ce
+     fichier avant cette session : « c'est le temps fort de toute scene
+     d'escrime au cinema ». Un seul eclat au contact suffit pour un coup
+     qui touche et repart ; le blocage, lui, DURE — les deux lames
+     restent pressees l'une contre l'autre pendant plus d'une demi-passe.
+     Une deuxieme gerbe, plus fine, se redeclenche donc a un rythme rapide
+     pendant tout le blocage : le grincement lumineux classique de deux
+     lames qui glissent l'une contre l'autre sans se separer, plutot
+     qu'un unique eclat qui s'eteindrait bien avant la fin du blocage. */
+  const indexBlocage = ECHANGES.findIndex((e) => e.attaquant.includes('blocage'));
+  const etincellesBlocage = gerbeImpact(14, 0xFFF6E0, 0.035);
+  etincellesBlocage.position.set(0, 1.55, 0);
+  g.add(etincellesBlocage);
+  let blocageT = -999;
+  let dernierMicroEclat = -1;
+
   /* LES ECHANGES CHANGENT D'UNE PASSE A L'AUTRE.
 
      Antoine : « toujours la meme attaque de sabre ». C'etait exact — une
@@ -182,6 +227,21 @@ export function duelSabres(palier) {
      choc sonore QU'UNE FOIS par passe. Le pic dure cinq images environ, et
      sans ce garde-fou on entendrait cinq chocs colles bout a bout. */
   let dernierePasse = -1;
+  g.userData.reinit = () => {
+    dernierePasse = -1;
+    clashT = -999;
+    etincellesClash.material.opacity = 0;
+    ondeClash.material.opacity = 0;
+    traineeVert.material.opacity = 0;
+    traineeVert.userData.remplis = 0;
+    traineeVert.geometry.setDrawRange(0, 0);
+    traineeRouge.material.opacity = 0;
+    traineeRouge.userData.remplis = 0;
+    traineeRouge.geometry.setDrawRange(0, 0);
+    blocageT = -999;
+    dernierMicroEclat = -1;
+    etincellesBlocage.material.opacity = 0;
+  };
 
   g.userData.jouer = (u, t) => {
     const vis = smoothstep(0, 0.10, u) * smoothstep(1, 0.88, u);
@@ -195,8 +255,12 @@ export function duelSabres(palier) {
     if (choc > 0.55 && numero !== dernierePasse) {
       dernierePasse = numero;
       // Le son part au moment ou les lames se touchent, pas avant.
-      if (vis > 0.2) g.userData.emettre?.('choc');
+      if (vis > 0.2) { g.userData.emettre?.('choc'); clashT = t; }
     }
+    majImpact(etincellesClash, t - clashT, {
+      duree: 0.22, plateau: 0.16, portee: 3.2, monte: 2.4, gravite: 5.0, decroissance: 5.5,
+    });
+    majOndeChoc(ondeClash, t - clashT, 0.32);
 
     /* LE PAS. Un duelliste avance sur la passe et recule apres : c'est ce
        deplacement du CORPS qui fait la difference entre un combat et deux
@@ -216,10 +280,31 @@ export function duelSabres(palier) {
        ET C'EST UN ECHANGE DIFFERENT A CHAQUE FOIS. On alterne aussi QUI
        attaque : sans cela, l'un porterait tous les coups et l'autre ne
        ferait que reculer, ce qui n'est pas un duel mais une correction. */
-    const choix = pistes[((numero % pistes.length) + pistes.length) % pistes.length];
+    const indexEchange = ((numero % pistes.length) + pistes.length) % pistes.length;
+    const choix = pistes[indexEchange];
     const gaucheAttaque = (numero & 1) === 0;
     (gaucheAttaque ? choix.attaquant : choix.pare)(gauche.userData.os, passe);
     (gaucheAttaque ? choix.pare : choix.attaquant)(droite.userData.os, passe);
+
+    /* LE GRINCEMENT DU BLOCAGE. Actif seulement pendant l'echange « corps
+       a corps » (voir plus haut), et seulement pendant le coeur de sa
+       tenue — entre les deux temps `blocage` de la piste (0,40 a 0,56 en
+       temps de passe normalise, voir `tempsCles` dans encapuchonne.js).
+       Une micro-gerbe se redeclenche a un rythme rapide et fixe : c'est
+       ce redeclenchement, plus que l'intensite d'un seul eclat, qui fait
+       « grincement continu » plutot que « deuxieme etincelle ». */
+    if (indexEchange === indexBlocage && passe > 0.40 && passe < 0.58) {
+      const indexMicro = Math.floor(t * 22);
+      if (indexMicro !== dernierMicroEclat) {
+        dernierMicroEclat = indexMicro;
+        blocageT = t;
+        etincellesBlocage.position.set(
+          (Math.random() - 0.5) * 0.10, 1.55 + (Math.random() - 0.5) * 0.10, 0);
+      }
+    }
+    majImpact(etincellesBlocage, t - blocageT, {
+      duree: 0.10, plateau: 0.08, portee: 1.6, monte: 1.2, gravite: 6.0, decroissance: 9.0,
+    });
 
     /* La cape suit le mouvement avec un temps de retard — un tissu lourd ne
        part jamais en meme temps que le corps qui le porte. */
@@ -235,6 +320,15 @@ export function duelSabres(palier) {
     for (const h of vert.userData.halos) h.material.opacity = vis * eclatLame;
     for (const h of rouge.userData.halos) h.material.opacity = vis * eclatLame;
     eclat.material.opacity = vis * choc * 0.9;
+
+    /* LES TRAINEES. Toujours un peu presentes (une lame de sabre laser
+       n'est jamais tout a fait immobile), et bien plus marquees pendant
+       l'engagement — c'est le meme `choc` qui pilote deja l'eclat des
+       halos et la palpitation des flaques, reutilise ici pour la meme
+       raison : c'est lui qui dit a quel point la passe est vive. */
+    const actifTrainee = vis * (0.22 + choc * 0.78);
+    majTraineeLame(traineeVert, vert, g, actifTrainee, POINTE_LAME, BASE_LAME);
+    majTraineeLame(traineeRouge, rouge, g, actifTrainee, POINTE_LAME, BASE_LAME);
 
     /* Les flaques palpitent avec l'echange : au contact, tout le sous-bois
        s'allume d'un coup. */

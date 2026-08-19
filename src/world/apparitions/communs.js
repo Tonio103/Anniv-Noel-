@@ -7,7 +7,7 @@
 */
 
 import * as THREE from 'three';
-import { lueurDiffuse, tacheDouce } from '../../core/dot.js';
+import { lueurDiffuse, tacheDouce, grainRond } from '../../core/dot.js';
 
 /* Un halo, l'element de base de presque toutes ces scenes : c'est lui qui
    porte a distance, bien plus que la geometrie. */
@@ -264,4 +264,140 @@ export function majOndeChoc(onde, dtE, duree = 0.5) {
   const echelle = 1 + Math.sqrt(k) * 7;
   onde.scale.set(echelle, 1, echelle);
   onde.material.opacity = (1 - k) * 0.5;
+}
+
+/* --------------------------------------------------------------------------
+   LA GERBE D'IMPACT.
+
+   Nee avec Mugiwara (le poing qui gicle de la glace/poudreuse a l'impact),
+   puis reprise ici des que le duel de sabres en a eu besoin a son tour —
+   la meme regle que l'onde de choc ci-dessus. Un eclatement UNIQUE de
+   points, positions tirees une fois, rejouees en fonction du temps ecoule
+   depuis le declenchement — un cercle de particules qui part du point
+   d'impact dans toutes les directions, plutot qu'en parabole vers le bas
+   comme une gerbe de roue.
+
+   Les couleurs et l'echelle par defaut sont celles de Mugiwara ; le duel
+   de sabres passe ses propres valeurs (des etincelles bien plus petites
+   et bien plus rapides qu'un poing qui frappe la glace). */
+export function gerbeImpact(n, couleur = 0xEEF4FC, taille = 0.06) {
+  const pos = new Float32Array(n * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    map: grainRond(), alphaTest: 0.02, color: couleur, size: taille,
+    transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  // Presque toutes dans le plan de l'impact, avec juste assez de derive en
+  // profondeur pour que l'eclatement ait une epaisseur plutot qu'un disque.
+  const dirs = Array.from({ length: n }, () => {
+    const a = Math.random() * Math.PI * 2;
+    return [Math.cos(a), Math.sin(a) * 0.7 + 0.3, (Math.random() - 0.5) * 0.6];
+  });
+  pts.userData = { dirs, n };
+  return pts;
+}
+
+export function majImpact(pts, dtE, opts = {}) {
+  const {
+    duree = 0.55, plateau = 0.45, portee = 5.5, monte = 5.0,
+    gravite = 3.0, decroissance = 2.0,
+  } = opts;
+  if (dtE < 0 || dtE > duree) { pts.material.opacity = 0; return; }
+  const { dirs, n } = pts.userData;
+  const pos = pts.geometry.attributes.position.array;
+  for (let i = 0; i < n; i++) {
+    const [dx, dy, dz] = dirs[i];
+    const vol = Math.min(dtE, plateau);
+    pos[i * 3] = dx * vol * portee;
+    pos[i * 3 + 1] = dy * vol * monte - dtE * dtE * gravite;
+    pos[i * 3 + 2] = dz * vol * portee;
+  }
+  pts.geometry.attributes.position.needsUpdate = true;
+  pts.material.opacity = Math.max(0, 1 - dtE * decroissance);
+}
+
+/* --------------------------------------------------------------------------
+   LA TRAINEE DE LAME.
+
+   Nee avec Kill Bill (un katana qui balaie l'ecran en trois images se lit
+   comme une arme qui teleporte d'une pose a l'autre), puis reprise ici
+   des que le duel de sabres en a eu besoin a son tour. Un ruban dynamique
+   qui echantillonne la POINTE et la BASE reelles de l'arme chaque image
+   — pas une trajectoire synthetisee — et les relie en un arc lumineux qui
+   s'efface avec l'age : la signature visuelle classique du cinema
+   d'escrime, quelle que soit l'arme.
+
+   `pointeLocale`/`baseLocale` sont les deux points fixes, en repere local
+   de l'arme, entre lesquels le ruban se tend — la pointe et la garde d'un
+   katana, la pointe et la garde d'un sabre laser : chaque appelant les
+   choisit, rien d'autre ne change. */
+export function traineeLame(n) {
+  const pos = new Float32Array(n * 2 * 3);
+  const col = new Float32Array(n * 2 * 3);
+  const idx = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2, b = a + 2;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.setDrawRange(0, 0);
+  const mat = new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.frustumCulled = false;
+  const pointes = Array.from({ length: n }, () => new THREE.Vector3());
+  const gardes = Array.from({ length: n }, () => new THREE.Vector3());
+  m.userData = { pointes, gardes, n, remplis: 0 };
+  return m;
+}
+
+const _pointeLocale = new THREE.Vector3();
+const _gardeLocale = new THREE.Vector3();
+
+/* `armeObj.updateWorldMatrix(true, false)` force la mise a jour de cette
+   seule branche avant lecture : sans lui, la matrice lue serait celle de
+   l'image PRECEDENTE, puisque three.js ne recalcule les matrices du
+   monde qu'a l'interieur de `renderer.render()`, apres que ce code a deja
+   tourne. `groupe` est la scene englobante — fixe une fois la scene
+   posee, donc un seul aller-retour de matrices suffit, pas de cache a
+   invalider. */
+export function majTraineeLame(trainee, armeObj, groupe, actif, pointeLocale, baseLocale) {
+  const { pointes, gardes, n } = trainee.userData;
+  for (let i = n - 1; i > 0; i--) {
+    pointes[i].copy(pointes[i - 1]);
+    gardes[i].copy(gardes[i - 1]);
+  }
+  armeObj.updateWorldMatrix(true, false);
+  _pointeLocale.copy(pointeLocale).applyMatrix4(armeObj.matrixWorld);
+  groupe.worldToLocal(_pointeLocale);
+  pointes[0].copy(_pointeLocale);
+  _gardeLocale.copy(baseLocale).applyMatrix4(armeObj.matrixWorld);
+  groupe.worldToLocal(_gardeLocale);
+  gardes[0].copy(_gardeLocale);
+  trainee.userData.remplis = Math.min(n, trainee.userData.remplis + 1);
+
+  const pos = trainee.geometry.attributes.position.array;
+  const col = trainee.geometry.attributes.color.array;
+  for (let i = 0; i < n; i++) {
+    const o = i * 6;
+    pos[o] = pointes[i].x; pos[o + 1] = pointes[i].y; pos[o + 2] = pointes[i].z;
+    pos[o + 3] = gardes[i].x; pos[o + 4] = gardes[i].y; pos[o + 5] = gardes[i].z;
+    const age = i / (n - 1);
+    const inten = actif * (1 - age) * (1 - age);
+    col[o] = col[o + 1] = col[o + 2] = inten;
+    col[o + 3] = col[o + 4] = col[o + 5] = inten;
+  }
+  trainee.geometry.attributes.position.needsUpdate = true;
+  trainee.geometry.attributes.color.needsUpdate = true;
+  trainee.geometry.setDrawRange(0, Math.max(0, (Math.min(n, trainee.userData.remplis) - 1) * 6));
+  trainee.geometry.computeBoundingSphere();
+  trainee.material.opacity = actif;
 }
