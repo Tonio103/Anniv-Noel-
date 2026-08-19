@@ -93,7 +93,15 @@ export function planApparitions(L) {
     /* MUGIWARA, GLISSE DANS LE COURT INTERVALLE ENTRE SPIDER1 ET KILL BILL.
        Une fenetre volontairement breve — on ne le voit pas arriver, on
        tombe sur lui — meme logique que Shining plus loin sur le parcours. */
-    { nom: 'mugiwara',  s: L * 0.2212, cote: -1, ecart: 4.0, avant: 8, apres: 5, degage: 5.5 },
+    /* ECART REDUIT DE 4,0 A 3,1 — « BORD » AU BANC DE CADRAGE.
+       A 4,0 m, l'ancrage du personnage tombait a x=-0.78 a l'ecran au
+       point de mesure (milieu de fenetre), juste au-dela du seuil de
+       0,75 : visible, dans le champ, mais frolant le bord gauche plutot
+       que lu confortablement. La scene ne suit pas le chemin (elle est
+       fixe, comme Kill Bill juste apres), donc son cadrage ne beneficie
+       d'aucun rattrapage dynamique — le seul levier est la distance
+       laterale au chemin elle-meme. */
+    { nom: 'mugiwara',  s: L * 0.2212, cote: -1, ecart: 3.1, avant: 8, apres: 5, degage: 5.5 },
     { nom: 'killbill',  s: L * 0.28, cote: -1, ecart: 4.0, avant: 32, apres: 12, tourne: 0.3, degage: 5.0 },
     { nom: 'et',        s: L * 0.36, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
     { nom: 'sabres',    s: L * 0.44, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5, assombrit: 1 },
