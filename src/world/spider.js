@@ -1,8 +1,8 @@
 /* SPIDER-MAN.
 
-   Il apparait trois fois dans la balade — c'est le seul a qui ce projet
-   accorde ce privilege, et c'est assume : Antoine dit qu'il l'aime beaucoup.
-   Il merite donc d'etre le personnage le mieux fait du fichier.
+   Il apparait deux fois dans la balade — c'est le seul personnage a qui ce
+   projet accorde ce privilege, et c'est assume : Antoine dit qu'il l'aime
+   beaucoup. Il merite donc d'etre le personnage le mieux fait du fichier.
 
    Le corps vient de `humanoide.js` : une seule peau continue extraite d'un
    champ implicite, avec de vrais deltoides, de vrais mollets et un
@@ -225,7 +225,7 @@ function lentille(rayon, couleur, basique) {
 
 function poserYeux(os) {
   const tete = os.tete;
-  if (!tete) return;
+  if (!tete) return [];
   /* L'os de la tete a son origine au menton : les coordonnees ci-dessous
      sont donc comptees depuis la, et non depuis le sol. */
   const dy = REPERES.crane - REPERES.menton;
@@ -235,6 +235,7 @@ function poserYeux(os) {
      nettement inclinees vers l'interieur, et bien plus petites qu'on ne
      croit. On les aplatit fortement en profondeur pour qu'elles epousent la
      courbure du masque au lieu d'en ressortir comme deux bulles. */
+  const yeux = [];
   for (const sx of [-1, 1]) {
     const cerne = lentille(0.040, 0x06070A, true);
     cerne.scale.set(1.45, 0.66, 0.34);
@@ -249,6 +250,50 @@ function poserYeux(os) {
     oeil.rotation.z = sx * -0.42;
     oeil.rotation.y = sx * 0.30;
     tete.add(oeil);
+    /* La lentille SEULE, sans son cerne : c'est elle qu'on retrecit pour un
+       clignement ou un plissement — retrecir le cerne avec elle donnerait
+       l'impression que le masque entier se froisse plutot que l'oeil qui
+       se ferme. */
+    yeux.push(oeil);
+  }
+  return yeux;
+}
+
+/* --------------------------------------------------------------------------
+   LES LANCE-TOILES.
+
+   Un petit disque metallique sur le dessous de chaque poignet, avec sa
+   plaque de declenchement — le detail qui explique D'OU vient le fil, sans
+   lui les mains sont juste des mains. Discret a dessein : c'est un
+   mecanisme, pas un gantelet, et il ne doit jamais rivaliser avec le motif
+   de toile du costume.
+   -------------------------------------------------------------------------- */
+function poserLanceToiles(os) {
+  const matBoitier = new THREE.MeshStandardMaterial({ color: 0x1C1418, roughness: 0.4, metalness: 0.55 });
+  const matPlaque = new THREE.MeshStandardMaterial({ color: 0x3A2C30, roughness: 0.3, metalness: 0.7 });
+  const matSangle = new THREE.MeshStandardMaterial({ color: 0x14161A, roughness: 0.7 });
+  const matTemoin = new THREE.MeshBasicMaterial({ color: 0x8E1620 });
+  for (const main of [os.mainD, os.mainG]) {
+    if (!main) continue;
+    const boitier = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.014, 10), matBoitier);
+    boitier.rotation.x = Math.PI / 2;
+    boitier.position.set(0, -0.028, 0.02);
+    main.add(boitier);
+    const plaque = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.004, 0.020), matPlaque);
+    plaque.position.set(0, -0.036, 0.02);
+    main.add(plaque);
+    /* La sangle : un bracelet fin qui maintient le boitier au poignet — sans
+       elle, le lance-toile a l'air pose la plutot qu'attache. */
+    const sangle = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.006, 5, 10), matSangle);
+    sangle.rotation.y = Math.PI / 2;
+    sangle.position.set(0, -0.006, 0);
+    main.add(sangle);
+    /* Un temoin, minuscule et sombre — la seule tache de couleur du
+       mecanisme. Il ne s'allume jamais : ce n'est pas une source de
+       lumiere, seulement une pastille qui dit « ceci a une fonction ». */
+    const temoin = new THREE.Mesh(new THREE.SphereGeometry(0.004, 5, 4), matTemoin);
+    temoin.position.set(0, -0.028, 0.028);
+    main.add(temoin);
   }
 }
 
@@ -299,7 +344,12 @@ export function corpsSpider(palier, variante = 'fin') {
 export function creerSpider(palier, opts = {}) {
   const corps = corpsSpider(palier, opts.variante || 'fin');
   const perso = nouvelleInstance(corps, _matiere, opts);
-  poserYeux(perso.userData.os);
+  const os = perso.userData.os;
+  /* Les lentilles sont retenues sur l'os de la tete, et non sur `perso`
+     directement : c'est `os.tete` qu'une scene manipule deja pour le
+     regard, autant y trouver les yeux au meme endroit. */
+  os.tete.userData.yeux = poserYeux(os);
+  poserLanceToiles(os);
   return perso;
 }
 

@@ -153,9 +153,13 @@ export function faisceau(couleur, longueur, ouverture) {
 }
 
 /* ==========================================================================
-   SPIDER-MAN — LE FIL ET L'ACCROCHE
+   SPIDER-MAN — LE FIL
 
-   Partages entre les deux passages du personnage (`spider1.js`, `spider2.js`).
+   Partage entre les deux passages du personnage (`spider1.js`, `spider2.js`).
+   Le tronc d'accroche du premier passage, lui, n'appartient qu'a
+   `spider1.js` — seul le premier personnage reste immobile assez longtemps
+   pour justifier un arbre entier construit autour de lui ; il vit donc
+   directement dans son propre fichier.
 
    ANTOINE : « on dirait un personnage Roblox ». C'etait vrai, et le defaut
    etait structurel : le personnage etait fait de capsules posees cote a cote,
@@ -196,134 +200,6 @@ export function tendreFil(m, a, b) {
   m.position.copy(_milieu);
   m.scale.set(1, l, 1);
   m.quaternion.setFromUnitVectors(_AXE_Y, _delta.divideScalar(l));
-}
-
-/* LA BRANCHE D'ACCROCHE.
-
-   Antoine : « le premier Spider-Man pend dans le vide ». Il avait raison :
-   le degagement qui protege la pose (5,5 m de rayon, voir `planApparitions`)
-   retire aussi tout arbre susceptible d'expliquer a quoi le fil est
-   attache. Au-dessus des chevilles, il ne restait donc rien — un fil qui
-   monte tout droit et s'arrete en l'air, sans que rien n'explique pourquoi
-   il ne tombe pas.
-
-   La scene porte donc sa propre branche : un moignon de conifere qui entre
-   par le cote et rejoint exactement la pointe du fil. Elle est ajoutee au
-   PIVOT, comme le fil, jamais au groupe : les deux doivent rester
-   rigidement solidaires quand l'ensemble se balance, sinon l'accroche se
-   desolidarise a chaque oscillation — ce qui se verrait plus encore que
-   l'absence de branche. */
-/* SECONDE CORRECTION. Antoine, encore : « le premier Spider-Man flotte
-   toujours dans le vide ». La premiere reponse — une touffe d'aiguilles au
-   bout d'un baton d'un metre — restait un petit objet flottant, pas un
-   arbre : le degagement de 5,5 m autour de la pose (voir `planApparitions`)
-   retire justement tout ce qui aurait pu convaincre autour de lui.
-   Cette fois la scene porte un arbre COMPLET, du sol jusqu'a la ramure,
-   pose a cote du personnage — pas un accessoire suspendu au-dessus de lui.
-
-   Le tronc n'est PAS ajoute au pivot qui fait tourner et se balancer le
-   personnage : un tronc qui pivote ou se souleve du sol a chaque balancement
-   se voit immediatement, bien plus qu'un fil sans attache. Il est donc fixe
-   dans le groupe, immobile ; seule une petite touffe D'EXTREMITE, ajoutee
-   au pivot avec le fil, suit le balancement — comme la pointe souple d'une
-   vraie branche, quand le tronc, lui, ne bouge pas. */
-export function troncAccroche() {
-  const g = new THREE.Group();
-  const matBois = new THREE.MeshStandardMaterial({ color: 0x2B2119, roughness: 0.95 });
-  const matAiguilles = new THREE.MeshStandardMaterial({
-    color: 0x3D6354, roughness: 0.92, side: THREE.DoubleSide,
-  });
-  const matNeige = new THREE.MeshStandardMaterial({ color: 0xE7F0F9, roughness: 0.82 });
-
-  const segment = (a, b, rA, rB, mat) => {
-    const l = a.distanceTo(b);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(rB, rA, l, 6), mat);
-    m.position.copy(a).add(b).multiplyScalar(0.5);
-    m.quaternion.setFromUnitVectors(
-      _AXE_Y, new THREE.Vector3().subVectors(b, a).divideScalar(l));
-    return m;
-  };
-  const touffe = (centre, azimut, elev, longueur, rayon) => {
-    const dir = new THREE.Vector3(
-      Math.cos(azimut) * Math.cos(elev), Math.sin(elev), Math.sin(azimut) * Math.cos(elev));
-    const m = new THREE.Mesh(new THREE.ConeGeometry(rayon, longueur, 5), matAiguilles);
-    m.position.copy(centre).addScaledVector(dir, longueur * 0.5);
-    m.quaternion.setFromUnitVectors(_AXE_Y, dir);
-    return m;
-  };
-
-  /* Le pied est au sol, nettement ecarte — un tronc qui penche, pas un
-     poteau plante au ras du personnage. La fourche, elle, doit rester
-     TOUTE PROCHE de la pointe du fil (0, 6,95, 0) : au format portrait, le
-     champ horizontal ne fait qu'une trentaine de degres, et un ecart qui
-     semble anodin en metres s'ouvre en un fosse a l'ecran. Mesure faite : a
-     quatre-vingt-quinze centimetres d'ecart, la fourche et la pointe du fil
-     se separaient nettement a l'image, l'arbre lu comme un decor a part,
-     sans rapport avec le personnage qui pend juste a cote. */
-  const pied = new THREE.Vector3(1.35, 0, -0.85);
-  const fourche = new THREE.Vector3(0.30, 7.00, -0.16);
-  g.add(segment(pied, fourche, 0.22, 0.07, matBois));
-
-  // La ramure haute, autour de la fourche.
-  g.add(touffe(fourche, 0.3, 0.55, 0.44, 0.12));
-  g.add(touffe(fourche, 1.3, 0.15, 0.52, 0.14));
-  g.add(touffe(fourche, 2.6, 0.65, 0.36, 0.11));
-  g.add(touffe(fourche, 3.6, -0.10, 0.48, 0.13));
-  g.add(touffe(fourche, 4.5, 0.40, 0.32, 0.10));
-  g.add(touffe(fourche, 5.6, 0.75, 0.40, 0.11));
-
-  // Deux etages plus bas sur le tronc : c'est ce qui fait reconnaitre un
-  // arbre plutot qu'un poteau surmonte d'un plumeau.
-  for (const [h, rayon] of [[0.30, 0.15], [0.55, 0.12]]) {
-    const c = new THREE.Vector3().lerpVectors(pied, fourche, h);
-    for (let i = 0; i < 5; i++) {
-      const az = (i / 5) * Math.PI * 2 + h * 4;
-      g.add(touffe(c, az, 0.05 + (i % 2) * 0.18, 0.34, rayon));
-    }
-  }
-
-  // Neige au creux de la fourche et contre le pied.
-  const neigeHaut = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5), matNeige);
-  neigeHaut.scale.set(1.3, 0.5, 1.15);
-  neigeHaut.position.copy(fourche).addScaledVector(_AXE_Y, 0.18);
-  g.add(neigeHaut);
-  const neigePied = new THREE.Mesh(new THREE.SphereGeometry(0.32, 7, 5), matNeige);
-  neigePied.scale.set(1.5, 0.26, 1.4);
-  neigePied.position.copy(pied).addScaledVector(_AXE_Y, 0.04);
-  g.add(neigePied);
-
-  return g;
-}
-
-/* La touffe d'extremite : solidaire du fil, elle suit le meme balancement
-   que lui — comme la pointe souple d'une branche, alors que le tronc,
-   fixe, ne bouge pas. Elle est batie autour de l'origine locale : depuis
-   que le pivot est lui-meme place a hauteur de l'accroche, cette origine
-   EST le noeud du fil, et reste (a peu de choses pres) fixe quel que soit
-   le balancement — voir `spider1.js`. */
-export function touffeExtremite() {
-  const g = new THREE.Group();
-  const matAiguilles = new THREE.MeshStandardMaterial({
-    color: 0x3D6354, roughness: 0.92, side: THREE.DoubleSide,
-  });
-  const matNeige = new THREE.MeshStandardMaterial({ color: 0xE7F0F9, roughness: 0.82 });
-  const pointe = new THREE.Vector3(0, 0, 0);
-  const touffe = (azimut, elev, longueur, rayon) => {
-    const dir = new THREE.Vector3(
-      Math.cos(azimut) * Math.cos(elev), Math.sin(elev), Math.sin(azimut) * Math.cos(elev));
-    const m = new THREE.Mesh(new THREE.ConeGeometry(rayon, longueur, 5), matAiguilles);
-    m.position.copy(pointe).addScaledVector(dir, longueur * 0.5);
-    m.quaternion.setFromUnitVectors(_AXE_Y, dir);
-    return m;
-  };
-  g.add(touffe(0.9, 0.45, 0.30, 0.09));
-  g.add(touffe(2.2, 0.20, 0.34, 0.10));
-  g.add(touffe(4.0, 0.55, 0.26, 0.08));
-  const neige = new THREE.Mesh(new THREE.SphereGeometry(0.11, 6, 5), matNeige);
-  neige.scale.set(1.2, 0.5, 1.1);
-  neige.position.copy(pointe).addScaledVector(_AXE_Y, 0.10);
-  g.add(neige);
-  return g;
 }
 
 /* LA MARE DE SANG. Partagee entre Kill Bill et Shining : la meme tache
