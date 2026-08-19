@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { grainRond } from '../../core/dot.js';
+import { grainRond, lueurDiffuse } from '../../core/dot.js';
 import { smoothstep, clamp } from '../../core/noise.js';
 import { creerTrex, marcheTrex } from '../trex.js';
-import { buee, majBuee } from './communs.js';
+import { buee, majBuee, ondeChoc, majOndeChoc, gerbeImpact, majImpact } from './communs.js';
 
 /* ==========================================================================
    JURASSIC PARK
@@ -100,6 +100,45 @@ export function jurassique(chemin, relief, palier, deposerEmpreinte) {
   const oZ = new Float32Array(N).map(() => (Math.random() - 0.5) * 34);
   const oH = new Float32Array(N).map(() => 5 + Math.random() * 9);
 
+  /* L'IMPACT AU SOL. Quatre tonnes qui se posent a chaque pas devraient se
+     voir dans la neige elle-meme, pas seulement dans l'empreinte qui reste
+     APRES coup — le pied qui vient d'arriver merite un instant ou il fait
+     encore VOLER la poudreuse. Memes fonctions que le choc des lames de
+     Kill Bill et du duel de sabres (`gerbeImpact`/`majImpact`,
+     `ondeChoc`/`majOndeChoc`), simplement redimensionnees a l'echelle d'un
+     theropode plutot que d'une arme blanche : une onde bien plus large, une
+     gerbe qui monte moins vite mais transporte plus de matiere. Une seule
+     instance suffit — a huit dixiemes de seconde entre deux pas, la
+     precedente a largement le temps de s'eteindre avant la suivante (voir
+     `majImpact`/`majOndeChoc`, retriggees par simple ecart de temps depuis
+     `dernierImpactT`, exactement comme le grincement du duel de sabres). */
+  const impactSol = gerbeImpact(26, 0xEDF4FC, 0.075);
+  g.add(impactSol);
+  const ondePas = ondeChoc(0xE7F0FF, 0.55, 0.20);
+  ondePas.position.y = 0.03;
+  g.add(ondePas);
+  let dernierImpactT = -999;
+  const piedLocal = new THREE.Vector3();
+
+  /* LA LUEUR DE LA GUEULE. Un rugissement qu'on entend mais dont la gueule
+     reste un simple bloc sombre dans la nuit perd la moitie de son effet —
+     le cinema d'action met presque toujours une lumiere chaude AU FOND de
+     la bouche d'un predateur qui crie, jamais une bouche eclairee de
+     l'exterieur. Pas d'os de machoire articule ici (la machoire inferieure
+     de `anatomieTrex` est une capsule fixe, « legerement ouverte » une fois
+     pour toutes) : on ne fait donc pas bouger la geometrie, on allume une
+     lueur chaude a l'interieur au moment du cri, ce qui suffit a vendre
+     l'idee sans exiger un nouvel os dans le squelette. */
+  const lueurGueule = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: lueurDiffuse(), color: 0xFF7A28, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
+  }));
+  lueurGueule.scale.setScalar(0.85);
+  lueurGueule.position.set(0, -0.32, -0.95);
+  os.crane.add(lueurGueule);
+  let rugiT = -999;
+  const teinteYeuxChaude = new THREE.Color(0xFFE9A0);
+
   /* La voie : loin du chemin et DERRIERE les arbres. */
   /* OU LE PLACER, ET C'EST TOUTE LA DIFFICULTE DE CETTE SCENE.
 
@@ -174,11 +213,27 @@ export function jurassique(chemin, relief, palier, deposerEmpreinte) {
   const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
   const piedMonde = new THREE.Vector3();
 
+  /* LE REGARD VERS LA CAMERA. Le film original tient ce plan-la aussi : la
+     bete traverse, puis — juste avant de disparaitre — s'arrete presque et
+     TOURNE LA TETE vers l'objectif, le temps d'un battement. C'est ce
+     battement qui transforme « un animal qui passe » en « quelque chose
+     qui nous a vus ». On le place tard dans la fenetre (u proche de 0,80,
+     bien apres que la bete soit pleinement engagee mais avant qu'elle ne
+     ressorte du champ a u=0,86) et on le fait fondre des deux cotes,
+     jamais un a-coup : le cou pivote un peu, le crane beaucoup plus — la
+     tete mene le mouvement, le cou la suit, exactement comme un animal qui
+     tourne vraiment l'attention plutot que tout le corps. */
   let dernierPas = -1, rugi = false;
   g.userData.reinit = () => {
     dernierPas = -1; rugi = false;
     dernierSouffleTrexT = -999;
     nuageTrex.material.opacity = 0;
+    dernierImpactT = -999;
+    impactSol.material.opacity = 0;
+    ondePas.material.opacity = 0;
+    rugiT = -999;
+    lueurGueule.material.opacity = 0;
+    for (const oeil of bete.userData.yeux) oeil.material.color.copy(bete.userData.teinteYeux);
   };
 
   g.userData.jouer = (u, t, camera, sAncre, dt) => {
@@ -216,6 +271,18 @@ export function jurassique(chemin, relief, palier, deposerEmpreinte) {
     // Il avance vraiment : la marche et le deplacement sont accordes.
     bete.position.z = 0;
 
+    /* Le battement de regard, superpose APRES la marche : `marcheTrex` a
+       deja pose la rotation.y de base (le balancement de la tete au pas),
+       et le regard s'y AJOUTE plutot que de l'ecraser — la bete continue
+       de marcher pendant qu'elle regarde, elle ne se fige pas. Le signe
+       tourne la tete vers le chemin (donc vers la camera, puisque COTE la
+       tient du meme cote que l'axe de vue) : positif fait pivoter vers
+       -X en sortie de `Math.atan2`, coherent avec l'orientation prise plus
+       haut pour `g.rotation.y`. */
+    const regarde = smoothstep(0.70, 0.79, u) * smoothstep(0.87, 0.80, u);
+    os.cou.rotation.y += regarde * 0.30;
+    os.crane.rotation.y += regarde * 0.55;
+
     /* Le pas qui vient de se poser. On declenche dessus la secousse et le
        son — jamais sur une horloge separee, sinon l'image et le bruit
        derivent l'un de l'autre au bout de quelques secondes. */
@@ -225,7 +292,7 @@ export function jurassique(chemin, relief, palier, deposerEmpreinte) {
       dernierPas = numero;
       if (u > 0.02) g.userData.emettre?.('pas');
 
-      /* L'EMPREINTE, DEPOSEE AU PIED QUI VIENT REELLEMENT DE SE POSER.
+      /* LE PIED QUI VIENT REELLEMENT DE SE POSER, ET TOUT CE QUI EN DEPEND.
          `marcheTrex` alterne les pattes sur un demi-tour de phase (voir
          `trex.js` : dec=0 pour D, dec=PI pour G), et `numero` change de
          parite exactement a ces memes demi-tours — la parite dit donc
@@ -234,12 +301,20 @@ export function jurassique(chemin, relief, palier, deposerEmpreinte) {
          pied (sa matrice-monde du jour, pas une approximation a partir du
          centre de la bete) : a neuf metres de voie et avec le roulis du
          bassin, les deux pattes ne sont jamais a la meme distance du
-         chemin. */
-      if (bete.visible && deposerEmpreinte) {
+         chemin. Cette meme position sert a DEUX choses — l'empreinte qui
+         reste, et l'impact qui s'eteint en une demi-seconde — jamais
+         recalculee deux fois. */
+      if (bete.visible) {
         const piedActif = numero % 2 === 0 ? os.piedG : os.piedD;
         piedActif.updateWorldMatrix(true, false);
         piedActif.getWorldPosition(piedMonde);
-        deposerEmpreinte(piedMonde.x, piedMonde.z, g.rotation.y, 1.3, 'trex');
+        deposerEmpreinte?.(piedMonde.x, piedMonde.z, g.rotation.y, 1.3, 'trex');
+
+        piedLocal.copy(piedMonde);
+        g.worldToLocal(piedLocal);
+        impactSol.position.copy(piedLocal);
+        ondePas.position.set(piedLocal.x, 0.03, piedLocal.z);
+        dernierImpactT = t;
       }
 
       // Le souffle, une fois par foulee complete (donc deux fois moins
@@ -255,11 +330,36 @@ export function jurassique(chemin, relief, palier, deposerEmpreinte) {
       nuageTrex.position.copy(museauMonde);
     }
     majBuee(nuageTrex, t, dernierSouffleTrexT, vis, 0.62, 1.6);
+    /* L'impact du pas qui vient de se poser — l'onde s'etale au ras du
+       sol, la gerbe monte et retombe, toutes deux redemarrees a chaque
+       pas par le simple changement de `dernierImpactT` (voir plus haut) :
+       aucun etat supplementaire a suivre, la fonction de mise a jour lit
+       l'age depuis le dernier declenchement et s'eteint d'elle-meme. */
+    majImpact(impactSol, t - dernierImpactT, {
+      duree: 0.55, plateau: 0.30, portee: 3.4, monte: 2.3, gravite: 4.2, decroissance: 2.0,
+    });
+    majOndeChoc(ondePas, t - dernierImpactT, 0.62);
     // La force de la secousse decroit apres chaque impact.
     const depuis = (cadence * 2) % 1;
     const secousse = Math.pow(1 - depuis, 3);
 
-    if (!rugi && u > 0.22) { rugi = true; g.userData.emettre?.('rugir'); }
+    if (!rugi && u > 0.22) { rugi = true; rugiT = t; g.userData.emettre?.('rugir'); }
+    /* LA GUEULE ET LES YEUX S'EMBRASENT ENSEMBLE. Une seule horloge
+       (`rugiT`), deux effets : la lueur au fond de la gorge monte vite et
+       s'eteint plus lentement (le halo d'un cri s'attarde, contrairement
+       au cri lui-meme), les yeux passent d'une braise a un blanc chaud
+       pendant le meme court instant puis reviennent a leur teinte de
+       base — jamais partis, jamais figes sur un blanc qui ne redescend
+       pas. */
+    const depuisRugi = t - rugiT;
+    const eclatGueule = depuisRugi >= 0 && depuisRugi < 1.1
+      ? Math.sin(clamp(depuisRugi / 1.1, 0, 1) * Math.PI) : 0;
+    lueurGueule.material.opacity = eclatGueule * vis * 0.85;
+    const flambeeYeux = depuisRugi >= 0 && depuisRugi < 0.5
+      ? Math.pow(1 - depuisRugi / 0.5, 2) : 0;
+    for (const oeil of bete.userData.yeux) {
+      oeil.material.color.copy(bete.userData.teinteYeux).lerp(teinteYeuxChaude, flambeeYeux);
+    }
 
     /* La neige des branches. Elle tombe surtout juste apres un pas, et elle
        s'arrete quand la bete est passee — c'est elle qui fait le compte a
