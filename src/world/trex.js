@@ -238,6 +238,7 @@ export function creerTrex(palier) {
      restent vives meme a contre-jour) — c'est ce qui fait qu'on se sent
      REGARDE avant meme de distinguer la silhouette entiere. */
   const os = bete.userData.os;
+  const yeux = [];
   for (const sx of [-1, 1]) {
     const oeil = new THREE.Mesh(
       new THREE.SphereGeometry(0.075, 8, 6),
@@ -246,7 +247,16 @@ export function creerTrex(palier) {
     // L'os du crane part de (0, tete, -3.00) : coordonnees comptees de la.
     oeil.position.set(sx * 0.24, 0.14, -0.34);
     os.crane.add(oeil);
+    yeux.push(oeil);
   }
+  /* Exposees pour que la scene (`jurassique.js`) puisse les faire flamber
+     au moment du rugissement — une braise qui reste toujours allumee ne
+     peut pas s'intensifier, et c'est cette intensification, plus que la
+     lueur permanente, qui fait « la bete vient de crier ». La couleur de
+     base est conservee a part : `majEclatYeux` y revient toujours entre
+     deux flambees plutot que de partir d'un blanc fige. */
+  bete.userData.yeux = yeux;
+  bete.userData.teinteYeux = yeux[0].material.color.clone();
 
   return bete;
 }

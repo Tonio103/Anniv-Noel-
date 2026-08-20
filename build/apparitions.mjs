@@ -128,7 +128,7 @@ for (const a of liste) {
       s.drone.maj(1 / 60, T0 + i / 60, s.cerf);
       s.relief.maj(s.camera, s.ciel.actuel);
       s.foret.maj(s.camera);
-      s.apparitions.maj(1 / 60, T0 + i / 60, cible, s.camera);
+      s.apparitions.maj(1 / 60, T0 + i / 60, s.cerf, s.camera, null, null, null);
     }
 
     // Est-elle effectivement dans le champ de la camera ?
@@ -136,7 +136,56 @@ for (const a of liste) {
     s.camera.updateMatrixWorld();
     const fr = new THREE.Frustum().setFromProjectionMatrix(
       new THREE.Matrix4().multiplyMatrices(s.camera.projectionMatrix, s.camera.matrixWorldInverse));
-    const b = new THREE.Box3().setFromObject(o);
+    /* `Box3.setFromObject` A DEUX DEFAUTS POUR CE QU'ON LUI DEMANDE ICI.
+
+       1. IL IGNORE `.visible`. Un theropode dont seul le corps
+       (`bete.visible = u > 0.28`) est encore eteint reste mesure comme
+       s'il etait a l'ecran — le groupe qui le porte, lui, est visible
+       bien plus tot (fondu d'entree de la scene). Le "meilleur instant"
+       peut donc se figer sur une image ou RIEN de la creature n'apparait
+       reellement — capture verifiee : un ecran de foret et de neige, sans
+       trace de bete. On reconstruit donc la boite a la main, en coupant
+       purement et simplement un sous-arbre des qu'il rencontre un objet
+       eteint, exactement comme le fait le moteur de rendu lui-meme
+       (`WebGLRenderer` s'arrete net sur `object.visible === false`, sans
+       descendre dans ses enfants).
+
+       2. IL LIT `SkinnedMesh.boundingBox` SANS JAMAIS LE RAFRAICHIR. Cette
+       propriete n'est JAMAIS calculee automatiquement par le moteur (la
+       doc de three.js est explicite : « must be called by your app »,
+       « should be recomputed per frame » si l'objet est anime) — elle
+       reste `null` jusqu'au premier appel, qui la fige pour de bon a
+       partir des matrices de squelette EN VIGUEUR A CET INSTANT. Or ces
+       matrices ne sont elles-memes rafraichies que par `renderer.
+       render()`, jamais par la simulation manuelle a coups de `s.
+       apparitions.maj(...)` de ce banc. Le tout premier calcul de boite
+       venu pouvait donc figer une pose fantome (bind pose, ou la pose
+       d'un tout autre instant deja rendu plus tot dans la page) et
+       fausser la mesure de plusieurs centaines de metres pour le reste de
+       l'execution — verifie sur le theropode : deux cents metres au lieu
+       de soixante, ecran pourtant inchange. On force donc le squelette a
+       jour et le cache invalide juste avant de le mesurer. */
+    o.updateMatrixWorld(true);
+    const _box = new THREE.Box3();
+    const boiteVisible = (obj, cible) => {
+      if (obj.visible === false) return;
+      if (obj.isSkinnedMesh) { obj.skeleton.update(); obj.boundingBox = null; obj.computeBoundingBox(); }
+      const geometry = obj.geometry;
+      if (geometry !== undefined) {
+        if (obj.boundingBox !== undefined) {
+          if (obj.boundingBox === null) obj.computeBoundingBox();
+          _box.copy(obj.boundingBox);
+        } else {
+          if (geometry.boundingBox === null) geometry.computeBoundingBox();
+          _box.copy(geometry.boundingBox);
+        }
+        _box.applyMatrix4(obj.matrixWorld);
+        cible.union(_box);
+      }
+      for (const enfant of obj.children) boiteVisible(enfant, cible);
+    };
+    const b = new THREE.Box3();
+    boiteVisible(o, b);
     const centre = b.getCenter(new THREE.Vector3());
     s.postfx.rendre(s.scene, s.camera, T0 + 1.5);
     /* OU, PRECISEMENT, DANS LE CADRE ? « Dans le champ » est une reponse par

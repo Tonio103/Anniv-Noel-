@@ -35,7 +35,20 @@ export const PALIERS = {
     flocons: 13000,
     empreintes: true,
     segTerrain: 112,
-    brancheDetail: 5,
+    /* « ILS SONT TOUS MAIGRES », ENCORE — ANTOINE, DE NOUVEAU, SUR TELEPHONE.
+       A 5, ce reglage tombait juste sous DEUX seuils a la fois dans
+       `genererSapin` : le nombre de branches par etage plafonnait a treize
+       au lieu de seize, ET la nervure de chaque branche perdait son second
+       segment, qui est ce qui lui donne sa chute puis son relevement. Un
+       sapin proche — celui qu'on regarde vraiment, a moins de quarante
+       metres — se retrouvait donc a la fois moins fourni ET moins courbe :
+       exactement la silhouette en oursin, toute en piquants droits, que la
+       capture d'ecran montrait. Passer a 6 fait franchir les deux seuils
+       d'un coup pour le seul niveau proche (le lointain et le fond ne
+       dependent pas de cette valeur, voir forest.js) : c'est le mobile qui
+       en profite integralement, sans toucher au budget du reste de la
+       foret. */
+    brancheDetail: 6,
   },
   moyen: {
     nom: 'moyen',

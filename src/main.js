@@ -23,7 +23,7 @@ import { Neige } from './world/snowfall.js';
 import { Brume } from './world/mist.js';
 import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
-import { Apparitions, sitesApparitions } from './world/apparitions.js';
+import { Apparitions, sitesApparitions } from './world/apparitions/index.js';
 import { coutSpider } from './world/spider.js';
 import { Cabanes } from './world/cabins.js';
 import { Fouillis } from './world/props.js';
@@ -152,6 +152,9 @@ async function demarrer() {
      par le shader de neige pour assombrir et creuser la surface. */
   const empreintes = new Empreintes(renderer, palier);
   relief.brancherEmpreintes(empreintes);
+  // Le theropode de Jurassic Park en a besoin pour laisser ses propres
+  // traces — voir `jurassique.js` et le tampon dedie dans `footprints.js`.
+  apparitions.brancherEmpreintes(empreintes);
 
   /* Et la neige qu'il chasse a chaque poser. L'empreinte dit ou il est passe,
      la poudre dit qu'il passe MAINTENANT. */
