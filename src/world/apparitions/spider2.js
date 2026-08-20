@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { smoothstep, clamp } from '../../core/noise.js';
 import { REPERES, piste, regarderVers } from '../humanoide.js';
 import { creerSpider, POSES } from '../spider.js';
-import { filDeToile, tendreFil } from './communs.js';
+import { filDeToile, tendreFil, halo, gerbeImpact, majImpact, ondeChoc, majOndeChoc } from './communs.js';
 
 /* ==========================================================================
    SPIDER-MAN, SECOND PASSAGE : EN PLEIN BALANCEMENT
@@ -66,8 +66,52 @@ export function spiderBalance(porteeX, palier) {
   const _poignet = new THREE.Vector3();
   const _bout = new THREE.Vector3();
 
+  /* LE « THWIP ». Deux instants meritent une ponctuation : le depart, au
+     poignet (une bouffee de fils fins qui giclent avant de se rassembler
+     en un seul brin), et l'arrivee, au loin, la ou le fil s'accroche (un
+     bref eclat qui dit « ca vient de mordre »). PAS DE MARQUEUR SOLIDE A
+     L'ANCRAGE — une premiere version posait une branche a `ACCROCHE`,
+     mais un objet PERMANENT, plante a cinquante metres du personnage sur
+     toute la duree de la scene, elargit la boite englobante du groupe
+     entier bien au-dela de la ou le personnage se trouve reellement : le
+     banc de cadrage (`build/apparitions.mjs`) mesurait alors une distance
+     gonflee de treize a pres de quarante metres — la MEME famille de
+     defaut que le sac de vapeur du theropode avant sa correction, ici
+     evitee a la racine plutot que rustinee apres coup. Un eclat de
+     lumiere seul, sans support physique, se lit tres bien dans cet
+     univers ou toutes les apparitions sont deja des visions plutot que
+     des objets poses — memes fonctions que les impacts de Kill Bill, du
+     duel de sabres et du theropode. */
+  const gicleeDepart = gerbeImpact(10, 0xE8EEF6, 0.035);
+  g.add(gicleeDepart);
+  let departT = -999;
+  const eclatArrivee = ondeChoc(0xEAF2FF, 0.22, 0.09);
+  eclatArrivee.position.copy(ACCROCHE);
+  g.add(eclatArrivee);
+  let arriveeFaite = false, arriveeT = -999;
+
+  /* LE FLOU DE VITESSE. Trois « fantomes » a des phases legerement
+     ANTERIEURES de la MEME trajectoire analytique — jamais une vraie copie
+     du corps (un clone de personnage anime coute cher), juste une trainee
+     de petites lueurs allongees qui suivent le mouvement avec retard. Leur
+     intensite suit `vitesse`, une derivee analytique de l'arc du pendule :
+     elle est maximale au point bas de chaque swing, nulle aux extremites —
+     exactement la ou l'oeil s'attend a voir un flou de mouvement. */
+  const N_FANTOMES = 3;
+  const fantomes = [];
+  for (let i = 0; i < N_FANTOMES; i++) {
+    const f = halo([0.75, 0.85, 1.0], 1.4 - i * 0.3, 1);
+    g.add(f);
+    fantomes.push(f);
+  }
+
   let tirFait = false;
-  g.userData.reinit = () => { tirFait = false; };
+  g.userData.reinit = () => {
+    tirFait = false;
+    departT = -999;
+    arriveeFaite = false;
+    arriveeT = -999;
+  };
 
   g.userData.jouer = (u, t, camera) => {
     const vis = smoothstep(0, 0.08, u) * smoothstep(1, 0.90, u);
@@ -117,12 +161,30 @@ export function spiderBalance(porteeX, palier) {
     perso.rotation.x = -0.30 + Math.abs(a) * 0.28;
     perso.rotation.z = -ancre.rotation.z * 0.5;
 
+    /* LES FANTOMES DE VITESSE. `vitesse` est la derivee de `a` par rapport
+       a `av` (a un facteur pres) : Math.cos vaut un exactement la ou
+       Math.sin — donc `a` — franchit zero, c'est-a-dire au point bas de
+       chaque arc, la ou le pendule va le plus vite. Chaque fantome revit
+       la MEME formule de position que l'ancre, quelques centiemes de `av`
+       plus tot — jamais une position inventee, toujours un point reel de
+       la trajectoire deja ecrite plus haut. */
+    const vitesse = Math.pow(Math.abs(Math.cos(av * Math.PI * 3.0)), 2);
+    for (let i = 0; i < fantomes.length; i++) {
+      const avF = Math.max(0, av - (i + 1) * 0.012);
+      const aF = Math.sin(avF * Math.PI * 3.0);
+      fantomes[i].position.set(
+        Math.sin(avF * Math.PI * 1.6) * porteeX * 0.42,
+        7.6 + Math.abs(aF) * 1.5 - POIGNET - LONGUEUR * 0.5,
+        27 - avF * 54);
+      fantomes[i].material.opacity = vis * vitesse * (0.22 - i * 0.06);
+    }
+
     /* Il se retourne vers vous au passage le plus bas — le seul instant ou
        il est assez pres pour que ca se voie. */
     regarderVers(perso, os, camera,
       smoothstep(0.28, 0.42, u) * smoothstep(0.80, 0.66, u));
 
-    if (!tirFait && u > 0.60) { tirFait = true; g.userData.emettre?.('toile'); }
+    if (!tirFait && u > 0.60) { tirFait = true; departT = t; g.userData.emettre?.('toile'); }
 
     const sortie = smoothstep(0.60, 0.70, u);
     if (sortie > 0.01) {
@@ -138,10 +200,22 @@ export function spiderBalance(porteeX, palier) {
          la main et file vers son point d'accroche. */
       _bout.lerpVectors(_poignet, ACCROCHE, sortie);
       tendreFil(tir, _poignet, _bout);
+
+      // La bouffee au poignet, au tout debut du jet : elle suit la main,
+      // pas l'ancre.
+      gicleeDepart.position.copy(_poignet);
+      majImpact(gicleeDepart, t - departT, {
+        duree: 0.22, plateau: 0.16, portee: 0.55, monte: 0.9, gravite: 1.2, decroissance: 6.0,
+      });
+
+      // L'impact sur la branche, une seule fois, quand le fil l'atteint
+      // vraiment — pas a chaque image ou `sortie` frole un.
+      if (!arriveeFaite && sortie > 0.98) { arriveeFaite = true; arriveeT = t; }
     } else {
       tir.visible = false;
+      gicleeDepart.material.opacity = 0;
     }
-    void t;
+    majOndeChoc(eclatArrivee, t - arriveeT, 0.28);
   };
   return g;
 }

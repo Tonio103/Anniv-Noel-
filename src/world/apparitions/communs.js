@@ -259,7 +259,20 @@ export function ondeChoc(couleur = 0xEAF2FF, rayon = 0.4, epaisseur = 0.16) {
    ralentit (`sqrt`) — a vitesse d'expansion constante, un anneau qui
    grossit se lit comme un cercle qui grossit, pas comme un choc. */
 export function majOndeChoc(onde, dtE, duree = 0.5) {
-  if (dtE < 0 || dtE > duree) { onde.material.opacity = 0; return; }
+  /* `.visible` EN PLUS DE L'OPACITE, ET PAS SEULEMENT PAR PROPRETE.
+     `Box3.setFromObject` (voir `build/apparitions.mjs`) ignore l'opacite
+     mais respecte `.visible` : un impact eteint qui reste `visible=true`
+     continue de peser dans la boite englobante de la scene entiere, ce
+     qui n'a aucune consequence quand il vit pres du sujet (Kill Bill, le
+     duel de sabres) mais en a une bien reelle quand il vit LOIN de lui
+     (l'accroche du fil de Spider-Man, a cinquante metres du personnage) :
+     la mesure de cadrage se retrouve gonflee par un point que personne ne
+     voit jamais. Couper `.visible` quand l'opacite tombe a zero rend cette
+     categorie de defaut structurellement impossible, pour cet appelant
+     comme pour tout futur appelant qui placerait son impact loin du
+     sujet. */
+  if (dtE < 0 || dtE > duree) { onde.material.opacity = 0; onde.visible = false; return; }
+  onde.visible = true;
   const k = dtE / duree;
   const echelle = 1 + Math.sqrt(k) * 7;
   onde.scale.set(echelle, 1, echelle);
@@ -305,7 +318,11 @@ export function majImpact(pts, dtE, opts = {}) {
     duree = 0.55, plateau = 0.45, portee = 5.5, monte = 5.0,
     gravite = 3.0, decroissance = 2.0,
   } = opts;
-  if (dtE < 0 || dtE > duree) { pts.material.opacity = 0; return; }
+  // Meme raison que `majOndeChoc` : `.visible` a zero pendant l'attente
+  // exempte l'impact de toute mesure de boite englobante quand il n'a
+  // rien a montrer, pas seulement rien a montrer a l'oeil.
+  if (dtE < 0 || dtE > duree) { pts.material.opacity = 0; pts.visible = false; return; }
+  pts.visible = true;
   const { dirs, n } = pts.userData;
   const pos = pts.geometry.attributes.position.array;
   for (let i = 0; i < n; i++) {
@@ -425,7 +442,10 @@ export function buee(teinte = [0.85, 0.88, 0.94]) {
 
 export function majBuee(nuage, t, dernierSouffleT, vis, echelle = 0.34, duree = 1.1) {
   const dtE = t - dernierSouffleT;
-  if (dtE < 0 || dtE > duree) { nuage.material.opacity = 0; return; }
+  // Meme raison que `majOndeChoc`/`majImpact` : `.visible` a zero exempte
+  // le souffle de toute mesure de boite englobante entre deux declenchements.
+  if (dtE < 0 || dtE > duree) { nuage.material.opacity = 0; nuage.visible = false; return; }
+  nuage.visible = true;
   const k = dtE / duree;
   nuage.scale.setScalar(0.10 + k * echelle);
   nuage.material.opacity = vis * Math.sin(k * Math.PI) * 0.32;
