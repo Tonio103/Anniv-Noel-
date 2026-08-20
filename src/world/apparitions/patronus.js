@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { grainRond } from '../../core/dot.js';
 import { smoothstep } from '../../core/noise.js';
 import {
-  construireCorps, nouvelleInstance, appliquerPose, regarderVers,
+  REPERES, construireCorps, nouvelleInstance, appliquerPose, regarderVers,
 } from '../humanoide.js';
 import { creerCerf } from '../../deer/deerMesh.js';
-import { halo } from './communs.js';
+import { halo, gerbeImpact } from './communs.js';
+import { capeGeometrie } from '../encapuchonne.js';
 
 /* ==========================================================================
    7. LE PATRONUS
@@ -134,8 +135,95 @@ function sorcierPatronus(palier) {
   etincelle.position.set(0, 0, -0.37);
   os.mainD.add(etincelle);
 
+  /* ANTOINE : « on doit voir HARRY POTTER », pas un sorcier generique. Une
+     silhouette encapuchonnee qui tend une baguette raconte deja « un sort
+     est lance », mais rien dans cette silhouette ne dit LEQUEL des mille
+     sorciers du cinema c'est celui-la. Trois details minuscules, tous
+     empruntes a la meme image que tout le monde garde en tete, suffisent a
+     lever l'ambiguite sans qu'on ait besoin d'ecrire son nom a l'ecran. */
+
+  // Les lunettes rondes. Deux tores fins relies par un pont, poses juste
+  // devant les yeux — le detail le plus reconnaissable du personnage,
+  // avant meme la cicatrice.
+  const matMonture = new THREE.MeshStandardMaterial({ color: 0x1A1A1C, roughness: 0.35, metalness: 0.55 });
+  for (const sx of [-1, 1]) {
+    const verre = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.0035, 6, 16), matMonture);
+    verre.position.set(sx * 0.037, REPERES.crane - REPERES.menton - 0.045, -0.100);
+    os.tete.add(verre);
+  }
+  const pontLunettes = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0035, 0.0035, 0.038, 5), matMonture);
+  pontLunettes.rotation.z = Math.PI / 2;
+  pontLunettes.position.set(0, REPERES.crane - REPERES.menton - 0.045, -0.100);
+  os.tete.add(pontLunettes);
+
+  /* L'ECHARPE AUX COULEURS DE GRYFFONDOR. Rouge et or, en bandes — la
+     seule touche de couleur franche sur toute la silhouette, et c'est
+     voulu : dans un plan domine par le bleu du cerf de lumiere et le noir
+     de la cape, ces deux teintes chaudes sautent immediatement a l'oeil,
+     et c'est prcisement l'endroit ou l'oeil doit se poser pour reconnaitre
+     le personnage. Un empilement de tubes courts plutot qu'un seul long
+     tissu : ça se drape mal autour d'un cou qui tourne, mais ça se lit
+     tres bien de loin, ce qui est tout ce qu'on demande ici. */
+  const TEINTES_ECHARPE = [0x740001, 0xD3A625];
+  const echarpe = new THREE.Group();
+  for (let i = 0; i < 5; i++) {
+    const bande = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.075 - i * 0.002, 0.075 - i * 0.002, 0.052, 10, 1, true),
+      new THREE.MeshStandardMaterial({
+        color: TEINTES_ECHARPE[i % 2], roughness: 0.92, metalness: 0, side: THREE.DoubleSide,
+      })
+    );
+    bande.position.y = -0.02 - i * 0.050;
+    echarpe.add(bande);
+  }
+  // Le pan qui pend devant, jusque sur le torse.
+  const pan = new THREE.Mesh(
+    new THREE.BoxGeometry(0.11, 0.30, 0.02),
+    new THREE.MeshStandardMaterial({ color: TEINTES_ECHARPE[0], roughness: 0.92, metalness: 0 })
+  );
+  pan.position.set(0, -0.30, -0.06);
+  echarpe.add(pan);
+  echarpe.position.set(0, REPERES.baseCou - REPERES.poitrine + 0.02, 0);
+  os.poitrine.add(echarpe);
+
+  /* LA CAPE. Reprise du meme constructeur procedural que les duellistes du
+     sabre laser (`encapuchonne.js`, `capeGeometrie`) plutot que d'en
+     ecrire une seconde version au rabais — c'est exactement l'esprit de
+     ce dossier : partager une piece deja resolue des qu'un second
+     personnage en a besoin. Sans capuchon : on VEUT voir le visage de
+     Harry, tout le sens de cet ajout serait perdu sous une ombre. Accrochee
+     a la poitrine et non a la racine, elle suit donc le buste quand il se
+     penche dans l'effort du sort. */
+  const matCape = new THREE.MeshStandardMaterial({
+    color: 0x14161C, roughness: 0.88, metalness: 0.0, side: THREE.DoubleSide,
+  });
+  const cape = new THREE.Mesh(capeGeometrie({ rHaut: 0.185, rBas: 0.270, yHaut: 1.310, yBas: 0.40 }), matCape);
+  const attacheCape = new THREE.Group();
+  attacheCape.position.y = -(REPERES.cotes + 0.06);
+  attacheCape.add(cape);
+  os.poitrine.add(attacheCape);
+
+  /* LE TOURBILLON D'INVOCATION. Juste avant que le sort ne parte, quelques
+     braises se mettent a tourner autour de la pointe — la preparation du
+     sort, pas seulement son resultat, qui reste porte par `etincelle`
+     (deja la) au moment ou le cerf jaillit. On reprend `gerbeImpact`
+     uniquement pour sa construction (geometrie de points, materiau au
+     grain rond deja partage) : le mouvement, lui, n'est pas une gerbe qui
+     retombe mais une orbite, pilotee a la main dans `jouer` plutot que via
+     `majImpact`, dont la decroissance radiale ne conviendrait pas ici. */
+  const tourbillon = gerbeImpact(10, 0xBFE0FF, 0.045);
+  tourbillon.position.set(0, 0, -0.37);
+  os.mainD.add(tourbillon);
+  const anglesTourbillon = Float32Array.from({ length: 10 }, (_, i) => (i / 10) * Math.PI * 2);
+  const rayonsTourbillon = Float32Array.from({ length: 10 }, () => 0.05 + Math.random() * 0.04);
+
   g.userData.os = os;
   g.userData.etincelle = etincelle;
+  g.userData.attacheCape = attacheCape;
+  g.userData.tourbillon = tourbillon;
+  g.userData.anglesTourbillon = anglesTourbillon;
+  g.userData.rayonsTourbillon = rayonsTourbillon;
   return g;
 }
 
@@ -143,6 +231,31 @@ export function patronus(palier) {
   const g = new THREE.Group();
   const bete = cerfDeLumiere(palier);
   g.add(bete);
+
+  /* LA FLAQUE DE LUMIERE AU SOL. Une bete qui EMET sa propre lumiere sans
+     rien en projeter sur ce qu'elle survole se lit comme un calque colle
+     par-dessus l'image plutot que comme une presence dans la scene — le
+     meme defaut, au fond, que « juste des cones » : la matiere est la,
+     l'interaction avec le monde ne l'est pas. Un disque plat et additif,
+     jamais un sprite (qui resterait toujours face camera au lieu de coller
+     au sol), pose sous les sabots.
+
+     ENFANT DE `g`, PAS DE `bete` — et c'est deliberer. La bete bondit
+     (`bete.position.y`) et tangue (`bete.rotation.x`) a chaque foulee ; une
+     flaque au sol qui bondirait et s'inclinerait avec elle cesserait
+     immediatement de lire comme un sol. `jouer` ne lui copie donc que
+     l'avancee en Z, jamais la hauteur ni l'inclinaison. */
+  const flaqueLumiere = new THREE.Mesh(
+    new THREE.CircleGeometry(1.9, 22),
+    new THREE.MeshBasicMaterial({
+      color: 0x2E7CFF, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
+    })
+  );
+  flaqueLumiere.rotation.x = -Math.PI / 2;
+  flaqueLumiere.position.y = 0.03;
+  flaqueLumiere.renderOrder = 1;
+  g.add(flaqueLumiere);
 
   /* Harry se tient la ou le cerf de lumiere surgit — l'origine de son
      trajet local, voir plus bas — face a la trajectoire, un peu de cote
@@ -199,11 +312,41 @@ export function patronus(palier) {
     const regard = smoothstep(0.25, 0.35, u) * smoothstep(0.55, 0.45, u);
     regarderVers(harry, osHarry, camera, regard * 0.7);
 
+    /* LA CAPE SUIT LE COUP DE POIGNET AVEC UN TEMPS DE RETARD — meme
+       principe que celle des duellistes du sabre laser (`sabres.js`) : un
+       tissu lourd ne part jamais en meme temps que le corps qui le
+       porte. */
+    harry.userData.attacheCape.rotation.x = -kick * 0.22;
+    harry.userData.attacheCape.rotation.z = Math.sin(t * 1.4) * 0.035;
+
+    /* LE CREPITEMENT, JUSTE AVANT LE FLASH. Dix braises tournent autour de
+       la pointe pendant l'instant qui precede `jaillit` puis s'effacent
+       des que lui prend le relais — la preparation du sort, jamais
+       simultanee avec son resultat. */
+    const crepite = smoothstep(0, 0.015, u) * smoothstep(0.06, 0.02, u);
+    const anglesTourbillon = harry.userData.anglesTourbillon;
+    const rayonsTourbillon = harry.userData.rayonsTourbillon;
+    const tp = harry.userData.tourbillon.geometry.attributes.position;
+    for (let i = 0; i < anglesTourbillon.length; i++) {
+      const a = anglesTourbillon[i] + t * 5.5;
+      const r = rayonsTourbillon[i];
+      tp.setXYZ(i, Math.cos(a) * r, Math.sin(a * 1.3) * r * 0.6, Math.sin(a) * r * 0.3);
+    }
+    tp.needsUpdate = true;
+    harry.userData.tourbillon.material.opacity = vis * crepite * 0.9;
+
     // Il avance le long de son axe local, et bondit.
     const av = (u - 0.5) * 26;
     bete.position.z = av;
     bete.position.y = Math.abs(Math.sin(t * 3.4)) * 0.22;
     bete.rotation.x = Math.sin(t * 3.4) * 0.06;
+
+    /* La flaque suit l'avancee au sol, jamais le bond ni le tangage (voir
+       plus haut pourquoi elle est enfant de `g` et non de `bete`) — et
+       scintille sur le meme rythme que le corps, pour rester la meme
+       matiere que ce qui la projette. */
+    flaqueLumiere.position.z = av;
+    flaqueLumiere.material.opacity = vis * 0.30 * scint;
 
     for (let i = 0; i < N; i++) {
       vies[i] += 0.016;

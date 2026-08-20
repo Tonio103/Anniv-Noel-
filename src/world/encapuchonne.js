@@ -36,7 +36,7 @@ import { REPERES, construireCorps, nouvelleInstance } from './humanoide.js';
    L'ouverture est comptee depuis l'avant (-Z), qui est la direction du
    regard : la cape couvre le dos et les flancs, et laisse le devant libre.
    -------------------------------------------------------------------------- */
-function capeGeometrie(opts = {}) {
+export function capeGeometrie(opts = {}) {
   const NA = opts.na ?? 30;          // pas angulaires
   const NV = opts.nv ?? 16;          // pas verticaux
   /* ANTOINE, DEUX FOIS : « les personnages Star Wars c'est juste des cones ».
