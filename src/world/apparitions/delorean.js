@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { grainRond, lueurDiffuse } from '../../core/dot.js';
 import { smoothstep, clamp } from '../../core/noise.js';
 import { delorean } from '../vehicules.js';
-import { halo, epouserLeSol } from './communs.js';
+import { halo, epouserLeSol, gerbeImpact, majImpact, buee, majBuee } from './communs.js';
 
 /* ==========================================================================
    5. LA DELOREAN
@@ -114,6 +114,32 @@ export function traineesDeFeu(longueur, palier, relief) {
     for (const b of bandes) epouserLeSol(b, relief, 0.07);
   };
 
+  /* LA NEIGE QUI GICLE AUX ROUES ARRIERE. Une voiture qui roule sur la
+     neige sans y laisser la moindre trace se lit comme posee sur du verre
+     — la meme lecon que les empreintes du theropode, appliquee ici a des
+     pneus plutot qu'a des pattes. Seules les roues ARRIERE (indices 1 et
+     3 dans la boucle `for sx of [-1,1] for sz of [-1,1]` de `vehicules.js`
+     — celles a l'arriere, sz=1) : une DeLorean est a propulsion, ce sont
+     elles qui mordent dans la neige quand la voiture accelere. Meme
+     fonction que les impacts de Kill Bill, du duel de sabres, du
+     theropode et du fil de Spider-Man — une gerbe par roue, retriggee en
+     boucle tant que la voiture roule. */
+  const roueArD = auto.userData.roues[1], roueArG = auto.userData.roues[3];
+  const gicleeD = gerbeImpact(14, 0xEDF3FC, 0.06);
+  const gicleeG = gerbeImpact(14, 0xEDF3FC, 0.06);
+  g.add(gicleeD, gicleeG);
+  const _posRoue = new THREE.Vector3();
+
+  /* L'ECHAPPEMENT DU REACTEUR, TANT QU'ELLE ROULE ENCORE. Un panache
+     chaud qui s'echappe de l'entonnoir avant meme le saut — le reacteur
+     tourne des qu'elle approche, pas seulement au moment ou les trainees
+     s'allument. Meme sprite de buee que Kevin et le theropode, reboucle
+     en continu comme celui des hamburgers plutot que declenche par
+     a-coups : un reacteur qui chauffe ne respire pas, il fume sans
+     arret. */
+  const panache = buee([0.85, 0.90, 1.0]);
+  g.add(panache);
+
   /* Le saut n'a lieu qu'une fois par passage. On remet tout a zero quand la
      fenetre se referme, pour que la voiture repasse si l'on refait la
      balade. */
@@ -172,6 +198,28 @@ export function traineesDeFeu(longueur, palier, relief) {
       const dz = zPrecedent === null ? 0 : Math.abs(auto.position.z - zPrecedent);
       zPrecedent = auto.position.z;
       for (const r of auto.userData.roues) r.rotation.x -= dz / 0.32;
+
+      /* LA NEIGE AUX ROUES ARRIERE, SEULEMENT QUAND ELLE AVANCE VRAIMENT.
+         Sur le palier du milieu (`av` fige a 0,78), `dz` tombe a zero — la
+         voiture est stable, ses roues cessent de tourner quelques lignes
+         plus haut, et la neige qu'elles projetteraient devrait cesser
+         avec elles. Le meme instant qui coupe la rotation des roues coupe
+         donc aussi la gerbe. */
+      if (dz > 0.01) {
+        const cyclePos = t % 0.10;
+        gicleeD.position.set(auto.position.x + roueArD.position.x, auto.position.y + 0.04, auto.position.z + roueArD.position.z);
+        gicleeG.position.set(auto.position.x + roueArG.position.x, auto.position.y + 0.04, auto.position.z + roueArG.position.z);
+        majImpact(gicleeD, cyclePos, { duree: 0.09, plateau: 0.06, portee: 0.9, monte: 0.7, gravite: 2.4, decroissance: 9.0 });
+        majImpact(gicleeG, cyclePos, { duree: 0.09, plateau: 0.06, portee: 0.9, monte: 0.7, gravite: 2.4, decroissance: 9.0 });
+      } else {
+        gicleeD.material.opacity = 0; gicleeD.visible = false;
+        gicleeG.material.opacity = 0; gicleeG.visible = false;
+      }
+      // Le panache du reacteur, continu, tant qu'elle roule.
+      panache.position.set(auto.position.x, auto.position.y + 1.12, auto.position.z + 1.55);
+      const cyclePanache = t % 1.0;
+      majBuee(panache, t, t - cyclePanache, 1, 0.5, 0.9);
+
       const proche = smoothstep(0.35, 0.95, k);
       for (const p of auto.userData.phares) p.material.opacity = 0.9;
       for (const c of auto.userData.cones) c.material.opacity = 0.30;
@@ -188,6 +236,12 @@ export function traineesDeFeu(longueur, palier, relief) {
       const regler = [{ regime: 0.25 + av * 0.75, doppler: 0, volume: 1 }];
       regler.crepite = proche;
       g.userData.emettre?.('regler', regler);
+    } else {
+      // Elle n'est plus la (ou pas encore) : rien de tout cela ne peut
+      // continuer a exister sans elle.
+      gicleeD.material.opacity = 0; gicleeD.visible = false;
+      gicleeG.material.opacity = 0; gicleeG.visible = false;
+      panache.material.opacity = 0; panache.visible = false;
     }
 
     /* --- L'ECLAIR, une seule fois. --------------------------------------- */

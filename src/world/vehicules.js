@@ -448,6 +448,58 @@ export function delorean() {
     g.add(prise);
   }
 
+  /* LES PORTES PAPILLON. La DeLorean n'a qu'un seul trait aussi
+     immediatement reconnaissable que sa carrosserie en inox brosse : ses
+     portes qui s'ouvrent vers le HAUT plutot que vers le cote. Fermees —
+     elle roule, elle ne s'arrete jamais dans cette scene — mais leur
+     LISERE reste lisible : une fine rainure qui trace le contour de la
+     porte sur le flanc, avec sa charniere haute bien marquee au sommet du
+     pare-choc, exactement la ou l'articulation d'une porte papillon se
+     voit meme fermee. Sans ce trait, la silhouette reste un coupe des
+     annees quatre-vingts parmi d'autres. */
+  for (const sx of [-1, 1]) {
+    const liseret = new THREE.MeshStandardMaterial({ color: 0x5C6570, roughness: 0.6, metalness: 0.5 });
+    // Le haut de la porte, juste sous la ligne de toit : c'est LA que
+    // l'articulation papillon se lit, meme porte close.
+    const hautPorte = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 1.55), liseret);
+    hautPorte.position.set(sx * 0.925, 0.80, 0.10);
+    g.add(hautPorte);
+    // Le contour vertical avant et arriere de la porte.
+    for (const sz of [-0.62, 0.92]) {
+      const bordVertical = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.42, 0.02), liseret);
+      bordVertical.position.set(sx * 0.925, 0.60, sz);
+      g.add(bordVertical);
+    }
+    // Le seuil bas, contre le bas de caisse.
+    const basPorte = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 1.55), liseret);
+    basPorte.position.set(sx * 0.925, 0.40, 0.10);
+    g.add(basPorte);
+  }
+
+  /* LA PLAQUE. « OUTATIME » — la plaque du film, jamais montree ici en
+     gros plan mais presente, comme un clin d'œil qui ne demande a
+     personne de s'arreter pour la lire. Peinte au canevas plutot que
+     modelisee lettre par lettre : huit caracteres a la bonne police
+     n'ajouteraient rien qu'un canevas ne rende deja a cette taille. */
+  const cvPlaque = document.createElement('canvas');
+  cvPlaque.width = 128; cvPlaque.height = 32;
+  const cPlaque = cvPlaque.getContext('2d');
+  cPlaque.fillStyle = '#C8342A';
+  cPlaque.fillRect(0, 0, 128, 32);
+  cPlaque.fillStyle = '#F2E8D8';
+  cPlaque.font = 'bold 22px sans-serif';
+  cPlaque.textAlign = 'center';
+  cPlaque.textBaseline = 'middle';
+  cPlaque.fillText('OUTATIME', 64, 17);
+  const texPlaque = new THREE.CanvasTexture(cvPlaque);
+  texPlaque.colorSpace = THREE.SRGBColorSpace;
+  const plaque = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 0.105),
+    new THREE.MeshStandardMaterial({ map: texPlaque, roughness: 0.5 })
+  );
+  plaque.position.set(0, 0.60, -2.17);
+  g.add(plaque);
+
   /* LE REACTEUR sur le pont arriere : un cylindre trapu surmonte d'un
      entonnoir. Sans lui, c'est un coupe des annees quatre-vingts ; avec, on
      sait exactement de quelle voiture il s'agit. */
@@ -464,7 +516,10 @@ export function delorean() {
   entonnoir.position.set(0, 1.12, 1.55);
   g.add(entonnoir);
 
-  // Les quatre roues, plus petites que celles d'une berline.
+  /* LES QUATRE ROUES, EN VRAIES JANTES A CINQ BRANCHES. Un seul batonnet
+     par roue lisait comme un essieu qui traverse le pneu, pas comme une
+     jante — cinq rayons issus d'un moyeu central, c'est le plus petit
+     nombre qui se lise comme une roue et non comme une croix. */
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const roue = new THREE.Group();
     const pneu = new THREE.Mesh(
@@ -473,8 +528,23 @@ export function delorean() {
     );
     pneu.rotation.z = Math.PI / 2;
     roue.add(pneu);
-    const rayon = boite(0.26, 0.05, 0.05, 0xC8CFD8, { metalness: 0.6, roughness: 0.3 });
-    roue.add(rayon);
+    const matJante = new THREE.MeshStandardMaterial({ color: 0xC8CFD8, metalness: 0.6, roughness: 0.3 });
+    const moyeu = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.26, 10), matJante);
+    moyeu.rotation.z = Math.PI / 2;
+    roue.add(moyeu);
+    for (let i = 0; i < 5; i++) {
+      // Chaque rayon s'etend du moyeu vers la jante le long de Y, dans un
+      // sous-groupe tourne autour de X : c'est l'AXE DE ROULEMENT de la
+      // roue (le pneu, lui, est deja tourne dans ce meme sens juste
+      // au-dessus), donc les cinq rayons s'eventent bien dans le plan de
+      // la roue et non a travers elle.
+      const porteRayon = new THREE.Group();
+      porteRayon.rotation.x = (i / 5) * Math.PI * 2;
+      const rayon = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.26, 0.045), matJante);
+      rayon.position.y = 0.14;
+      porteRayon.add(rayon);
+      roue.add(porteRayon);
+    }
     roue.position.set(sx * 0.88, 0.32, sz * 1.42);
     g.add(roue);
     roues.push(roue);
