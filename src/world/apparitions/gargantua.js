@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { smoothstep } from '../../core/noise.js';
+import { REPERES, construireCorps, nouvelleInstance, appliquerPose } from '../humanoide.js';
+import { halo } from './communs.js';
 
 /* ==========================================================================
    1. GARGANTUA — INTERSTELLAR
@@ -113,58 +115,124 @@ function matiereTrouNoir() {
   return mat;
 }
 
-/* LA SILHOUETTE AU SOL. Antoine : « je veux plus d'elements aussi sur
-   terre en reference a Interstellar ». Le disque seul dans le ciel est un
-   phenomene ; ce qui manque pour raconter le film, c'est quelqu'un qui le
-   REGARDE depuis le sol — la combinaison bouffante, le casque en bulle, un
-   bras leve vers ce qu'il montre, c'est la silhouette la plus citee de la
-   science-fiction juste apres le vaisseau lui-meme. Meme technique que le
-   velo d'E.T. : un contour noir peint au canevas, rien de plus. */
-function siluetteAstronaute() {
-  const n = 160;
-  const cv = document.createElement('canvas');
-  cv.width = n; cv.height = Math.round(n * 1.35);
-  const c = cv.getContext('2d');
-  c.fillStyle = '#000';
+/* L'ASTRONAUTE, EN VRAIE VOLUMETRIE. Antoine : « je veux plus d'elements
+   aussi sur terre en reference a Interstellar ». Premiere version : un
+   contour noir peint au canevas sur un panneau plat, force a toujours
+   faire face a la camera (le meme defaut, au fond, que le velo d'E.T.
+   avant sa refonte — voir `et.js`). Un panneau plat vu de trois quarts se
+   fend en lame ; celui-ci ne s'y prete meme plus, puisque le drone tourne
+   librement autour du chemin.
 
-  // Les jambes, ecartees, ancrees au sol.
-  c.beginPath();
-  c.moveTo(58, 216); c.lineTo(48, 148); c.lineTo(66, 146); c.lineTo(74, 214);
-  c.closePath(); c.fill();
-  c.beginPath();
-  c.moveTo(102, 216); c.lineTo(112, 148); c.lineTo(94, 146); c.lineTo(86, 214);
-  c.closePath(); c.fill();
+   La combinaison est batie sur le MEME squelette que tous les autres
+   personnages de ce dossier (`construireCorps`/`humanoide.js`) — c'est ce
+   squelette, pas un maillage special, qui porte la pose du bras leve. Un
+   gabarit large et massif (la combinaison est bouffante, jamais ajustee),
+   un casque en vraie sphere plutot qu'un cercle peint, et un sac a dos
+   (PLSS) qui deborde reellement derriere les epaules : le genre de volume
+   qu'un panneau plat ne peut tout simplement pas donner. */
+const TEINTE_COMBI = new THREE.Color(0xD8D2C0);
+const TEINTE_JOINT = new THREE.Color(0x2A2A2E);
+const TEINTE_VISIERE = new THREE.Color(0x0C1420);
 
-  // Le sac a dos (PLSS), qui deborde derriere les epaules.
-  c.beginPath();
-  c.ellipse(78, 96, 32, 24, 0, 0, Math.PI * 2); c.fill();
-  // Le torse, large et arrondi : la combinaison est bouffante, pas ajustee.
-  c.beginPath();
-  c.ellipse(80, 110, 34, 44, 0, 0, Math.PI * 2); c.fill();
-
-  // Les bras : un le long du corps, l'autre leve — il montre ce qu'il
-  // regarde, geste qui a lui seul raconte toute la scene.
-  c.lineWidth = 20; c.lineCap = 'round';
-  c.beginPath(); c.moveTo(52, 92); c.lineTo(40, 152); c.stroke();
-  c.beginPath(); c.moveTo(106, 92); c.lineTo(126, 38); c.stroke();
-
-  // Le casque : une grande bulle ronde, le signe qui rend la silhouette
-  // reconnaissable entre toutes, la tete renversee vers l'arriere.
-  c.beginPath();
-  c.arc(84, 46, 30, 0, Math.PI * 2); c.fill();
-
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshBasicMaterial({
-    map: t, transparent: true, opacity: 0, color: 0x03050A,
-    depthWrite: false, fog: true, side: THREE.DoubleSide,
-  });
-  const q = new THREE.Mesh(new THREE.PlaneGeometry(1, cv.height / cv.width), mat);
-  q.renderOrder = 1;
-  return q;
+function teinteAstronaute(x, y, z, c, os) {
+  if (os === 'piedD' || os === 'piedG' || os === 'mainD' || os === 'mainG'
+    || os === 'molletD' || os === 'molletG' || os === 'avantD' || os === 'avantG') {
+    c.copy(TEINTE_JOINT);
+    return;
+  }
+  if (os === 'tete') { c.copy(TEINTE_VISIERE); return; }
+  c.copy(TEINTE_COMBI);
+  void x; void y; void z;
 }
 
-export function trouNoir(relief, chemin) {
+let _corpsAstronaute = null;
+
+function astronauteReel(palier) {
+  const g = new THREE.Group();
+  if (!_corpsAstronaute) {
+    _corpsAstronaute = construireCorps(palier, {
+      teinter: teinteAstronaute,
+      // Une combinaison bouffante, jamais un corps ajuste : voila deux fois
+      // la carrure normale et une masse plus genereuse encore.
+      gabarit: { carrure: 1.30, masse: 1.55 },
+      pas: palier.nom === 'bas' ? 0.034 : palier.nom === 'moyen' ? 0.026 : 0.021,
+    });
+  }
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.72, metalness: 0.05,
+    emissive: new THREE.Color(0x030405), emissiveIntensity: 1,
+  });
+  const perso = nouvelleInstance(_corpsAstronaute, mat, { ombres: palier.ombres });
+  g.add(perso);
+  const os = perso.userData.os;
+
+  // Les jambes bien campees, un bras leve — le geste qui raconte a lui
+  // seul toute la scene, repris tel quel de la silhouette d'origine.
+  appliquerPose(os, {
+    brasD: [-0.10, 0, 0.08], avantD: [0.12, 0, 0],
+    brasG: [-2.55, 0, -0.30], avantG: [0.15, 0, 0],
+    cuisseD: [-0.08, 0, 0.09], molletD: [0.06, 0, 0],
+    cuisseG: [-0.08, 0, -0.09], molletG: [0.06, 0, 0],
+  });
+
+  /* LE CASQUE. Une vraie bulle, pas un rond peint — c'est le detail qui
+     rend la silhouette reconnaissable entre toutes, et une sphere en fait
+     bien plus qu'un cercle plat des qu'on la voit de profil ou de dos, ce
+     qu'un plan fixe sur camera interdisait totalement. Elle englobe
+     entierement l'os de la tete plutot que de le remplacer, exactement
+     comme le capuchon des duellistes du sabre laser habille `os.tete` sans
+     jamais retoucher le corps dessous (voir `encapuchonne.js`). */
+  const casque = new THREE.Mesh(
+    new THREE.SphereGeometry(0.145, 16, 12),
+    new THREE.MeshStandardMaterial({ color: TEINTE_COMBI, roughness: 0.35, metalness: 0.1, transparent: true, opacity: 0.28 })
+  );
+  casque.scale.set(1.05, 1.12, 1.1);
+  casque.position.set(0, REPERES.crane - REPERES.menton + 0.01, 0.01);
+  os.tete.add(casque);
+  // La visiere, sombre, legerement teintee par le disque quand il brille.
+  const visiere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.135, 14, 10, Math.PI * 0.62, Math.PI * 0.85, Math.PI * 0.18, Math.PI * 0.62),
+    new THREE.MeshStandardMaterial({ color: TEINTE_VISIERE, roughness: 0.15, metalness: 0.4 })
+  );
+  visiere.scale.set(1.05, 1.12, 1.1);
+  visiere.position.copy(casque.position);
+  os.tete.add(visiere);
+  // Le reflet du trou noir dans la visiere : un point chaud, discret, qui
+  // ne s'allume que si la scene elle-meme est visible.
+  const reflet = halo([1.0, 0.7, 0.35], 0.11);
+  reflet.position.set(0.03, REPERES.crane - REPERES.menton + 0.02, -0.14);
+  os.tete.add(reflet);
+
+  /* LE SAC A DOS (PLSS). Une capsule qui deborde reellement derriere les
+     epaules, accrochee a la poitrine pour suivre le buste — encore une
+     fois le meme principe d'attache que la cape des duellistes et de
+     Harry : jamais la racine, toujours l'os qui porte vraiment la piece. */
+  const sac = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.155, 0.32, 4, 10),
+    new THREE.MeshStandardMaterial({ color: 0xB8B0A0, roughness: 0.75, metalness: 0.05 })
+  );
+  sac.rotation.x = Math.PI / 2;
+  sac.rotation.z = 0.08;
+  sac.position.set(0, -0.02, 0.135);
+  os.poitrine.add(sac);
+  // Deux petites bouteilles d'oxygene, cote a cote sur le sac — le detail
+  // qui distingue un sac a dos d'un simple coussin.
+  for (const sx of [-1, 1]) {
+    const bouteille = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.028, 0.20, 8), new THREE.MeshStandardMaterial({ color: 0x8C9098, roughness: 0.5, metalness: 0.3 }));
+    bouteille.rotation.x = Math.PI / 2;
+    bouteille.position.set(sx * 0.06, -0.02, 0.19);
+    os.poitrine.add(bouteille);
+  }
+
+  g.userData.os = os;
+  g.userData.reflet = reflet;
+  g.userData.pieces = [];
+  perso.traverse((o) => { if (o.isMesh || o.isSkinnedMesh) g.userData.pieces.push(o); });
+  return g;
+}
+
+export function trouNoir(relief, chemin, palier) {
   const g = new THREE.Group();
   const mat = matiereTrouNoir();
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
@@ -174,16 +242,19 @@ export function trouNoir(relief, chemin) {
      lit pas du tout. */
   quad.scale.setScalar(102);
   quad.renderOrder = 2;
-  /* Le disque et l'astronaute sont chacun dans leur PROPRE sous-groupe : le
-     premier suspendu dans le ciel, loin, le second pose au sol, pres — deux
-     positions qui n'ont rien a voir, mais qui doivent toutes deux faire
-     face a la camera (un panneau plat vu de travers se lit comme une
-     lame). `g` lui-meme ne bouge jamais : voir plus bas pourquoi. */
+  /* Le disque reste dans son PROPRE sous-groupe, oriente face a la camera a
+     chaque image — un panneau plat vu de travers se lit comme une lame, et
+     c'est justement pourquoi la lentille gravitationnelle ne PEUT etre
+     qu'un panneau : elle est, par construction, la meme dans toutes les
+     directions de vue. L'astronaute, lui, n'a plus besoin de ce traitement
+     depuis qu'il est un vrai corps : on l'oriente UNE fois, vers l'astre
+     qu'il montre, et le drone peut ensuite tourner librement autour de lui
+     sans jamais le voir se fendre en lame. `g` lui-meme ne bouge jamais :
+     voir plus bas pourquoi. */
   const discGroupe = new THREE.Group();
   discGroupe.add(quad);
   g.add(discGroupe);
-  const astro = siluetteAstronaute();
-  astro.scale.setScalar(2.3);
+  const astro = astronauteReel(palier);
   const astroGroupe = new THREE.Group();
   astroGroupe.add(astro);
   g.add(astroGroupe);
@@ -217,7 +288,10 @@ export function trouNoir(relief, chemin) {
     if (!g.visible || !camera) return;
     mat.uniforms.uForce.value = vis;
     mat.uniforms.uTemps.value = t;
-    astro.material.opacity = vis * 0.95;
+    // Le reflet du disque dans la visiere suit la meme montee/retrait que
+    // le disque lui-meme : un reflet qui resterait allume alors que la
+    // source a disparu ne pourrait pas se justifier.
+    astro.userData.reflet.material.opacity = vis * 0.8;
     /* LA LUMIERE SE COURBE PRES DE LUI. L'aberration chromatique du moteur —
        jusqu'ici un simple reglage discret d'objectif — devient ici l'effet
        lui-meme : une vraie lentille gravitationnelle, pas une texture
@@ -252,12 +326,20 @@ export function trouNoir(relief, chemin) {
          nous, au lieu du disque. */
       g.userData.pointRegard = posDisque;
 
+      /* L'ORIENTATION DE L'ASTRONAUTE, UNE SEULE FOIS. Un vrai corps n'a
+         plus besoin de pivoter face a la camera a chaque image — c'est
+         justement tout l'interet d'en avoir fait un plutot que de garder
+         le panneau plat. On le tourne, une fois pour toutes, vers l'astre
+         qu'il montre : le bras leve pointe alors reellement vers le
+         disque, quel que soit l'angle sous lequel le drone finit par le
+         voir. */
+      astroGroupe.position.copy(posAstro);
+      astroGroupe.lookAt(posDisque.x, posAstro.y, posDisque.z);
+
       calcule = true;
     }
     discGroupe.position.copy(posDisque);
     discGroupe.lookAt(camera.position);
-    astroGroupe.position.copy(posAstro);
-    astroGroupe.lookAt(camera.position.x, posAstro.y + 1.2, camera.position.z);
   };
   return g;
 }

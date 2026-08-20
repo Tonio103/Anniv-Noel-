@@ -288,7 +288,7 @@ export class Apparitions {
       killbill: () => killBill(palier),
       trex: () => jurassique(chemin, relief, palier, deposerEmpreinte),
       shining: () => shining(palier),
-      gargantua: () => trouNoir(relief, chemin),
+      gargantua: () => trouNoir(relief, chemin, palier),
       delorean: () => traineesDeFeu(26, palier, relief),
       mugiwara: () => mugiwara(palier),
       hamburgers: () => nueeHamburgers(chemin, palier),
