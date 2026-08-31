@@ -36,7 +36,15 @@ export class Lumieres {
       s.camera.top = r; s.camera.bottom = -r;
       s.bias = -0.0016;
       s.normalBias = 0.42;          // evite l'acne sur la neige bombee
-      s.radius = 3.2;
+      /* LE RAYON DE FLOU SE MESURE EN TEXELS, PAS EN METRES.
+         A rayon fixe, une carte deux fois plus fine (2048 contre 1024)
+         couvre le meme disque de 58 m avec des texels deux fois plus
+         petits : le bord de l'ombre devient deux fois plus dur, alors que
+         le palier haut est cense etre le PLUS soigne, pas le plus dur.
+         On met donc le rayon a l'echelle de la resolution pour garder la
+         meme largeur de flou en metres sur tous les paliers — gratuit,
+         puisque le noyau reste a cinq echantillons quel que soit le rayon. */
+      s.radius = 3.2 * (palier.ombreTaille / 1024);
     }
     scene.add(this.soleil);
     scene.add(this.soleil.target);

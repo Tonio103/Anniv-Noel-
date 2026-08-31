@@ -258,17 +258,25 @@ export class PostFX {
        sur la ligne d'horizon, et l'impression de basse definition qui ne
        partait pas quand on montait la resolution.
 
-       Quatre echantillons suffisent : au-dela le gain devient invisible et le
-       cout de resolution, lui, continue de monter. Le palier bas se contente
-       de deux — il tourne sur les machines les plus modestes, ou la bande
-       passante memoire est la ressource rare.
+       Quatre echantillons suffisent sur mobile : au-dela le gain devient
+       invisible et le cout de resolution, lui, continue de monter. Le
+       palier bas se contente de deux — il tourne sur les machines les plus
+       modestes, ou la bande passante memoire est la ressource rare.
+
+       Le palier haut, lui, N'EST JAMAIS MOBILE (voir detecterPalier dans
+       quality.js) : il vise une carte de bureau, ou huit echantillons
+       coutent peu et se voient encore un peu sur les silhouettes fines
+       (bois du cerf, cordages, texte des cartes vues de loin). Le moteur
+       clampe de lui-meme a la valeur maximale reellement supportee, donc la
+       demande ne risque jamais un contexte invalide sur un GPU plus
+       modeste mal detecte.
 
        Note technique : la profondeur est relue par la passe finale pour la
        profondeur de champ. Le moteur resout donc AUSSI le tampon de
        profondeur au moment du blit ; c'est pris en charge, mais c'est
        exactement le genre de chose a verifier plutot qu'a supposer, d'ou le
        controle dans build/audit.mjs. */
-    this.echantillons = palier.nom === 'bas' ? 2 : 4;
+    this.echantillons = palier.nom === 'bas' ? 2 : palier.nom === 'haut' ? 8 : 4;
     this.rtScene.samples = this.echantillons;
     /* La profondeur est relue par la passe finale : il faut donc une vraie
        texture, pas le simple tampon de rendu. */
