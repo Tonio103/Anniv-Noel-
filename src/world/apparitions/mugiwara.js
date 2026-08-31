@@ -32,10 +32,10 @@ import {
 
    Chacun des trois temps se conclut par un vrai IMPACT : une gerbe de
    neige/glace qui gicle au point d'extension maximale, et un choc camera,
-   via le meme canal generique `emettre` qu'utilisent deja le duel de
-   sabres et Kill Bill. Un poing qui vole vers l'objectif sans jamais rien
-   y rencontrer se lisait comme un geste dans le vide ; un impact, meme
-   sans adversaire visible, le fait lire comme un coup PORTE.
+   via le meme canal generique `emettre` qu'utilise deja le duel de
+   sabres. Un poing qui vole vers l'objectif sans jamais rien y rencontrer
+   se lisait comme un geste dans le vide ; un impact, meme sans adversaire
+   visible, le fait lire comme un coup PORTE.
 
    AU-DELA DU COMBAT : la scene gagne aussi une petite trainee de mouvement
    sur chaque poing (l'etirement se voit mieux s'il laisse une trace), un
@@ -280,8 +280,8 @@ function majTrainee(trainee, poingPos, intensite) {
 /* L'ONDE DE CHOC AU SOL — `ondeChoc()`/`majOndeChoc()`, importees de
    `communs.js`. Nee ici (un anneau additif qui nait sous les pieds du
    personnage, s'elargit d'un bond et s'efface — la gerbe d'impact dit la
-   MATIERE projetee, l'onde dit la FORCE elle-meme), puis remontee au
-   moment ou Kill Bill en a eu besoin a son tour : voir le banc partage
+   MATIERE projetee, l'onde dit la FORCE elle-meme), puis remontee des
+   que le duel de sabres en a eu besoin a son tour : voir le banc partage
    pour le detail. */
 
 /* --------------------------------------------------------------------------

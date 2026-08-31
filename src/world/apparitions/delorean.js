@@ -115,15 +115,13 @@ export function traineesDeFeu(longueur, palier, relief) {
   };
 
   /* LA NEIGE QUI GICLE AUX ROUES ARRIERE. Une voiture qui roule sur la
-     neige sans y laisser la moindre trace se lit comme posee sur du verre
-     — la meme lecon que les empreintes du theropode, appliquee ici a des
-     pneus plutot qu'a des pattes. Seules les roues ARRIERE (indices 1 et
-     3 dans la boucle `for sx of [-1,1] for sz of [-1,1]` de `vehicules.js`
-     — celles a l'arriere, sz=1) : une DeLorean est a propulsion, ce sont
-     elles qui mordent dans la neige quand la voiture accelere. Meme
-     fonction que les impacts de Kill Bill, du duel de sabres, du
-     theropode et du fil de Spider-Man — une gerbe par roue, retriggee en
-     boucle tant que la voiture roule. */
+     neige sans y laisser la moindre trace se lit comme posee sur du verre.
+     Seules les roues ARRIERE (indices 1 et 3 dans la boucle `for sx of
+     [-1,1] for sz of [-1,1]` de `vehicules.js` — celles a l'arriere,
+     sz=1) : une DeLorean est a propulsion, ce sont elles qui mordent dans
+     la neige quand la voiture accelere. Meme fonction que les impacts du
+     duel de sabres — une gerbe par roue, retriggee en boucle tant que la
+     voiture roule. */
   const roueArD = auto.userData.roues[1], roueArG = auto.userData.roues[3];
   const gicleeD = gerbeImpact(14, 0xEDF3FC, 0.06);
   const gicleeG = gerbeImpact(14, 0xEDF3FC, 0.06);
@@ -133,10 +131,9 @@ export function traineesDeFeu(longueur, palier, relief) {
   /* L'ECHAPPEMENT DU REACTEUR, TANT QU'ELLE ROULE ENCORE. Un panache
      chaud qui s'echappe de l'entonnoir avant meme le saut — le reacteur
      tourne des qu'elle approche, pas seulement au moment ou les trainees
-     s'allument. Meme sprite de buee que Kevin et le theropode, reboucle
-     en continu comme celui des hamburgers plutot que declenche par
-     a-coups : un reacteur qui chauffe ne respire pas, il fume sans
-     arret. */
+     s'allument. Meme sprite de buee que Kevin, reboucle en continu
+     plutot que declenche par a-coups : un reacteur qui chauffe ne
+     respire pas, il fume sans arret. */
   const panache = buee([0.85, 0.90, 1.0]);
   g.add(panache);
 

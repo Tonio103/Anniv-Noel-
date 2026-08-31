@@ -117,10 +117,11 @@ function congereBranche() {
    partagee avec toutes les scenes de vehicules dans `vehicules.js`), celle-
    ci est un eclatement UNIQUE : des chunks de neige qui giclent du sommet
    du monticule au moment ou le fuyard le frole, retombent, et ne rejouent
-   plus jusqu'au prochain passage. C'est exactement la meme technique que
-   `gerbeDeSang()` dans `killbill.js` — une position tiree une fois par
-   particule, relue chaque image en fonction du temps ecoule depuis le
-   declenchement — appliquee ici a de la neige plutot qu'a un liquide.
+   plus jusqu'au prochain passage. Meme principe que `gerbeImpact()` dans
+   `communs.js` — une position tiree une fois par particule, relue chaque
+   image en fonction du temps ecoule depuis le declenchement — appliquee
+   ici a de la neige plutot qu'aux etincelles ou aux debris des autres
+   scenes.
 
    Elle est ajoutee comme ENFANT de l'obstacle plutot que du groupe
    principal : l'obstacle est deja repositionne chaque image dans le
@@ -152,8 +153,8 @@ function gerbeEmbardee(n) {
 
 /* `dtE` : le temps ecoule depuis le declenchement. La gerbe part vite,
    monte, puis retombe en parabole avant de s'eteindre — exactement le
-   meme principe que les braises de la DeLorean ou le sang de Kill Bill,
-   juste applique a un nuage de neige projetee. */
+   meme principe que les braises de la DeLorean, juste applique a un
+   nuage de neige projetee. */
 function majGerbeEmbardee(pts, dtE) {
   const { pos, dirs, n } = pts.userData;
   if (dtE > 1.05) { pts.material.opacity = 0; return; }
@@ -278,7 +279,8 @@ export function coursePoursuite(chemin, relief, palier) {
      choc camera et le son de derapage se redeclencheraient a chaque image
      tant que la fenetre de l'embardee reste ouverte. `embardeeT` retient
      l'instant du declenchement, pour dater la gerbe de debris qui en
-     decoule — le meme principe que `coup1T`/`coup2T` dans `killbill.js`. */
+     decoule — le meme principe que le suivi de `clashT` du duel de
+     sabres. */
   let derapageFait = false, embardeeT = 0;
   g.userData.reinit = () => { derapageFait = false; debris.material.opacity = 0; };
 

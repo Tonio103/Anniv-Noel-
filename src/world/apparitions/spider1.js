@@ -3,11 +3,29 @@ import { grainRond } from '../../core/dot.js';
 import { smoothstep } from '../../core/noise.js';
 import { piste, regarderVers } from '../humanoide.js';
 import { creerSpider, POSES } from '../spider.js';
-import { filDeToile, halo } from './communs.js';
+import { halo } from './communs.js';
 
 /* L'axe vertical, reutilise par les segments et touffes du tronc
    d'accroche pour orienter chaque piece le long de sa propre direction. */
 const _AXE_Y = new THREE.Vector3(0, 1, 0);
+
+/* LE FIL. Vivait dans `communs.js`, partage avec le second passage du
+   personnage (la balancoire) — retiree du parcours, il ne reste plus
+   qu'un seul appelant : la regle de ce dossier veut qu'un helper a un
+   seul consommateur reel vive dans son fichier, pas dans le commun. Un
+   cylindre tres fin, legerement lumineux, qui monte hors champ. Sans lui
+   le personnage flotte ; avec lui, il PEND, et c'est toute la difference
+   entre une figurine et une scene. */
+function filDeToile(longueur) {
+  const f = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.011, 0.008, longueur, 5),
+    new THREE.MeshStandardMaterial({
+      color: 0xE8EEF6, roughness: 0.5, emissive: 0x2A3140, emissiveIntensity: 1,
+    })
+  );
+  f.position.y = longueur / 2;
+  return f;
+}
 
 /* ==========================================================================
    SPIDER-MAN, PREMIER PASSAGE : SUSPENDU LA TETE EN BAS

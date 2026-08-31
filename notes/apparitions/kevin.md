@@ -59,13 +59,12 @@ Aucun signalé.
 
 - Des empreintes de pas supplémentaires menant vers le porche (une
   référence discrète aux cambrioleurs du film) : non ajoutées — cette
-  scène ne reçoit ni `chemin` ni `relief` en paramètre (contrairement à
-  Kill Bill ou au duel de sabres), donc aucune empreinte ne pourrait
-  épouser le terrain réel sans changer la signature de la fonction pour
-  un gain incertain.
+  scène ne reçoit ni `chemin` ni `relief` en paramètre (contrairement au
+  duel de sabres), donc aucune empreinte ne pourrait épouser le terrain
+  réel sans changer la signature de la fonction pour un gain incertain.
 - Une ondulation « cri silencieux » partant de sa bouche a été envisagée
-  (dans le même esprit que l'onde de choc de Mugiwara/Kill Bill/le duel
-  de sabres) puis écartée : `ondeChoc` est bâtie à plat sur le plan XZ
-  pour un anneau AU SOL, et l'orienter face à la caméra aurait demandé une
+  (dans le même esprit que l'onde de choc de Mugiwara/du duel de sabres)
+  puis écartée : `ondeChoc` est bâtie à plat sur le plan XZ pour un
+  anneau AU SOL, et l'orienter face à la caméra aurait demandé une
   geometrie séparée pour un gain marginal sur une scène qui n'a pas de
   choc à proprement parler.

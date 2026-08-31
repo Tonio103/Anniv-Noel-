@@ -152,92 +152,14 @@ export function faisceau(couleur, longueur, ouverture) {
   return m;
 }
 
-/* ==========================================================================
-   SPIDER-MAN — LE FIL
-
-   Partage entre les deux passages du personnage (`spider1.js`, `spider2.js`).
-   Le tronc d'accroche du premier passage, lui, n'appartient qu'a
-   `spider1.js` — seul le premier personnage reste immobile assez longtemps
-   pour justifier un arbre entier construit autour de lui ; il vit donc
-   directement dans son propre fichier.
-
-   ANTOINE : « on dirait un personnage Roblox ». C'etait vrai, et le defaut
-   etait structurel : le personnage etait fait de capsules posees cote a cote,
-   et la ou deux tubes se rencontrent, on voit deux tubes qui se rencontrent.
-   Il vient desormais de `humanoide.js` — une seule peau continue extraite
-   d'un champ implicite, avec de vrais deltoides, un vrai resserrement a la
-   taille, de vrais mollets — et de `spider.js`, qui lui pose son costume, sa
-   toile dessinee dans le nuanceur et ses yeux.
-   ========================================================================== */
-
-/* Le fil : un cylindre tres fin, legerement lumineux, qui monte hors champ.
-   Sans lui le personnage flotte ; avec lui, il PEND, et c'est toute la
-   difference entre une figurine et une scene. */
-export function filDeToile(longueur) {
-  const f = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.011, 0.008, longueur, 5),
-    new THREE.MeshStandardMaterial({
-      color: 0xE8EEF6, roughness: 0.5, emissive: 0x2A3140, emissiveIntensity: 1,
-    })
-  );
-  f.position.y = longueur / 2;
-  return f;
-}
-
-/* Tendre un fil entre deux points donnes dans le repere du groupe. Le
-   cylindre est bati le long de +Y et centre sur son milieu : on le pose au
-   milieu du segment, on l'oriente, on l'etire. C'est la seule facon
-   d'obtenir un fil qui reste accroche a une main qui bouge. */
-const _AXE_Y = new THREE.Vector3(0, 1, 0);
-const _milieu = new THREE.Vector3();
-const _delta = new THREE.Vector3();
-export function tendreFil(m, a, b) {
-  _milieu.addVectors(a, b).multiplyScalar(0.5);
-  _delta.subVectors(b, a);
-  const l = _delta.length();
-  if (l < 1e-4) { m.visible = false; return; }
-  m.visible = true;
-  m.position.copy(_milieu);
-  m.scale.set(1, l, 1);
-  m.quaternion.setFromUnitVectors(_AXE_Y, _delta.divideScalar(l));
-}
-
-/* LA MARE DE SANG. Partagee entre Kill Bill et Shining : la meme tache
-   irreguliere sert a l'adversaire masque (`killbill.js`) et a l'ascenseur
-   de l'Overlook (`shining.js`). Trois eclaboussures superposees, de tailles
-   differentes, plutot qu'un cercle unique — c'est ce qui rompt le contour
-   parfaitement circulaire qu'une seule tache trahit toujours. */
-export function tacheDeSang() {
-  const g = new THREE.Group();
-  const taches = [];
-  const disposition = [
-    { x: 0, z: 0.3, r: 1.35, rot: 0.4 },
-    { x: 0.55, z: 0.85, r: 0.75, rot: 1.7 },
-    { x: -0.5, z: 0.55, r: 0.65, rot: 2.6 },
-  ];
-  for (const d of disposition) {
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x60090D, transparent: true, opacity: 0, depthWrite: false,
-    });
-    const m = new THREE.Mesh(new THREE.CircleGeometry(d.r, 11), mat);
-    m.rotation.x = -Math.PI / 2;
-    m.rotation.z = d.rot;
-    m.position.set(d.x, 0, d.z);
-    m.renderOrder = 1;
-    g.add(m);
-    taches.push(mat);
-  }
-  g.userData.taches = taches;
-  return g;
-}
-
 /* --------------------------------------------------------------------------
    L'ONDE DE CHOC AU SOL.
 
    Nee avec Mugiwara (un poing qui ebranle la neige a chaque coup), puis
-   reprise telle quelle par Kill Bill (la lame qui frappe l'adversaire) des
-   qu'un second fichier en a eu besoin — c'est la regle de ce module :
-   partager des le DEUXIEME usage reel, jamais par anticipation du premier.
+   reprise telle quelle par le duel de sabres (la lame qui frappe
+   l'adversaire) des qu'un second fichier en a eu besoin — c'est la regle
+   de ce module : partager des le DEUXIEME usage reel, jamais par
+   anticipation du premier.
    Un anneau additif qui nait au point de contact, s'elargit d'un bond puis
    s'efface : la gerbe de particules dit la MATIERE projetee, l'onde dit la
    FORCE elle-meme, et les deux ensemble lisent un impact bien plus lourd
@@ -263,10 +185,11 @@ export function majOndeChoc(onde, dtE, duree = 0.5) {
      `Box3.setFromObject` (voir `build/apparitions.mjs`) ignore l'opacite
      mais respecte `.visible` : un impact eteint qui reste `visible=true`
      continue de peser dans la boite englobante de la scene entiere, ce
-     qui n'a aucune consequence quand il vit pres du sujet (Kill Bill, le
-     duel de sabres) mais en a une bien reelle quand il vit LOIN de lui
-     (l'accroche du fil de Spider-Man, a cinquante metres du personnage) :
-     la mesure de cadrage se retrouve gonflee par un point que personne ne
+     qui n'a aucune consequence quand il vit pres du sujet (Mugiwara, le
+     duel de sabres) mais en aurait une bien reelle si un futur appelant
+     le posait LOIN de son sujet — un cas deja rencontre une fois (un fil
+     lance vers une accroche a cinquante metres du personnage) : la
+     mesure de cadrage se retrouvait gonflee par un point que personne ne
      voit jamais. Couper `.visible` quand l'opacite tombe a zero rend cette
      categorie de defaut structurellement impossible, pour cet appelant
      comme pour tout futur appelant qui placerait son impact loin du
@@ -337,99 +260,15 @@ export function majImpact(pts, dtE, opts = {}) {
 }
 
 /* --------------------------------------------------------------------------
-   LA TRAINEE DE LAME.
-
-   Nee avec Kill Bill (un katana qui balaie l'ecran en trois images se lit
-   comme une arme qui teleporte d'une pose a l'autre), puis reprise ici
-   des que le duel de sabres en a eu besoin a son tour. Un ruban dynamique
-   qui echantillonne la POINTE et la BASE reelles de l'arme chaque image
-   — pas une trajectoire synthetisee — et les relie en un arc lumineux qui
-   s'efface avec l'age : la signature visuelle classique du cinema
-   d'escrime, quelle que soit l'arme.
-
-   `pointeLocale`/`baseLocale` sont les deux points fixes, en repere local
-   de l'arme, entre lesquels le ruban se tend — la pointe et la garde d'un
-   katana, la pointe et la garde d'un sabre laser : chaque appelant les
-   choisit, rien d'autre ne change. */
-export function traineeLame(n) {
-  const pos = new Float32Array(n * 2 * 3);
-  const col = new Float32Array(n * 2 * 3);
-  const idx = [];
-  for (let i = 0; i < n - 1; i++) {
-    const a = i * 2, b = a + 2;
-    idx.push(a, b, a + 1, a + 1, b, b + 1);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.setIndex(idx);
-  geo.setDrawRange(0, 0);
-  const mat = new THREE.MeshBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true,
-  });
-  const m = new THREE.Mesh(geo, mat);
-  m.frustumCulled = false;
-  const pointes = Array.from({ length: n }, () => new THREE.Vector3());
-  const gardes = Array.from({ length: n }, () => new THREE.Vector3());
-  m.userData = { pointes, gardes, n, remplis: 0 };
-  return m;
-}
-
-const _pointeLocale = new THREE.Vector3();
-const _gardeLocale = new THREE.Vector3();
-
-/* `armeObj.updateWorldMatrix(true, false)` force la mise a jour de cette
-   seule branche avant lecture : sans lui, la matrice lue serait celle de
-   l'image PRECEDENTE, puisque three.js ne recalcule les matrices du
-   monde qu'a l'interieur de `renderer.render()`, apres que ce code a deja
-   tourne. `groupe` est la scene englobante — fixe une fois la scene
-   posee, donc un seul aller-retour de matrices suffit, pas de cache a
-   invalider. */
-export function majTraineeLame(trainee, armeObj, groupe, actif, pointeLocale, baseLocale) {
-  const { pointes, gardes, n } = trainee.userData;
-  for (let i = n - 1; i > 0; i--) {
-    pointes[i].copy(pointes[i - 1]);
-    gardes[i].copy(gardes[i - 1]);
-  }
-  armeObj.updateWorldMatrix(true, false);
-  _pointeLocale.copy(pointeLocale).applyMatrix4(armeObj.matrixWorld);
-  groupe.worldToLocal(_pointeLocale);
-  pointes[0].copy(_pointeLocale);
-  _gardeLocale.copy(baseLocale).applyMatrix4(armeObj.matrixWorld);
-  groupe.worldToLocal(_gardeLocale);
-  gardes[0].copy(_gardeLocale);
-  trainee.userData.remplis = Math.min(n, trainee.userData.remplis + 1);
-
-  const pos = trainee.geometry.attributes.position.array;
-  const col = trainee.geometry.attributes.color.array;
-  for (let i = 0; i < n; i++) {
-    const o = i * 6;
-    pos[o] = pointes[i].x; pos[o + 1] = pointes[i].y; pos[o + 2] = pointes[i].z;
-    pos[o + 3] = gardes[i].x; pos[o + 4] = gardes[i].y; pos[o + 5] = gardes[i].z;
-    const age = i / (n - 1);
-    const inten = actif * (1 - age) * (1 - age);
-    col[o] = col[o + 1] = col[o + 2] = inten;
-    col[o + 3] = col[o + 4] = col[o + 5] = inten;
-  }
-  trainee.geometry.attributes.position.needsUpdate = true;
-  trainee.geometry.attributes.color.needsUpdate = true;
-  trainee.geometry.setDrawRange(0, Math.max(0, (Math.min(n, trainee.userData.remplis) - 1) * 6));
-  trainee.geometry.computeBoundingSphere();
-  trainee.material.opacity = actif;
-}
-
-/* --------------------------------------------------------------------------
    LA BUEE.
 
    Nee avec Kevin (« il tremble de froid » restait une affirmation non
    prouvee tant qu'aucun souffle visible ne sortait de sa bouche par une
-   nuit visiblement glaciale), puis reprise ici des que le theropode de
-   Jurassic Park en a eu besoin a son tour — la meme regle que partout
-   ailleurs dans ce module. Un petit nuage additif qui nait, grandit puis
-   s'estompe ; `echelle` et `duree` laissent chaque appelant regler
-   l'ampleur du souffle a la taille de qui le pousse — un enfant n'exhale
-   pas comme un theropode de plusieurs tonnes. */
+   nuit visiblement glaciale), puis reprise des que Patronus et la DeLorean
+   en ont eu besoin a leur tour — la meme regle que partout ailleurs dans
+   ce module. Un petit nuage additif qui nait, grandit puis s'estompe ;
+   `echelle` et `duree` laissent chaque appelant regler l'ampleur du
+   souffle a la taille de qui le pousse. */
 export function buee(teinte = [0.85, 0.88, 0.94]) {
   const m = new THREE.Sprite(new THREE.SpriteMaterial({
     map: lueurDiffuse(), transparent: true, opacity: 0,

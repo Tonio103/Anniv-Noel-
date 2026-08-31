@@ -4,7 +4,38 @@ import { smoothstep } from '../../core/noise.js';
 import {
   REPERES, construireCorps, nouvelleInstance, regarderVers, appliquerPose,
 } from '../humanoide.js';
-import { tacheDeSang, halo, gerbeImpact, majImpact } from './communs.js';
+import { halo, gerbeImpact, majImpact } from './communs.js';
+
+/* LA MARE DE SANG. Vivait dans `communs.js`, partagee avec Kill Bill —
+   retire du parcours, il ne reste plus qu'un seul appelant : la regle
+   de ce dossier veut qu'un helper a un seul consommateur reel vive dans
+   son fichier, pas dans le commun. Trois eclaboussures superposees, de
+   tailles differentes, plutot qu'un cercle unique — c'est ce qui rompt
+   le contour parfaitement circulaire qu'une seule tache trahit
+   toujours. */
+function tacheDeSang() {
+  const g = new THREE.Group();
+  const taches = [];
+  const disposition = [
+    { x: 0, z: 0.3, r: 1.35, rot: 0.4 },
+    { x: 0.55, z: 0.85, r: 0.75, rot: 1.7 },
+    { x: -0.5, z: 0.55, r: 0.65, rot: 2.6 },
+  ];
+  for (const d of disposition) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x60090D, transparent: true, opacity: 0, depthWrite: false,
+    });
+    const m = new THREE.Mesh(new THREE.CircleGeometry(d.r, 11), mat);
+    m.rotation.x = -Math.PI / 2;
+    m.rotation.z = d.rot;
+    m.position.set(d.x, 0, d.z);
+    m.renderOrder = 1;
+    g.add(m);
+    taches.push(mat);
+  }
+  g.userData.taches = taches;
+  return g;
+}
 
 /* ==========================================================================
    3. SHINING
@@ -74,9 +105,9 @@ function jumelle(palier) {
    par Antoine : les portes en laiton s'ouvrent sur un noir complet, et le
    sang jaillit du sol par vagues plutot que par une seule gerbe — un
    DELUGE qui continue de couler tant que les portes restent ouvertes,
-   pas une explosion ponctuelle comme celle de Kill Bill. Il se dresse
-   derriere les jumelles : on les regarde d'abord, et c'est lui qui se
-   revele une fois qu'elles ont fini de nous fixer. */
+   pas une explosion ponctuelle. Il se dresse derriere les jumelles : on
+   les regarde d'abord, et c'est lui qui se revele une fois qu'elles ont
+   fini de nous fixer. */
 function ascenseurOverlook() {
   const g = new THREE.Group();
   const cage = new THREE.Group();
@@ -281,11 +312,10 @@ export function shining(palier) {
   /* LES ECLABOUSSURES AU SOL. Le deluge dessine deja le jaillissement du
      seuil vers nous ; il lui manquait l'instant de CONTACT — la ou chaque
      paquet de sang qui retombe fait vraiment gicler ce qu'il touche. Meme
-     fonction que l'impact des lames de Kill Bill et du duel de sabres
-     (`gerbeImpact`/`majImpact`), redeclenchee a intervalle court tant que
-     le deluge coule, exactement comme le grincement de blocage du duel de
-     sabres — un seul jeu de particules, retriggee par simple ecart de
-     temps. */
+     fonction que l'impact des lames du duel de sabres (`gerbeImpact`/
+     `majImpact`), redeclenchee a intervalle court tant que le deluge
+     coule, exactement comme le grincement de blocage du duel de sabres —
+     un seul jeu de particules, retriggee par simple ecart de temps. */
   const eclaboussures = gerbeImpact(20, 0x8A0C10, 0.09);
   eclaboussures.position.set(0, 0.05, -1.4);
   ascenseur.add(eclaboussures);

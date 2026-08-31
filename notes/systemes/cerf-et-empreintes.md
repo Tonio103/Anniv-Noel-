@@ -66,19 +66,16 @@ fraîches sont juste derrière l'animal).
 
 ## Problèmes connus / à faire
 
-**Le T-Rex ne laisse aucune empreinte.** `jurassique()` / `marcheTrex()`
-(`src/world/apparitions.js`, `src/world/trex.js`) n'appellent jamais
-`empreintes.ajouter()` — la fonctionnalité n'a simplement jamais été
-écrite pour lui, alors que le système (`Empreintes`) est générique et
-pourrait recevoir des traces de n'importe qui. Diagnostic complet et
-pistes détaillées dans `../son/empreintes-trex.md` (le nom du fichier
-trompe — c'est un problème visuel, classé sous `son/` par erreur
-d'aiguillage éditorial ; le contenu, lui, est correct). Point non résolu
-et à vérifier avant d'écrire le correctif : `Empreintes` suppose
-aujourd'hui **une seule forme de tampon** (le sabot fourchu de cervide,
-`tamponSabot()`) — une empreinte tridactyle de théropode, bien plus
-grande, demandera d'étendre le système plutôt que de simplement
-l'appeler tel quel avec une `force` plus élevée.
+Aucun signalé actuellement. Le T-Rex avait un temps posé ce problème
+(aucune empreinte laissée) et le système avait été étendu pour lui — un
+second tampon (`tamponTrex()`), un paramètre `type` sur
+`Empreintes.ajouter()` — avant que l'apparition elle-même ne soit
+retirée du parcours cette session ; l'extension, devenue sans
+consommateur, a été retirée avec elle. `Empreintes` ne connaît donc plus
+qu'**une seule forme de tampon** (le sabot fourchu de cervide,
+`tamponSabot()`) — mais le système reste conçu pour en recevoir un
+second si une future apparition en a réellement besoin (voir la règle de
+partage documentée dans `communs.js`).
 
 ## Idées non explorées
 

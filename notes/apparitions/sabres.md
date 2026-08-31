@@ -23,8 +23,7 @@ deuxième usage réel) :
   l'autre plutôt que comme une lame qui balaie l'air.
 - **Des étincelles au contact** (`gerbeImpact`/`majImpact`, reparamétrées
   en grains blanc-bleu minuscules et très rapides — rien à voir avec les
-  éclats de glace de Mugiwara ou le sang de Kill Bill, mais la même
-  mécanique de particules).
+  éclats de glace de Mugiwara, mais la même mécanique de particules).
 - **Une onde de choc au sol** (`ondeChoc`/`majOndeChoc`) sous le point de
   contact des lames, à chaque passe.
 
@@ -44,10 +43,13 @@ lames qui grincent en continu » plutôt que « une deuxième étincelle ».
 - `src/world/encapuchonne.js` — `creerDuelliste(palier, opts)`, `GARDES`,
   `ECHANGES` (le corps et la chorégraphie, réutilisables si une autre scène
   de duel était voulue)
-- `src/world/apparitions/communs.js` — `traineeLame`/`majTraineeLame`
-  (déplacées ici depuis `killbill.js` cette session, désormais partagées
-  entre les deux duels), `gerbeImpact`/`majImpact` (déplacées depuis
-  `mugiwara.js`), `ondeChoc`/`majOndeChoc` (déjà partagées)
+- `traineeLame`/`majTraineeLame` vivent directement dans `sabres.js` —
+  elles vivaient dans `communs.js`, partagées avec Kill Bill (retiré du
+  parcours) ; un seul consommateur restant, elles sont redescendues dans
+  leur fichier
+- `src/world/apparitions/communs.js` — `gerbeImpact`/`majImpact`
+  (déplacées depuis `mugiwara.js`), `ondeChoc`/`majOndeChoc` (déjà
+  partagées)
 - `src/core/postfx.js` — `PostFX.assombrir(force, dt)`, branché depuis
   `Apparitions.maj()` via le champ `assombrit` de l'entrée `sabres` dans
   `planApparitions`

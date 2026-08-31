@@ -67,15 +67,15 @@ for (const a of liste) {
     /* LES SCENES QUI SUIVENT LE CHEMIN NE SE TESTENT PAS AU MEME POINT.
 
        « cible = s - avant*0.45 » suppose une scene POSEE une fois pour
-       toutes, dont on regarde le milieu de fenetre. Une voiture de police ou
-       un theropode, eux, ont leur PROPRE horaire a l'interieur de cette
-       fenetre — `coursePoursuite` et `jurassique` placent le vehicule a une
-       abscisse qui depend de `k`, une progression seconde, non lineaire par
-       rapport a `u`. Au milieu de fenetre choisi ici, `k` peut tres bien
-       valoir un instant ou la voiture est encore a trente metres DERRIERE
-       le cerf — donc derriere la camera, qui regarde devant. Le test
-       donnait alors des coordonnees ecran absurdes, non pas parce que la
-       scene est fausse, mais parce que l'instant choisi ne l'est pas.
+       toutes, dont on regarde le milieu de fenetre. Une voiture de police,
+       elle, a son PROPRE horaire a l'interieur de cette fenetre —
+       `coursePoursuite` place le vehicule a une abscisse qui depend de
+       `k`, une progression seconde, non lineaire par rapport a `u`. Au
+       milieu de fenetre choisi ici, `k` peut tres bien valoir un instant
+       ou la voiture est encore a trente metres DERRIERE le cerf — donc
+       derriere la camera, qui regarde devant. Le test donnait alors des
+       coordonnees ecran absurdes, non pas parce que la scene est fausse,
+       mais parce que l'instant choisi ne l'est pas.
 
        Pour ces scenes-la, on BALAYE toute la fenetre et on retient l'instant
        ou l'objet est le plus proche de la camera : c'est necessairement la

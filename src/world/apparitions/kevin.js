@@ -34,8 +34,8 @@ function teinteKevin(x, y, z, c, os) {
   if (jambe) { c.copy(PANTALON_SOMBRE); return; }
   if (os === 'tete') {
     /* Le bonnet, sur le dessus et l'arriere du crane ; le visage, dans
-       l'ombre, en dessous — la meme logique de coupe par la normale que
-       la chevelure de Kill Bill, ici sur un bonnet plutot qu'un carre. */
+       l'ombre, en dessous — une coupe par la hauteur et la normale,
+       plutot qu'une texture. */
     if (y > REPERES.crane - 0.05 || (z > 0.01 && y > REPERES.menton)) { c.setHex(0xB23B3B); return; }
     c.copy(PEAU_CLAIRE);
     return;
@@ -201,8 +201,8 @@ function majPorche(porche, t, vis) {
    (« il tremble de froid » etait deja ecrit dans ce fichier avant cette
    session, mais rien ne le PROUVAIT visuellement — un enfant qui tremble
    sans jamais souffler un nuage, par une nuit visiblement glaciale,
-   contredit ce que la scene raconte deja), puis remontee des que le
-   theropode de Jurassic Park en a eu besoin a son tour. */
+   contredit ce que la scene raconte deja), puis remontee des que
+   Patronus et la DeLorean en ont eu besoin a leur tour. */
 
 let _corpsKevin = null;
 

@@ -49,13 +49,13 @@ du vol plutôt que de retarder son déclenchement.
   session : elles n'étaient en réalité utilisées que par cette scène),
   `hibouPerche()`, `moineauEffraye()`, `glacons()`
 - `src/world/spider.js` — `creerSpider(palier, opts)`, `POSES` (le corps
-  générique, réutilisé aussi par `spider2`), `poserYeux()` (expose
-  désormais les lentilles via `os.tete.userData.yeux` pour le clignement),
-  `poserLanceToiles()` (le petit boîtier de lance-toile sur chaque
-  poignet, visible sur les deux apparitions du personnage)
-- `src/world/apparitions/communs.js` — `filDeToile()`/`tendreFil()`
-  restent ici, réellement partagées avec `spider2.js` (voir
-  `spider2.md` pour la fiche de la seconde apparition du personnage)
+  générique du personnage), `poserYeux()` (expose désormais les lentilles
+  via `os.tete.userData.yeux` pour le clignement), `poserLanceToiles()`
+  (le petit boîtier de lance-toile sur chaque poignet)
+- `filDeToile()` vit directement dans `spider1.js` — elle vivait dans
+  `communs.js`, partagée avec le second passage du personnage (la
+  balançoire, retirée du parcours) ; un seul consommateur restant, elle
+  est redescendue dans son fichier
 
 ## Problèmes connus / à faire
 

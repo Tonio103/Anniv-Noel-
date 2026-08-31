@@ -35,16 +35,17 @@ if (quoi !== 'regler' && quoi !== 'pas') {
    ponctuel) et `'pas'` (répété à chaque foulée — un choc à chaque pas
    donnerait une vibration permanente, pas un choc).
 
-**Conséquence directe et vérifiée cette session** : si la méthode nommée
-n'existe pas sur `ApparitionsSon`, l'appel `typeof s[quoi] === 'function'`
-échoue silencieusement — pas d'erreur, pas de son, rien dans la console.
-C'est exactement le bug documenté dans `../son/bruits-trex.md` : la scène
-`jurassique()` appelle bien `emettre('pas')`, mais aucune méthode `pas(nom)`
-n'existe dans `apparitionsSon.js`, donc rien ne se passe. **Le choc caméra,
-lui, ne dépend pas de cette méthode** — mais `'pas'` est justement exclu du
-choc générique, donc ce cas précis ne déclenche vraiment rien du tout.
-Symétrique au bug des empreintes (`../son/empreintes-trex.md`), mais côté
-son : le signal est émis, rien ne le reçoit.
+**Un piège vérifié cette session** : si la méthode nommée n'existe pas sur
+`ApparitionsSon`, l'appel `typeof s[quoi] === 'function'` échoue
+silencieusement — pas d'erreur, pas de son, rien dans la console. Une
+scène peut donc émettre un événement dont personne, côté son, ne s'occupe
+jamais, sans que rien ne le signale — le T-Rex (retiré du parcours cette
+session) en avait fait les frais avec son signal `'pas'`. **Le choc
+caméra, lui, ne dépend pas de cette méthode** — mais `'pas'` est
+justement exclu du choc générique (foulée répétée, pas un choc ponctuel),
+donc ce genre de cas ne déclenche vraiment rien du tout : un nom de scène
+qui ne correspond à aucune méthode `ApparitionsSon` est à vérifier
+manuellement, le mécanisme ne le signale jamais de lui-même.
 
 ## Continus vs ponctuels
 
@@ -74,13 +75,11 @@ là-bas »).
 
 ## Problèmes connus / à faire
 
-- `pas(nom)` n'existe pas pour le T-Rex — voir `../son/bruits-trex.md`
-  pour le diagnostic complet et les pistes (ne pas réutiliser telle
-  quelle l'ancienne fonction de pas du cerf, retirée sur demande
-  explicite d'Antoine plus tôt dans le projet).
-- Aucun autre trou connu dans le dispatcher : toutes les autres scènes
-  (`rugir`, `choc`, `sirene`, `bourdonnement`, `gerbe`, `ouverture`, etc.)
-  ont une méthode correspondante vérifiée par `build/sonApparitions.mjs`.
+Aucun trou connu dans le dispatcher : toutes les scènes actives
+(`choc`, `sirene`, `bourdonnement`, `gerbe`, `ouverture`, etc.) ont une
+méthode correspondante, vérifiée par `build/sonApparitions.mjs`. `pas` et
+`rugir`, écrites pour le T-Rex, ont été retirées d'`apparitionsSon.js`
+avec l'apparition elle-même cette session — plus aucun appelant.
 
 ## Idées non explorées
 

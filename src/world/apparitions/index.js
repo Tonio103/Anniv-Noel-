@@ -34,17 +34,13 @@ import * as THREE from 'three';
 import { smoothstep, clamp } from '../../core/noise.js';
 import { coursePoursuite } from './police.js';
 import { spiderSuspendu } from './spider1.js';
-import { spiderBalance } from './spider2.js';
 import { etDevantLaLune } from './et.js';
 import { duelSabres } from './sabres.js';
 import { traineesDeFeu } from './delorean.js';
 import { patronus } from './patronus.js';
 import { seulALaMaison } from './kevin.js';
 import { mugiwara } from './mugiwara.js';
-import { nueeHamburgers } from './hamburgers.js';
-import { jurassique } from './jurassique.js';
 import { trouNoir } from './gargantua.js';
-import { killBill } from './killbill.js';
 import { shining } from './shining.js';
 
 /* Les zones a laisser sans arbre, en coordonnees du monde. Le rayon est
@@ -89,48 +85,43 @@ export function planApparitions(L) {
        le precede et sur le patronus qui le suit. Trois apparitions
        simultanees, ce n'est plus une surprise, c'est une brocante. */
     { nom: 'police',    s: L * 0.12, cote: -1, ecart: 6.0, avant: 46, apres: 26, degage: 0 },
-    { nom: 'spider1',   s: L * 0.20, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
-    /* MUGIWARA, GLISSE DANS LE COURT INTERVALLE ENTRE SPIDER1 ET KILL BILL.
-       Une fenetre volontairement breve — on ne le voit pas arriver, on
-       tombe sur lui — meme logique que Shining plus loin sur le parcours. */
+    { nom: 'spider1',   s: L * 0.2111, cote: -1, ecart: 3.5, avant: 30, apres: 8,  degage: 5.5 },
+    /* DIX APPARITIONS, PAS QUATORZE.
+       Antoine a coupe Kill Bill, le T-Rex, les hamburgers et le second
+       Spider-Man (la balancoire) : trop proches en ton du reste, ou trop
+       redondants (Spider-Man deja present avec l'accroche du premier).
+       Les dix restantes sont RE-REPARTIES sur tout le chemin plutot que
+       laissees dans leur position d'origine — les supprimer aurait sinon
+       ouvert quatre trous silencieux de soixante a cent soixante metres,
+       dont un juste avant la clairiere finale. Espacement desormais
+       regulier, environ 0,0911 de la longueur totale entre deux ancrages
+       (≈ 61 m sur les 669 m du chemin), ce qui laisse a chaque scene une
+       marge tres confortable avant la suivante. Deux scenes qui devaient
+       jusqu'ici se faire DECOUVRIR en catimini, faute de place entre deux
+       voisines encombrantes (Mugiwara entre Spider1 et Kill Bill, Shining
+       entre le T-Rex et Patronus), recuperent au passage une fenetre bien
+       plus genereuse — la contrainte qui les rendait furtives a disparu
+       avec leurs voisines. */
     /* ECART REDUIT DE 4,0 A 3,1 — « BORD » AU BANC DE CADRAGE.
        A 4,0 m, l'ancrage du personnage tombait a x=-0.78 a l'ecran au
        point de mesure (milieu de fenetre), juste au-dela du seuil de
        0,75 : visible, dans le champ, mais frolant le bord gauche plutot
        que lu confortablement. La scene ne suit pas le chemin (elle est
-       fixe, comme Kill Bill juste apres), donc son cadrage ne beneficie
-       d'aucun rattrapage dynamique — le seul levier est la distance
-       laterale au chemin elle-meme. */
-    { nom: 'mugiwara',  s: L * 0.2212, cote: -1, ecart: 3.1, avant: 8, apres: 5, degage: 5.5 },
-    { nom: 'killbill',  s: L * 0.28, cote: -1, ecart: 4.0, avant: 32, apres: 12, tourne: 0.3, degage: 5.0 },
-    { nom: 'et',        s: L * 0.36, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
-    { nom: 'sabres',    s: L * 0.44, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5, assombrit: 1 },
-    { nom: 'kevin',     s: L * 0.52, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
-    /* Le theropode marche a vingt-deux metres du chemin, derriere la ligne
-       d'arbres : on ne degage donc RIEN pour lui — ce sont justement les
-       troncs entre lui et nous qui font la scene. */
-    /* ANTOINE : « le T-Rex part en meme temps que le patronus ». Les deux
-       fenetres ne se recouvraient que de vingt-deux centimetres sur le
-       papier — assez pour paraitre reglees a la main — mais la traine du
-       theropode qui s'efface et l'amorce du patronus qui se leve se
-       lisaient bel et bien comme un seul instant a deux endroits. On
-       raccourcit la traine du premier et on retarde l'amorce du second :
-       vingt-huit metres d'ecart net entre les deux, largement plus qu'il
-       n'en faut pour que le silence entre les deux se sente. */
-    { nom: 'trex',      s: L * 0.61, cote: -1, ecart: 0,   avant: 48, apres: 12, degage: 0 },
-    /* SHINING, GLISSEE DANS LE GRAND ECART LAISSE ENTRE LE T-REX ET LE
-       PATRONUS (vingt-huit metres nets, voir plus haut). Une fenetre
-       courte et sans amorce : ce n'est pas une scene qu'on voit arriver,
-       c'est une scene qu'on DECOUVRE — l'effet ne marche que si l'on
-       tombe dessus. */
-    { nom: 'shining',   s: L * 0.6522, cote: -1, ecart: 5.0, avant: 12, apres: 6, degage: 6.0 },
-    { nom: 'patronus',  s: L * 0.70, cote: -1, ecart: 5.5, avant: 20, apres: 10, degage: 8.0 },
-    /* LES HAMBURGERS, DANS LE COURT INTERVALLE ENTRE PATRONUS ET GARGANTUA.
-       Scene aerienne (suitCamera) : aucun degagement d'arbres a prevoir,
-       elle flotte au-dessus de tout. */
-    { nom: 'hamburgers', s: L * 0.7189, cote: 0, ecart: 0, avant: 5, apres: 3, degage: 0 },
-    { nom: 'gargantua', s: L * 0.78, cote:  0, ecart: 0,   avant: 38, apres: 28, degage: 0 },
-    { nom: 'spider2',   s: L * 0.86, cote: -1, ecart: 3.0, avant: 28, apres: 8,  degage: 7.0 },
+       fixe), donc son cadrage ne beneficie d'aucun rattrapage dynamique
+       — le seul levier est la distance laterale au chemin elle-meme. */
+    { nom: 'mugiwara',  s: L * 0.3022, cote: -1, ecart: 3.1, avant: 20, apres: 8, degage: 5.5 },
+    { nom: 'et',        s: L * 0.3933, cote:  0, ecart: 0,   avant: 34, apres: 24, degage: 0 },
+    { nom: 'sabres',    s: L * 0.4844, cote: -1, ecart: 4.5, avant: 40, apres: 10, degage: 6.5, assombrit: 1 },
+    { nom: 'kevin',     s: L * 0.5756, cote: -1, ecart: 7.0, avant: 34, apres: 10, tourne: 0.4, degage: 5.5 },
+    { nom: 'shining',   s: L * 0.6667, cote: -1, ecart: 5.0, avant: 24, apres: 10, degage: 6.0 },
+    /* DEGAGE A 15 (ET NON 8) — le halo du patronus est purement lumineux
+       mais sa boite englobante reelle (cape, cerf de lumiere, sillage)
+       atteint pres de 14 m de rayon : un degagement de 8 laissait un sapin
+       se semer juste hors de la zone protegee mais dedans quand meme,
+       trouve par `build/collisions.mjs` apres le rééquilibrage de cette
+       session (voir `terrain-foret.md`). */
+    { nom: 'patronus',  s: L * 0.7578, cote: -1, ecart: 5.5, avant: 20, apres: 10, degage: 15.0 },
+    { nom: 'gargantua', s: L * 0.8489, cote:  0, ecart: 0,   avant: 38, apres: 28, degage: 0 },
     /* ECART RELEVE A QUATRE METRES. Antoine : « elle roule sur le cerf ».
        Pose exactement sur l'axe du chemin (ecart nul), la trainee de la
        DeLorean partageait la meme ligne que la marche du cerf — et les deux
@@ -267,12 +258,6 @@ export class Apparitions {
        chemin ; c'est sans consequence, aucune n'est au sol devant le cerf —
        Spider-Man pend en hauteur, le patronus est un fantome, et le duel se
        tient assez loin pour qu'on n'ait pas a le contourner. */
-    /* Le pont vers les empreintes — une fermeture, pas la reference
-       directe : voir `brancherEmpreintes` ci-dessus pour la raison. */
-    const deposerEmpreinte = (x, z, angle, force, type) => {
-      this.empreintes?.ajouter(x, z, angle, force, type);
-    };
-
     /* Les fabriques, indexees par nom. La table des positions vit desormais
        hors de la classe (voir `planApparitions`) parce que la foret doit la
        lire avant de semer ses arbres ; il ne reste ici que ce qui construit
@@ -284,14 +269,10 @@ export class Apparitions {
       sabres: () => duelSabres(palier),
       kevin: () => seulALaMaison(palier),
       patronus: () => patronus(palier),
-      spider2: () => spiderBalance(9, palier),
-      killbill: () => killBill(palier),
-      trex: () => jurassique(chemin, relief, palier, deposerEmpreinte),
       shining: () => shining(palier),
       gargantua: () => trouNoir(relief, chemin, palier),
       delorean: () => traineesDeFeu(26, palier, relief),
       mugiwara: () => mugiwara(palier),
-      hamburgers: () => nueeHamburgers(chemin, palier),
     };
     const plan = planApparitions(L).map((d) => ({ ...d, faire: FABRIQUES[d.nom] }));
 
@@ -366,15 +347,6 @@ export class Apparitions {
   /* Le moteur audio des apparitions, branche une fois le contexte ouvert. */
   brancherSon(son) { this.son = son; }
 
-  /* Les empreintes, sur le meme principe et pour la meme raison : le
-     systeme (`Empreintes`, dans `footprints.js`) est construit APRES les
-     apparitions dans `main.js`, donc `this.empreintes` n'existe pas
-     encore au moment ou `FABRIQUES.trex` capture `deposerEmpreinte` dans
-     son constructeur. La fermeture, elle, ne lit `this.empreintes` qu'au
-     moment ou elle est APPELEE — bien plus tard, une fois le branchement
-     fait — donc l'ordre de construction n'a aucune importance. */
-  brancherEmpreintes(empreintes) { this.empreintes = empreintes; }
-
   /* On ouvre la fenetre BIEN AVANT d'arriver : une apparition qu'on decouvre
      au moment ou on la depasse est deja finie.
 
@@ -445,21 +417,21 @@ export class Apparitions {
       sc.objet.userData.jouer(uu, t, camera, sc.s, dt);
 
       /* LE CERF S'ARRETE POUR LA REGARDER — SAUF CE QUI COURT DEJA TOUT SEUL.
-         Une poursuite de police ou un theropode en marche sont choregraphies
-         pour un observateur qui AVANCE : ils parcourent leurs quarante a
-         soixante-dix metres pendant que la camera les longe, restant a peu
-         pres a distance constante. Le cerf arrete, cette distance n'est plus
-         bornee par rien — l'engin continue son trajet tout seul, s'eloigne
-         sans plus jamais revenir, et la moitie de l'arret se passe braquee
-         sur un point vide (mesure faite : les voitures sortent du champ des
-         146 m et y restent sept secondes). Ces scenes-la gardent donc leur
-         defile d'origine, deja regle ; seules celles qui restent SUR PLACE
-         meritent qu'on s'y arrete.
+         Une poursuite de police est choregraphiee pour un observateur qui
+         AVANCE : elle parcourt ses quarante a soixante-dix metres pendant
+         que la camera la longe, restant a peu pres a distance constante.
+         Le cerf arrete, cette distance n'est plus bornee par rien —
+         l'engin continue son trajet tout seul, s'eloigne sans plus jamais
+         revenir, et la moitie de l'arret se passe braquee sur un point
+         vide (mesure faite : les voitures sortent du champ des 146 m et y
+         restent sept secondes). Une scene qui SUIT LE CHEMIN garde donc
+         son defile d'origine, deja regle ; seules celles qui restent SUR
+         PLACE meritent qu'on s'y arrete.
 
          Declenche a une distance fixe de l'ancre — plafonnee a la moitie de
-         l'amorce de la scene, pour qu'une fenetre courte (Shining, decouverte
-         a dessein) ne force pas un freinage qui deborderait sur ce qui la
-         precede. Une fois retenue, la scene ne l'est qu'UNE fois : `arretFini`
+         l'amorce de la scene, pour qu'une fenetre courte ne force jamais un
+         freinage qui deborderait sur ce qui la precede. Une fois retenue,
+         la scene ne l'est qu'UNE fois : `arretFini`
          empeche un second freinage si jamais on repassait par la
          (recommencer()). */
       if (cadrageBase && !sc.arretFini && !sc.objet.userData.suitChemin) {

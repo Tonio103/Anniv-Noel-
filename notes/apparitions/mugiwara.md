@@ -25,9 +25,9 @@ point d'extension maximale (`gerbeImpact`/`majImpact`, déjà présente),
 une onde de choc additive qui naît sous les pieds du personnage et
 s'élargit (`ondeChoc`/`majOndeChoc`, nouvelle cette session), et un choc
 caméra via le canal générique `emettre` — déjà utilisé par le duel de
-sabres et Kill Bill, et cette fois avec une force réduite (0,40 au lieu du
-défaut 0,6) pour les coups de la rafale, afin que neuf secousses à la
-suite se lisent comme un tambourinement plutôt que comme un séisme.
+sabres, et cette fois avec une force réduite (0,40 au lieu du défaut 0,6)
+pour les coups de la rafale, afin que neuf secousses à la suite se
+lisent comme un tambourinement plutôt que comme un séisme.
 
 Une petite montée en puissance (`aura`, un simple halo des helpers
 partagés) grimpe juste avant la rafale et retombe d'un coup à son
@@ -72,8 +72,7 @@ membre étiré.
 - `src/world/apparitions/communs.js` — `halo(...)`, réutilisé tel quel
   pour la montée en puissance ; `gerbeImpact(n)`/`majImpact(...)` et
   `ondeChoc()`/`majOndeChoc(...)`, nées dans ce fichier puis remontées ici
-  dès que Kill Bill (et, pour la seconde, le duel de sabres) en ont eu
-  besoin à leur tour — voir `killbill.md`/`sabres.md`
+  dès que le duel de sabres en a eu besoin à son tour — voir `sabres.md`
 
 ## Comment marche le bras élastique
 

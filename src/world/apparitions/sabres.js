@@ -5,8 +5,86 @@ import { creerDuelliste, GARDES, ECHANGES } from '../encapuchonne.js';
 import { piste } from '../humanoide.js';
 import {
   halo, flaque, epouserLeSol, ondeChoc, majOndeChoc, gerbeImpact, majImpact,
-  traineeLame, majTraineeLame,
 } from './communs.js';
+
+/* LA TRAINEE DE LAME. Vivait dans `communs.js`, partagee avec Kill Bill —
+   retire du parcours, il ne reste plus qu'un seul appelant : la regle de
+   ce dossier veut qu'un helper a un seul consommateur reel vive dans son
+   fichier, pas dans le commun. Un ruban dynamique qui echantillonne la
+   POINTE et la BASE reelles de l'arme chaque image — pas une trajectoire
+   synthetisee — et les relie en un arc lumineux qui s'efface avec l'age :
+   la signature visuelle classique du cinema d'escrime, quelle que soit
+   l'arme.
+
+   `pointeLocale`/`baseLocale` sont les deux points fixes, en repere local
+   de l'arme, entre lesquels le ruban se tend. */
+function traineeLame(n) {
+  const pos = new Float32Array(n * 2 * 3);
+  const col = new Float32Array(n * 2 * 3);
+  const idx = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2, b = a + 2;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.setDrawRange(0, 0);
+  const mat = new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.frustumCulled = false;
+  const pointes = Array.from({ length: n }, () => new THREE.Vector3());
+  const gardes = Array.from({ length: n }, () => new THREE.Vector3());
+  m.userData = { pointes, gardes, n, remplis: 0 };
+  return m;
+}
+
+const _pointeLocale = new THREE.Vector3();
+const _gardeLocale = new THREE.Vector3();
+
+/* `armeObj.updateWorldMatrix(true, false)` force la mise a jour de cette
+   seule branche avant lecture : sans lui, la matrice lue serait celle de
+   l'image PRECEDENTE, puisque three.js ne recalcule les matrices du
+   monde qu'a l'interieur de `renderer.render()`, apres que ce code a deja
+   tourne. `groupe` est la scene englobante — fixe une fois la scene
+   posee, donc un seul aller-retour de matrices suffit, pas de cache a
+   invalider. */
+function majTraineeLame(trainee, armeObj, groupe, actif, pointeLocale, baseLocale) {
+  const { pointes, gardes, n } = trainee.userData;
+  for (let i = n - 1; i > 0; i--) {
+    pointes[i].copy(pointes[i - 1]);
+    gardes[i].copy(gardes[i - 1]);
+  }
+  armeObj.updateWorldMatrix(true, false);
+  _pointeLocale.copy(pointeLocale).applyMatrix4(armeObj.matrixWorld);
+  groupe.worldToLocal(_pointeLocale);
+  pointes[0].copy(_pointeLocale);
+  _gardeLocale.copy(baseLocale).applyMatrix4(armeObj.matrixWorld);
+  groupe.worldToLocal(_gardeLocale);
+  gardes[0].copy(_gardeLocale);
+  trainee.userData.remplis = Math.min(n, trainee.userData.remplis + 1);
+
+  const pos = trainee.geometry.attributes.position.array;
+  const col = trainee.geometry.attributes.color.array;
+  for (let i = 0; i < n; i++) {
+    const o = i * 6;
+    pos[o] = pointes[i].x; pos[o + 1] = pointes[i].y; pos[o + 2] = pointes[i].z;
+    pos[o + 3] = gardes[i].x; pos[o + 4] = gardes[i].y; pos[o + 5] = gardes[i].z;
+    const age = i / (n - 1);
+    const inten = actif * (1 - age) * (1 - age);
+    col[o] = col[o + 1] = col[o + 2] = inten;
+    col[o + 3] = col[o + 4] = col[o + 5] = inten;
+  }
+  trainee.geometry.attributes.position.needsUpdate = true;
+  trainee.geometry.attributes.color.needsUpdate = true;
+  trainee.geometry.setDrawRange(0, Math.max(0, (Math.min(n, trainee.userData.remplis) - 1) * 6));
+  trainee.geometry.computeBoundingSphere();
+  trainee.material.opacity = actif;
+}
 
 /* ==========================================================================
    4. LE DUEL DE SABRES
@@ -141,8 +219,7 @@ export function duelSabres(palier) {
   /* LES TRAINEES DE LAME. A vingt-cinq metres et de nuit, deux sabres qui
      changent de pose en trois images se lisaient comme des batons qui
      sautent d'un angle a l'autre plutot que comme des lames qui balaient
-     l'air. Meme technique que Kill Bill (voir `traineeLame` dans
-     communs.js), une par duelliste. */
+     l'air (voir `traineeLame` plus haut), une par duelliste. */
   const POINTE_LAME = new THREE.Vector3(0, 1.27, 0);
   const BASE_LAME = new THREE.Vector3(0, 0, 0);
   const traineeVert = traineeLame(8);
@@ -151,9 +228,8 @@ export function duelSabres(palier) {
 
   /* LES ETINCELLES DU CHOC. Deux lames qui se heurtent projettent de la
      lumiere, pas de la matiere — des grains blanc-bleu, minuscules et
-     tres rapides, bien differents des eclats de glace de Mugiwara ou du
-     sang de Kill Bill. Meme fonction partagee (`gerbeImpact`), juste
-     reparametree. */
+     tres rapides, bien differents des eclats de glace de Mugiwara. Meme
+     fonction partagee (`gerbeImpact`), juste reparametree. */
   const etincellesClash = gerbeImpact(28, 0xEAF6FF, 0.05);
   etincellesClash.position.set(0, 1.55, 0);
   g.add(etincellesClash);

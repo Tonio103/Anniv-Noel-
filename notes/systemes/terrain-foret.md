@@ -38,31 +38,34 @@ graine du jour — un test qui se contenterait de vérifier « zéro collision �
 sans ce compteur passerait tout aussi bien si le mécanisme entier était
 supprimé).
 
-## L'exclusion des scènes mobiles — la source du bug T-Rex
+## L'exclusion des scènes mobiles du contrôle de collision
 
 ```js
 if (sc.objet.userData.suitChemin) { mobiles.push(sc.nom); continue; }
 ```
 
 `build/collisions.mjs` **saute entièrement** la vérification pour toute
-scène marquée `suitChemin` (aujourd'hui : `police`, `trex`). Le
-commentaire du fichier est explicite : « un dégagement fixe autour d'un
-point n'a aucun sens pour eux » — une scène mobile n'a pas de position
-unique à dégager, elle en traverse des centaines le long de sa trajectoire.
+scène marquée `suitChemin` (aujourd'hui : `police`, seule scène mobile
+restante depuis le retrait du T-Rex). Le commentaire du fichier est
+explicite : « un dégagement fixe autour d'un point n'a aucun sens pour
+eux » — une scène mobile n'a pas de position unique à dégager, elle en
+traverse des centaines le long de sa trajectoire.
 
-**Conséquence directe, documentée dans `../visuel/trex-visibilite.md`** :
-il n'existe aujourd'hui **aucune garantie** que le T-Rex ne traverse pas
-visuellement un sapin pendant sa marche — le contrôle qui existe pour
-toutes les scènes statiques est structurellement absent pour lui. C'est
-très probablement exactement ce qu'Antoine a vu (« il va dans les
-arbres »).
+**Conséquence directe** : il n'existe aujourd'hui aucune garantie
+automatique qu'une scène `suitChemin` ne traverse pas visuellement un
+sapin pendant son trajet — le contrôle qui existe pour toutes les scènes
+statiques est structurellement absent pour elles. C'était très
+probablement la cause du « il va dans les arbres » qu'Antoine avait
+signalé pour le T-Rex ; le risque reste théoriquement présent pour
+`police`, à vérifier visuellement si le tracé de sa voie change.
 
 ## Problèmes connus / à faire
 
-Voir `../visuel/trex-visibilite.md` pour le diagnostic complet côté
-T-Rex. Résumé du point terrain : le semis de `forest.js` est totalement
-indifférent à la « voie » que suit le théropode (calée sur la tangente du
-chemin, dans `jurassique()`/`trex.js`) — rien ne les met en relation.
+Aucun signalé actuellement. Le T-Rex, qui suivait une « voie » calée sur
+la tangente du chemin sans aucune relation avec le semis de `forest.js`,
+a été retiré du parcours cette session — le seul cas restant de scène
+mobile est la poursuite de police (`police.js`), déjà exclue du contrôle
+de collision (voir `build/collisions.mjs` ci-dessus).
 
 ## Idées non explorées
 
