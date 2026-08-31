@@ -1,42 +1,27 @@
-/* LES VEHICULES, ET LA COURSE-POURSUITE.
+/* LES VEHICULES.
 
-   ANTOINE : « la voiture de police doit se deplacer, ca doit etre une
-   veritable course-poursuite ».
+   Les blocs de construction communs a toutes les scenes qui roulent : la
+   carrosserie generique (`carrosserie`), le gyrophare, le projecteur de
+   recherche, la gerbe de neige, et la DeLorean elle-meme.
 
-   La version precedente etait une voiture GAREE dans la neige avec son
-   gyrophare allume. Elle avait beau balayer les troncs de deux faisceaux
-   tournants, elle ne racontait rien : une voiture de police immobile au
-   milieu d'une foret, c'est un decor, pas une scene. Et pire, sa fenetre
-   s'ouvrait quarante-deux metres avant son emplacement, c'est-a-dire AVANT
-   LE POINT DE DEPART DE LA BALADE — on voyait donc le gyrophare des la
-   premiere seconde, ce qui grillait le seul effet de surprise qu'elle avait.
-
-   Il y a maintenant DEUX voitures, elles roulent vite, et elles arrivent de
-   derriere. Ce qui fait une poursuite tient a quatre choses, dans cet ordre :
-
-   · LE FUYARD PASSE D'ABORD, tous feux arriere allumes, en zigzag. Sans lui
-     la police ne poursuit rien et l'on regarde une ronde ;
-   · ELLES ARRIVENT DU FOND, phares dans le brouillard. On les voit venir de
-     loin, ce qui installe l'attente ;
-   · ELLES DOUBLENT LE CERF, tres vite, au ras du chemin. C'est le seul
-     instant ou l'echelle et la vitesse se lisent vraiment ;
-   · ELLES DISPARAISSENT DEVANT, avalees par la brume, en laissant le
-     gyrophare battre encore un moment sur les arbres.
-
-   Tout cela se joue en une dizaine de secondes, et le reste de la fenetre
-   est du silence — c'est lui qui fait la surprise.
+   La course-poursuite de police qui consomme la plupart de ces briques vit
+   desormais dans `apparitions/police.js` — c'est elle qui raconte
+   l'histoire, ce fichier-ci ne fournit que la matiere premiere. La
+   DeLorean, elle, garde sa construction ici : `apparitions/delorean.js` ne
+   fait qu'appeler `delorean()`, elle ne partage aucune autre brique avec
+   la course-poursuite.
 */
 
 import * as THREE from 'three';
 import { lueurDiffuse, grainRond } from '../core/dot.js';
 import { smoothstep, clamp } from '../core/noise.js';
 
-const boite = (l, h, p, coul, opts = {}) => new THREE.Mesh(
+export const boite = (l, h, p, coul, opts = {}) => new THREE.Mesh(
   new THREE.BoxGeometry(l, h, p),
   new THREE.MeshStandardMaterial({ color: coul, roughness: 0.55, ...opts })
 );
 
-function halo(couleur, taille, force = 1) {
+export function halo(couleur, taille, force = 1) {
   const m = new THREE.SpriteMaterial({
     map: lueurDiffuse(), transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: true,
@@ -50,7 +35,7 @@ function halo(couleur, taille, force = 1) {
 /* Le faisceau : un cone additif, sombre a sa base et clair a sa pointe.
    En addition, le noir n'ajoute rien : un degrade vers le noir EST un
    degrade vers la transparence, sans texture ni tri de transparence. */
-function faisceau(couleur, longueur, ouverture, exposant = 2.9) {
+export function faisceau(couleur, longueur, ouverture, exposant = 2.9) {
   const geo = new THREE.ConeGeometry(ouverture, longueur, 14, 6, true);
   geo.translate(0, -longueur / 2, 0);
   geo.rotateX(Math.PI / 2);
@@ -74,6 +59,31 @@ function faisceau(couleur, longueur, ouverture, exposant = 2.9) {
   return m;
 }
 
+/* LE DECALQUE « POLICE ». Peint une seule fois puis reutilise pour toutes
+   les voitures qui le portent — inutile de repeindre un canevas identique
+   a chaque instanciation. Fond transparent : c'est ce qui permet de le
+   poser par-dessus le bandeau blanc sans y dessiner de rectangle. */
+let _texPolice = null;
+function texturePolice() {
+  if (_texPolice) return _texPolice;
+  const l = 512, h = 96;
+  const cv = document.createElement('canvas');
+  cv.width = l; cv.height = h;
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, l, h);
+  c.fillStyle = '#0A1440';
+  c.font = '700 62px sans-serif';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText('POLICE', l / 2, h / 2 + 2);
+  // Un filet fin au-dessus et au-dessous du mot, comme sur les vrais vehicules.
+  c.fillRect(l * 0.08, h * 0.18, l * 0.84, h * 0.05);
+  c.fillRect(l * 0.08, h * 0.77, l * 0.84, h * 0.05);
+  _texPolice = new THREE.CanvasTexture(cv);
+  _texPolice.colorSpace = THREE.SRGBColorSpace;
+  return _texPolice;
+}
+
 /* --------------------------------------------------------------------------
    UNE CARROSSERIE.
 
@@ -87,7 +97,7 @@ function faisceau(couleur, longueur, ouverture, exposant = 2.9) {
    remarque quand il manque : une voiture qui glisse sur des roues figees se
    lit comme un jouet tire par une ficelle.
    -------------------------------------------------------------------------- */
-function carrosserie(opts) {
+export function carrosserie(opts) {
   const g = new THREE.Group();
   const teinte = opts.teinte;
   const roues = [];
@@ -180,12 +190,125 @@ function carrosserie(opts) {
     cones.push(c);
   }
 
+  /* LES RETROVISEURS. Un detail minuscule, et pourtant le premier qu'on
+     remarque quand il manque : une berline sans retroviseurs se lit comme
+     un jouet, meme a vingt metres et de nuit — l'oeil cherche ces deux
+     petites saillies sans savoir pourquoi il les cherche. */
+  if (opts.miroirs !== false) {
+    for (const sx of [-1, 1]) {
+      const bras = boite(0.05, 0.05, 0.16, 0x14181F, { roughness: 0.6 });
+      bras.position.set(sx * 0.86, 1.04, -0.62);
+      g.add(bras);
+      const coquille = boite(0.15, 0.11, 0.07, teinte, { metalness: 0.35, roughness: 0.42 });
+      coquille.position.set(sx * 0.96, 1.04, -0.62);
+      g.add(coquille);
+    }
+  }
+
+  /* L'ANTENNE. Une tige fine, penchee vers l'arriere : plantee droite elle
+     se lit comme un defaut d'assemblage, penchee elle se lit comme un
+     objet qui fend l'air a vitesse. */
+  if (opts.antenne !== false) {
+    const antenne = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.015, 0.62, 5),
+      new THREE.MeshStandardMaterial({ color: 0x0A0C10, roughness: 0.6 })
+    );
+    antenne.position.set(-0.55, 1.72, 1.35);
+    antenne.rotation.x = 0.30;
+    g.add(antenne);
+  }
+
+  /* LE CONDUCTEUR. Une silhouette tres sommaire — buste et tete, sans
+     visage, matiere plate et tres sombre — assise derriere le volant. On
+     ne la voit presque jamais nettement : le pare-brise incline la
+     reflete plus qu'il ne la montre. C'est justement ce qui la rend
+     credible — une voiture qui roule vite de nuit ne montre jamais son
+     conducteur en detail, seulement sa forme. Sans elle, ces voitures
+     roulaient toutes seules. */
+  if (opts.conducteur !== false) {
+    const matConducteur = new THREE.MeshBasicMaterial({ color: 0x05060A });
+    const buste = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.30, 3, 6), matConducteur);
+    buste.position.set(-0.34, 0.98, -0.42);
+    g.add(buste);
+    const tete = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), matConducteur);
+    tete.position.set(-0.34, 1.28, -0.42);
+    g.add(tete);
+  }
+
+  /* LE PARE-CHOCS POUSSOIR (push bar). Reserve a la voiture DE TETE : c'est
+     l'accessoire qui dit « vehicule d'intervention », la ou le bicolore
+     seul pourrait etre n'importe quel vehicule d'urgence. Un cadre de
+     tubes soude devant le pare-chocs, deux pieds obliques qui le rattachent
+     au chassis. */
+  if (opts.pareChocsAvant) {
+    const matTube = new THREE.MeshStandardMaterial({ color: 0x1C2026, roughness: 0.4, metalness: 0.75 });
+    const barreHaute = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.55, 8), matTube);
+    barreHaute.rotation.z = Math.PI / 2;
+    barreHaute.position.set(0, 0.66, -2.32);
+    g.add(barreHaute);
+    const barreBasse = barreHaute.clone();
+    barreBasse.position.y = 0.42;
+    g.add(barreBasse);
+    for (const sx of [-1, 1]) {
+      const montant = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.26, 8), matTube);
+      montant.position.set(sx * 0.70, 0.54, -2.32);
+      g.add(montant);
+      const pied = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.36, 8), matTube);
+      pied.position.set(sx * 0.70, 0.60, -2.10);
+      pied.rotation.x = -0.55;
+      g.add(pied);
+    }
+  }
+
+  /* LE DECALQUE « POLICE ». Peint sur le bandeau blanc, cote gauche et cote
+     droit — sans lui le bicolore pourrait etre n'importe quel vehicule
+     d'intervention, une ambulance comprise. Legerement detache de la
+     carrosserie (0,956 contre 0,95 de large pour le bandeau) pour ne
+     jamais se battre en profondeur avec la boite qu'il recouvre. */
+  if (opts.decal && opts.bicolore) {
+    const tex = texturePolice();
+    for (const sx of [-1, 1]) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      });
+      const plaque = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.24), mat);
+      plaque.position.set(sx * 0.956, 0.62, 0.15);
+      plaque.rotation.y = sx * Math.PI / 2;
+      g.add(plaque);
+    }
+  }
+
   g.userData = { roues, phares, feux, cones };
   return g;
 }
 
+/* LE PROJECTEUR DE RECHERCHE. Monte sur le pilier avant, independant du
+   gyrophare : celui-ci tourne en continu pour SIGNALER, celui-la BALAIE
+   pour CHERCHER — deux gestes differents, et seule la voiture de tete le
+   porte : c'est elle qui traque, le renfort se contente de suivre. */
+export function projecteurRecherche(g) {
+  const pivot = new THREE.Group();
+  pivot.position.set(0.68, 1.32, -0.80);
+  g.add(pivot);
+
+  const corps = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.065, 0.065, 0.13, 10),
+    new THREE.MeshStandardMaterial({ color: 0x2A2E36, roughness: 0.4, metalness: 0.7 })
+  );
+  corps.rotation.x = Math.PI / 2;
+  pivot.add(corps);
+
+  const eclat = halo([2.6, 2.5, 2.1], 1.0, 0.75);
+  pivot.add(eclat);
+
+  const rayon = faisceau([2.4, 2.3, 1.95], 22, 1.9, 3.0);
+  pivot.add(rayon);
+
+  return { pivot, rayon, eclat };
+}
+
 /* La rampe de gyrophare, et les deux rayons tournants. */
-function gyrophare(g) {
+export function gyrophare(g) {
   const rampe = boite(1.34, 0.16, 0.36, 0x14181F);
   rampe.position.set(0, 1.56, -0.15);
   g.add(rampe);
@@ -215,7 +338,7 @@ function gyrophare(g) {
    arriere, s'etale et retombe suffit — et il n'existe que pendant le
    passage, donc il ne coute rien le reste du temps.
    -------------------------------------------------------------------------- */
-function gerbe(n) {
+export function gerbe(n) {
   const pos = new Float32Array(n * 3);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -232,7 +355,7 @@ function gerbe(n) {
   return pts;
 }
 
-function majGerbe(pts, dt, force) {
+export function majGerbe(pts, dt, force) {
   const { pos, geo, mat, vies, cote, derive, n } = pts.userData;
   mat.opacity = force * 0.75;
   if (force < 0.01) return;
@@ -246,192 +369,6 @@ function majGerbe(pts, dt, force) {
     pos[i * 3 + 2] = 1.9 + k * 4.5;
   }
   geo.attributes.position.needsUpdate = true;
-}
-
-/* ==========================================================================
-   LA COURSE-POURSUITE
-   ========================================================================== */
-export function coursePoursuite(chemin, relief, palier) {
-  const g = new THREE.Group();
-  g.userData.suitChemin = true;
-
-  /* La voiture de police est le SUJET : c'est elle qui porte le groupe, donc
-     l'orientation, donc la source sonore. Le fuyard est un enfant place
-     devant elle, sur la meme voie. */
-  const police = carrosserie({ teinte: 0x1B2432, bicolore: true });
-  g.add(police);
-  const gyro = gyrophare(police);
-  const poussierePolice = gerbe(palier.nom === 'bas' ? 40 : 70);
-  police.add(poussierePolice);
-
-  const fuyard = carrosserie({ teinte: 0x2A1418 });
-  g.add(fuyard);
-  const poussiereFuyard = gerbe(palier.nom === 'bas' ? 40 : 70);
-  fuyard.add(poussiereFuyard);
-
-  /* Les reperes de la course, en metres le long du chemin, comptes depuis
-     le point d'ancrage de la scene. Le fuyard a vingt-deux metres d'avance :
-     assez pour qu'on lise deux vehicules distincts, assez peu pour qu'ils
-     tiennent dans la meme image quand ils passent. */
-  const DEPART = -125, ARRIVEE = 130, AVANCE = 22;
-  const p = new THREE.Vector3(), c = new THREE.Vector3(), tan = new THREE.Vector3();
-
-  /* La voie : les deux voitures roulent A COTE du chemin, du cote utilisable
-     du cadre, et jamais dessus — le cerf y marche. */
-  /* MESURE : a six metres de voie, la voiture de police sortait par le bord
-     gauche au moment ou elle double — moins zero virgule soixante-dix-huit
-     a l'ecran, en portrait. Quatre metres et demi la ramenent dans le cadre
-     sans qu'elle empiete sur le passage du cerf. */
-  const VOIE = 4.5, COTE = -1;
-
-  const placer = (objet, sVoiture, decalage, y0) => {
-    const sc = clamp(sVoiture, 0, chemin.longueur);
-    chemin.point(sc, p);
-    chemin.cote(sc, c);
-    chemin.tangente(sc, tan);
-    const x = p.x + c.x * COTE * (VOIE + decalage);
-    const z = p.z + c.z * COTE * (VOIE + decalage);
-    objet.position.set(x, relief.hauteur(x, z) - y0, z);
-    objet.rotation.y = Math.atan2(-tan.x, -tan.z);
-    return objet.rotation.y;
-  };
-
-  let dernierS = 0;
-  /* Les distances de l'image precedente, pour la vitesse radiale du doppler,
-     et leur version lissee. */
-  let dernierDp = 0, dernierDf = 0, lissP = 0, lissF = 0;
-  const _oreille = new THREE.Vector3(), _ici = new THREE.Vector3();
-
-  g.userData.jouer = (u, t, camera, sAncre, dt) => {
-    /* LE PASSAGE NE DURE PAS TOUTE LA FENETRE. On les voit venir de loin,
-       elles doublent, elles disparaissent — et il reste du silence avant et
-       apres. Une poursuite qui dure vingt-cinq secondes cesse d'etre une
-       poursuite. */
-    const k = clamp((u - 0.18) / 0.46, 0, 1);
-    const sPolice = sAncre + DEPART + k * (ARRIVEE - DEPART);
-    const sFuyard = sPolice + AVANCE;
-
-    /* Elles n'existent que tant qu'elles sont en piste. Avant et apres, tout
-       s'eteint — y compris le gyrophare, qui sinon battrait dans le vide au
-       bout du chemin. */
-    const enPiste = smoothstep(0, 0.06, k) * smoothstep(1, 0.94, k);
-    g.visible = enPiste > 0.005;
-    if (!g.visible) return;
-
-    /* Le groupe porte la position de la voiture de police. On garde ensuite
-       tout en coordonnees du monde pour le fuyard : les deux voies ne sont
-       pas paralleles quand le chemin tourne, et les rattacher rigidement
-       ferait deraper le fuyard dans les virages. */
-    placer(g, sPolice, 0, 0);
-    police.position.set(0, 0, 0);
-    police.rotation.set(0, 0, 0);
-
-    /* Le fuyard, dans le repere du groupe. On calcule sa position du monde
-       puis on la ramene : c'est le seul moyen qu'il suive vraiment la
-       courbe du chemin. */
-    g.updateMatrixWorld(true);
-    const zig = Math.sin(t * 2.9) * 1.15;
-    chemin.point(clamp(sFuyard, 0, chemin.longueur), p);
-    chemin.cote(clamp(sFuyard, 0, chemin.longueur), c);
-    chemin.tangente(clamp(sFuyard, 0, chemin.longueur), tan);
-    const fx = p.x + c.x * COTE * (VOIE + zig);
-    const fz = p.z + c.z * COTE * (VOIE + zig);
-    fuyard.position.set(fx, relief.hauteur(fx, fz), fz);
-    g.worldToLocal(fuyard.position);
-    const capFuyard = Math.atan2(-tan.x, -tan.z);
-    fuyard.rotation.y = capFuyard - g.rotation.y + Math.sin(t * 2.9 + 0.4) * 0.13;
-    /* Il se couche dans ses embardees : une voiture qui zigzague a plat se
-       lit comme un curseur qu'on fait glisser. */
-    fuyard.rotation.z = -Math.cos(t * 2.9) * 0.075;
-
-    /* LA VITESSE. On la mesure sur le deplacement reel plutot que de la
-       supposer : elle sert a faire tourner les roues au bon rythme et a
-       doser la gerbe de neige, et une valeur devinee se voit tout de suite
-       en patinage. */
-    const vitesse = dt > 1e-4 ? Math.abs(sPolice - dernierS) / dt : 0;
-    dernierS = sPolice;
-    const tour = (vitesse * dt) / 0.36;      // rayon de roue
-    for (const v of [police, fuyard]) {
-      for (const r of v.userData.roues) r.rotation.x -= tour;
-    }
-
-    const force = enPiste * clamp(vitesse / 14, 0, 1);
-    majGerbe(poussierePolice, dt, force);
-    majGerbe(poussiereFuyard, dt, force);
-
-    /* --------------------------------------------------------------------
-       LE SON SUIT LA COURSE.
-
-       Deux grandeurs sont transmises au moteur a chaque image :
-
-       · LE REGIME, tire de la vitesse reelle. Il ouvre le filtre de corps
-         bien plus qu'il ne monte la hauteur — c'est cette ouverture qui
-         s'entend comme « il accelere » ;
-       · LE DECALAGE DOPPLER, calcule a partir de la VITESSE RADIALE, c'est-
-         a-dire de la vitesse a laquelle la voiture se rapproche de
-         l'oreille. Le Web Audio ne le fait plus depuis longtemps ; sans lui,
-         un passage rapide sonne exactement comme un passage lent, et c'est
-         justement le moment ou la scene doit exister.
-
-       On lisse la vitesse radiale : mesuree image par image sur une camera
-       qui tremble, elle sauterait, et un doppler qui saute s'entend comme
-       un disque raye. */
-    if (camera) {
-      _oreille.setFromMatrixPosition(camera.matrixWorld);
-      const dPolice = g.position.distanceTo(_oreille);
-      const dFuyard = fuyard.getWorldPosition(_ici).distanceTo(_oreille);
-      if (dt > 1e-4 && dernierDp > 0) {
-        const vrP = (dPolice - dernierDp) / dt;
-        const vrF = (dFuyard - dernierDf) / dt;
-        lissP += (vrP - lissP) * 0.18;
-        lissF += (vrF - lissF) * 0.18;
-      }
-      dernierDp = dPolice;
-      dernierDf = dFuyard;
-      /* Trois cent quarante metres par seconde : la vitesse du son. Le
-         rapport est donc tres petit — de l'ordre de six pour cent a
-         soixante-quinze a l'heure — et c'est pourtant parfaitement
-         audible. On le borne, parce qu'un pic de mesure au moment ou la
-         camera saute produirait un couac. */
-      const dopP = clamp(-lissP / 340, -0.14, 0.14);
-      const dopF = clamp(-lissF / 340, -0.14, 0.14);
-      const rg = clamp(vitesse / 24, 0, 1);
-      g.userData.emettre?.('regler', [
-        { regime: rg, doppler: dopP, volume: enPiste },
-        { regime: rg * 1.12, doppler: dopF, volume: enPiste * 0.9 },
-      ]);
-    }
-
-    // Les phares et les feux.
-    for (const v of [police, fuyard]) {
-      for (const ph of v.userData.phares) ph.material.opacity = enPiste * 0.85;
-      for (const co of v.userData.cones) co.material.opacity = enPiste * 0.30;
-    }
-    for (const f of police.userData.feux) f.material.opacity = enPiste * 0.5;
-    /* LE FUYARD FREINE PAR A-COUPS. Ses feux arriere s'allument franchement
-       a chaque coup de frein : c'est le signal le plus lisible d'une
-       poursuite, bien avant la vitesse elle-meme. */
-    const frein = 0.35 + Math.pow(Math.max(0, Math.sin(t * 1.9)), 6) * 0.65;
-    for (const f of fuyard.userData.feux) f.material.opacity = enPiste * frein;
-
-    /* LE GYROPHARE. L'alternance, pas le clignotement : chaque cote pulse
-       deux fois vite puis passe la main. C'est ce rythme qu'on reconnait de
-       loin, et c'est lui qu'il ne faut jamais toucher. */
-    const cy = (t * 1.6) % 1;
-    const cote = cy < 0.5;
-    const bat = Math.pow(Math.abs(Math.sin(t * 19)), 0.6);
-    const fB = cote ? bat : 0.06, fR = cote ? 0.06 : bat;
-    gyro.bleu.material.opacity = enPiste * fB;
-    gyro.rouge.material.opacity = enPiste * fR;
-    gyro.rayonBleu.rotation.y = t * 2.6;
-    gyro.rayonRouge.rotation.y = -t * 2.6 + Math.PI;
-    gyro.rayonBleu.rotation.x = -0.05;
-    gyro.rayonRouge.rotation.x = -0.05;
-    gyro.rayonBleu.material.opacity = enPiste * (0.14 + fB * 0.28);
-    gyro.rayonRouge.material.opacity = enPiste * (0.14 + fR * 0.28);
-
-  };
-  return g;
 }
 
 /* ==========================================================================
@@ -511,6 +448,58 @@ export function delorean() {
     g.add(prise);
   }
 
+  /* LES PORTES PAPILLON. La DeLorean n'a qu'un seul trait aussi
+     immediatement reconnaissable que sa carrosserie en inox brosse : ses
+     portes qui s'ouvrent vers le HAUT plutot que vers le cote. Fermees —
+     elle roule, elle ne s'arrete jamais dans cette scene — mais leur
+     LISERE reste lisible : une fine rainure qui trace le contour de la
+     porte sur le flanc, avec sa charniere haute bien marquee au sommet du
+     pare-choc, exactement la ou l'articulation d'une porte papillon se
+     voit meme fermee. Sans ce trait, la silhouette reste un coupe des
+     annees quatre-vingts parmi d'autres. */
+  for (const sx of [-1, 1]) {
+    const liseret = new THREE.MeshStandardMaterial({ color: 0x5C6570, roughness: 0.6, metalness: 0.5 });
+    // Le haut de la porte, juste sous la ligne de toit : c'est LA que
+    // l'articulation papillon se lit, meme porte close.
+    const hautPorte = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 1.55), liseret);
+    hautPorte.position.set(sx * 0.925, 0.80, 0.10);
+    g.add(hautPorte);
+    // Le contour vertical avant et arriere de la porte.
+    for (const sz of [-0.62, 0.92]) {
+      const bordVertical = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.42, 0.02), liseret);
+      bordVertical.position.set(sx * 0.925, 0.60, sz);
+      g.add(bordVertical);
+    }
+    // Le seuil bas, contre le bas de caisse.
+    const basPorte = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 1.55), liseret);
+    basPorte.position.set(sx * 0.925, 0.40, 0.10);
+    g.add(basPorte);
+  }
+
+  /* LA PLAQUE. « OUTATIME » — la plaque du film, jamais montree ici en
+     gros plan mais presente, comme un clin d'œil qui ne demande a
+     personne de s'arreter pour la lire. Peinte au canevas plutot que
+     modelisee lettre par lettre : huit caracteres a la bonne police
+     n'ajouteraient rien qu'un canevas ne rende deja a cette taille. */
+  const cvPlaque = document.createElement('canvas');
+  cvPlaque.width = 128; cvPlaque.height = 32;
+  const cPlaque = cvPlaque.getContext('2d');
+  cPlaque.fillStyle = '#C8342A';
+  cPlaque.fillRect(0, 0, 128, 32);
+  cPlaque.fillStyle = '#F2E8D8';
+  cPlaque.font = 'bold 22px sans-serif';
+  cPlaque.textAlign = 'center';
+  cPlaque.textBaseline = 'middle';
+  cPlaque.fillText('OUTATIME', 64, 17);
+  const texPlaque = new THREE.CanvasTexture(cvPlaque);
+  texPlaque.colorSpace = THREE.SRGBColorSpace;
+  const plaque = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 0.105),
+    new THREE.MeshStandardMaterial({ map: texPlaque, roughness: 0.5 })
+  );
+  plaque.position.set(0, 0.60, -2.17);
+  g.add(plaque);
+
   /* LE REACTEUR sur le pont arriere : un cylindre trapu surmonte d'un
      entonnoir. Sans lui, c'est un coupe des annees quatre-vingts ; avec, on
      sait exactement de quelle voiture il s'agit. */
@@ -527,7 +516,10 @@ export function delorean() {
   entonnoir.position.set(0, 1.12, 1.55);
   g.add(entonnoir);
 
-  // Les quatre roues, plus petites que celles d'une berline.
+  /* LES QUATRE ROUES, EN VRAIES JANTES A CINQ BRANCHES. Un seul batonnet
+     par roue lisait comme un essieu qui traverse le pneu, pas comme une
+     jante — cinq rayons issus d'un moyeu central, c'est le plus petit
+     nombre qui se lise comme une roue et non comme une croix. */
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const roue = new THREE.Group();
     const pneu = new THREE.Mesh(
@@ -536,8 +528,23 @@ export function delorean() {
     );
     pneu.rotation.z = Math.PI / 2;
     roue.add(pneu);
-    const rayon = boite(0.26, 0.05, 0.05, 0xC8CFD8, { metalness: 0.6, roughness: 0.3 });
-    roue.add(rayon);
+    const matJante = new THREE.MeshStandardMaterial({ color: 0xC8CFD8, metalness: 0.6, roughness: 0.3 });
+    const moyeu = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.26, 10), matJante);
+    moyeu.rotation.z = Math.PI / 2;
+    roue.add(moyeu);
+    for (let i = 0; i < 5; i++) {
+      // Chaque rayon s'etend du moyeu vers la jante le long de Y, dans un
+      // sous-groupe tourne autour de X : c'est l'AXE DE ROULEMENT de la
+      // roue (le pneu, lui, est deja tourne dans ce meme sens juste
+      // au-dessus), donc les cinq rayons s'eventent bien dans le plan de
+      // la roue et non a travers elle.
+      const porteRayon = new THREE.Group();
+      porteRayon.rotation.x = (i / 5) * Math.PI * 2;
+      const rayon = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.26, 0.045), matJante);
+      rayon.position.y = 0.14;
+      porteRayon.add(rayon);
+      roue.add(porteRayon);
+    }
     roue.position.set(sx * 0.88, 0.32, sz * 1.42);
     g.add(roue);
     roues.push(roue);

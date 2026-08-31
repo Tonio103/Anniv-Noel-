@@ -267,6 +267,56 @@ export class ApparitionsSon {
   }
 
   /* ======================================================================
+     LE DERAPAGE
+
+     Sur la neige, un derapage ne CRISSE pas comme sur l'asphalte — il
+     CRAQUE et RACLE : la neige tassee qui se dechire sous des pneus qui
+     perdent l'adherence, puis un bref emballement moteur, roues folles,
+     avant que la traction ne revienne. Pas de crissement aigu de film
+     policier urbain : ce monde-ci est entierement fait de neige, et le
+     son doit s'en souvenir — c'est la meme logique qui a donne au pas du
+     T-Rex un craquement plutot qu'un choc sec.
+     ====================================================================== */
+  derapage(nom) {
+    const v = this.voix.get(nom);
+    if (!this.pret || !v) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+
+    // Le raclement : du bruit large, dont le filtre s'effondre vite — la
+    // neige tassee qui se dechire sous les pneus qui glissent de travers.
+    const s = this._bruit(0.6);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(3400, t);
+    f.frequency.exponentialRampToValueAtTime(320, t + 0.42);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.30, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.55);
+    s.connect(f); f.connect(g); g.connect(v.entree);
+    s.stop(t + 0.6);
+
+    // Les roues qui patinent : un grondement qui monte en regime avant de
+    // retomber quand la traction revient — la meme forme qu'un moteur qui
+    // s'emballe, mais bien plus breve.
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70, t);
+    o.frequency.linearRampToValueAtTime(150, t + 0.20);
+    o.frequency.exponentialRampToValueAtTime(55, t + 0.55);
+    const fo = ctx.createBiquadFilter();
+    fo.type = 'lowpass';
+    fo.frequency.setValueAtTime(900, t);
+    fo.frequency.exponentialRampToValueAtTime(260, t + 0.5);
+    const go = ctx.createGain();
+    go.gain.setValueAtTime(0, t);
+    go.gain.linearRampToValueAtTime(0.16, t + 0.05);
+    go.gain.exponentialRampToValueAtTime(0.0006, t + 0.58);
+    o.connect(fo); fo.connect(go); go.connect(v.entree);
+    o.start(t); o.stop(t + 0.6);
+  }
+
+  /* ======================================================================
      LE SCINTILLEMENT DU PATRONUS
 
      Une matiere, pas un evenement : du bruit tres aigu, filtre etroit et
@@ -459,80 +509,6 @@ export class ApparitionsSon {
   }
 
   /* ======================================================================
-     LE SOUFFLE FROID
-
-     Pour Kill Bill : une rafale qui passe au moment ou elle se retourne.
-     Du bruit passe-bande dont la frequence centrale monte puis redescend —
-     c'est ce balayage, et lui seul, qui fait « rafale » plutot que
-     « souffle continu ».
-     ====================================================================== */
-  _souffleFroid(sortie) {
-    const ctx = this.ctx, t = ctx.currentTime;
-    const s = this._bruit(0);
-    const f = ctx.createBiquadFilter();
-    f.type = 'bandpass';
-    f.frequency.value = 700;
-    f.Q.value = 1.1;
-
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.19;
-    const prof = ctx.createGain();
-    prof.gain.value = 620;
-    lfo.connect(prof); prof.connect(f.frequency);
-    lfo.start(t);
-
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.075, t + 1.4);
-    s.connect(f); f.connect(g); g.connect(sortie);
-    return { noeuds: [s, lfo], gain: g };
-  }
-
-  /* ======================================================================
-     LA LAME QUI CHANTE
-
-     Un katana qu'on degaine : un transitoire de frottement, puis une
-     resonance tres haute et tres longue. Les partiels sont volontairement
-     INHARMONIQUES — de l'acier, pas une corde — et ils s'eteignent a des
-     vitesses differentes, ce qui est la signature du metal.
-     ====================================================================== */
-  lame(nom) {
-    const v = this.voix.get(nom);
-    if (!this.pret || !v) return;
-    const ctx = this.ctx, t = ctx.currentTime;
-
-    // Le frottement du fourreau : bref, mat, tres large.
-    const s = this._bruit(0.5);
-    const f = ctx.createBiquadFilter();
-    f.type = 'bandpass';
-    f.frequency.setValueAtTime(1100, t);
-    f.frequency.exponentialRampToValueAtTime(5600, t + 0.16);
-    f.Q.value = 1.4;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.16, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.30);
-    s.connect(f); f.connect(g); g.connect(v.entree);
-    s.stop(t + 0.5);
-
-    // La resonance de l'acier.
-    const partiels = [2180, 3271, 4622, 6109];
-    for (let i = 0; i < partiels.length; i++) {
-      const o = ctx.createOscillator();
-      o.type = 'sine';
-      o.frequency.value = partiels[i] * (0.997 + Math.random() * 0.006);
-      const og = ctx.createGain();
-      const dep = 0.05 + i * 0.012;
-      const dur = 1.9 - i * 0.34;
-      og.gain.setValueAtTime(0, t + dep);
-      og.gain.linearRampToValueAtTime(0.052 / (1 + i * 0.55), t + dep + 0.008);
-      og.gain.exponentialRampToValueAtTime(0.0002, t + dep + dur);
-      o.connect(og); og.connect(v.entree);
-      o.start(t + dep); o.stop(t + dep + dur + 0.1);
-    }
-  }
-
-  /* ======================================================================
      LE SAUT TEMPOREL
 
      Trois couches, et l'ordre compte : un souffle qui ASPIRE (filtre qui
@@ -579,136 +555,6 @@ export class ApparitionsSon {
     og.gain.exponentialRampToValueAtTime(0.0005, t + 1.10);
     o.connect(og); og.connect(v.entree);
     o.start(t + 0.29); o.stop(t + 1.2);
-  }
-
-  /* ======================================================================
-     LE PAS DU THEROPODE
-
-     Quatre tonnes qui retombent. C'est du SUB, presque uniquement : une
-     sinusoide qui s'effondre de soixante hertz a quinze en un tiers de
-     seconde, doublee d'un craquement mat pour la neige tassee. Rien
-     au-dessus de deux cents hertz — un pas aigu ferait un cheval.
-
-     C'est le son qui porte toute la premiere moitie de la scene, celle ou
-     l'on ne voit encore rien : il faut donc qu'il soit reconnaissable seul.
-     ====================================================================== */
-  pas(nom) {
-    const v = this.voix.get(nom);
-    if (!this.pret || !v) return;
-    const ctx = this.ctx, t = ctx.currentTime;
-
-    // L'impact : une chute de hauteur tres rapide.
-    const o = ctx.createOscillator();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(62, t);
-    o.frequency.exponentialRampToValueAtTime(15, t + 0.34);
-    const og = ctx.createGain();
-    og.gain.setValueAtTime(0, t);
-    og.gain.linearRampToValueAtTime(0.44, t + 0.012);
-    og.gain.exponentialRampToValueAtTime(0.0005, t + 0.52);
-    o.connect(og); og.connect(v.entree);
-    o.start(t); o.stop(t + 0.6);
-
-    // La neige tassee : un craquement large et court.
-    const s = this._bruit(0.4);
-    const f = ctx.createBiquadFilter();
-    f.type = 'lowpass';
-    f.frequency.setValueAtTime(1900, t);
-    f.frequency.exponentialRampToValueAtTime(230, t + 0.22);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.20, t + 0.010);
-    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.34);
-    s.connect(f); f.connect(g); g.connect(v.entree);
-    s.stop(t + 0.4);
-  }
-
-  /* ======================================================================
-     LE RUGISSEMENT
-
-     Le son le plus difficile a fabriquer sans echantillon, et celui qui
-     rate le plus souvent. Ce qui fait un cri d'animal enorme n'est ni sa
-     hauteur ni son volume, c'est sa STRUCTURE :
-
-     · un fondamental TRES BAS, entre soixante et cent hertz, qui MODULE en
-       hauteur pendant tout le cri — un cri a hauteur fixe est une sirene ;
-     · un formant, c'est-a-dire un filtre resonant qui balaie, et qui est ce
-       que l'oreille lit comme une gueule ouverte puis refermee ;
-     · une couche de bruit RAUQUE par-dessus, parce qu'aucun larynx reel
-       n'est pur ;
-     · et une queue qui traine, parce qu'un cri de cette taille resonne dans
-       une cage thoracique de trois metres.
-     ====================================================================== */
-  rugir(nom) {
-    const v = this.voix.get(nom);
-    if (!this.pret || !v) return;
-    const ctx = this.ctx, t = ctx.currentTime;
-    const D = 2.3;
-
-    const melange = ctx.createGain();
-    melange.gain.value = 1;
-
-    /* Le fondamental et ses harmoniques. La hauteur monte au debut du cri
-       puis retombe : c'est la courbe d'un souffle qui s'epuise. */
-    for (const [mult, amp, type] of [[1, 1.0, 'sawtooth'], [1.5, 0.45, 'sawtooth'],
-                                     [2.02, 0.30, 'square'], [3.1, 0.16, 'sawtooth']]) {
-      const o = ctx.createOscillator();
-      o.type = type;
-      o.frequency.setValueAtTime(58 * mult, t);
-      o.frequency.linearRampToValueAtTime(96 * mult, t + 0.30);
-      o.frequency.linearRampToValueAtTime(74 * mult, t + 1.10);
-      o.frequency.exponentialRampToValueAtTime(38 * mult, t + D);
-      const g = ctx.createGain();
-      g.gain.value = amp * 0.16;
-      o.connect(g); g.connect(melange);
-      o.start(t); o.stop(t + D + 0.15);
-    }
-
-    /* Le rauque : du bruit passe-bande, module par un tremblement rapide.
-       C'est lui qui fait la difference entre un cri et une corne de brume. */
-    const s = this._bruit(D + 0.2);
-    const fr = ctx.createBiquadFilter();
-    fr.type = 'bandpass'; fr.Q.value = 1.6;
-    fr.frequency.setValueAtTime(420, t);
-    fr.frequency.linearRampToValueAtTime(900, t + 0.35);
-    fr.frequency.exponentialRampToValueAtTime(220, t + D);
-    const gs = ctx.createGain(); gs.gain.value = 0.55;
-    s.connect(fr); fr.connect(gs); gs.connect(melange);
-
-    /* LE FORMANT : un passe-bande large qui balaie du grave vers l'aigu
-       puis redescend. C'est cette course, et elle seule, que l'oreille lit
-       comme une gueule qui s'ouvre. */
-    const formant = ctx.createBiquadFilter();
-    formant.type = 'bandpass';
-    formant.Q.value = 0.9;
-    formant.frequency.setValueAtTime(260, t);
-    formant.frequency.linearRampToValueAtTime(1250, t + 0.40);
-    formant.frequency.linearRampToValueAtTime(700, t + 1.30);
-    formant.frequency.exponentialRampToValueAtTime(180, t + D);
-
-    /* L'enveloppe : attaque franche mais pas instantanee — un animal prend
-       de l'air — plateau, puis une longue queue. */
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.85, t + 0.14);
-    g.gain.linearRampToValueAtTime(0.70, t + 1.20);
-    g.gain.exponentialRampToValueAtTime(0.0006, t + D + 0.1);
-
-    melange.connect(formant); formant.connect(g); g.connect(v.entree);
-
-    /* Et un doublage tres grave, sans formant : c'est ce qu'on sent dans la
-       poitrine plutot qu'on ne l'entend, et c'est ce qui donne la taille. */
-    const sub = ctx.createOscillator();
-    sub.type = 'sine';
-    sub.frequency.setValueAtTime(31, t);
-    sub.frequency.linearRampToValueAtTime(44, t + 0.35);
-    sub.frequency.exponentialRampToValueAtTime(22, t + D);
-    const gsub = ctx.createGain();
-    gsub.gain.setValueAtTime(0, t);
-    gsub.gain.linearRampToValueAtTime(0.34, t + 0.18);
-    gsub.gain.exponentialRampToValueAtTime(0.0005, t + D);
-    sub.connect(gsub); gsub.connect(v.entree);
-    sub.start(t); sub.stop(t + D + 0.2);
   }
 
   /* ======================================================================
@@ -766,23 +612,40 @@ export class ApparitionsSon {
        est un cas a part : il est a trois cents metres et doit pourtant se
        faire sentir, donc sa portee couvre tout. */
     const portee = nom === 'police' ? 170 : nom === 'gargantua' ? 600
-                 : nom === 'delorean' ? 120 : nom === 'trex' ? 150 : 60;
+                 : nom === 'delorean' ? 120 : 60;
     const v = this._voix(nom, objet, portee);
     if (!v) return;
 
     let c = null;
     if (nom === 'police') {
-      /* DEUX MOTEURS ET UNE SIRENE. Le fuyard tourne plus haut et plus
-         nerveux que la voiture de police : c'est une petite cylindree qui
-         se fait poursuivre par une grosse, et cet ecart de hauteur suffit a
-         faire entendre qu'ils sont deux. */
+      /* DEUX OU TROIS MOTEURS ET UNE SIRENE. Le fuyard tourne plus haut et
+         plus nerveux que la voiture de tete : c'est une petite cylindree
+         qui se fait poursuivre par une grosse, et cet ecart de hauteur
+         suffit a faire entendre qu'ils sont deux.
+
+         LE RENFORT N'EXISTE QUE SI LA SCENE LE MONTRE. `police.js` ecrit
+         `renfortActif` sur son propre objet — c'est le seul palier bas qui
+         l'omet — et c'est ce drapeau, pas un troisieme oscillateur
+         construit d'office, qui decide s'il faut lui donner une voix.
+         Construire un moteur qu'aucune image ne viendra jamais piloter via
+         `regler()` le laisserait bourdonner en continu a son volume
+         initial : un bruit de fond que personne n'a demande. */
       const sir = this._sirene(v.entree);
       const mPolice = this._moteur(v.entree, { base: 40, volume: 0.085 });
       const mFuyard = this._moteur(v.entree, { base: 58, volume: 0.070 });
+      const moteurs = [mPolice, mFuyard];
+      const noeuds = [...sir.noeuds, ...mPolice.noeuds, ...mFuyard.noeuds];
+      const gains = [sir.gain, mPolice.gain, mFuyard.gain];
+      if (objet?.userData?.renfortActif) {
+        // Legerement plus grave que la tete : un vehicule plus lourd,
+        // charge du materiel d'intervention, qui suit sans forcer.
+        const mRenfort = this._moteur(v.entree, { base: 34, volume: 0.062 });
+        moteurs.push(mRenfort);
+        noeuds.push(...mRenfort.noeuds);
+        gains.push(mRenfort.gain);
+      }
       c = {
-        noeuds: [...sir.noeuds, ...mPolice.noeuds, ...mFuyard.noeuds],
-        gains: [sir.gain, mPolice.gain, mFuyard.gain],
-        moteurs: [mPolice, mFuyard],
+        noeuds, gains, moteurs,
       };
     } else if (nom === 'delorean') {
       /* Un seul moteur, tres tendu, et le crepitement du condensateur qui
@@ -801,11 +664,10 @@ export class ApparitionsSon {
       c = { noeuds: [...a.noeuds, ...b.noeuds], gain: null, gains: [a.gain, b.gain] };
     } else if (nom === 'patronus') c = this._scintillement(v.entree);
     else if (nom === 'gargantua') c = this._sub(v.entree);
-    else if (nom === 'killbill') c = this._souffleFroid(v.entree);
     if (c) this.continus.set(nom, c);
 
     // Les ponctuels d'entree de scene.
-    if (nom === 'spider1' || nom === 'spider2') this.toile(nom);
+    if (nom === 'spider1') this.toile(nom);
   }
 
   fermer(nom) {

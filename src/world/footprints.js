@@ -149,7 +149,7 @@ export class Empreintes {
 
     this.scene = new THREE.Scene();
 
-    /* Reserve de tampons : on en pose au plus quelques-uns par image. */
+    // Reserve de tampons : on en pose au plus quelques-uns par image.
     const tex = tamponSabot();
     this.reserve = [];
     for (let i = 0; i < 12; i++) {
@@ -217,7 +217,7 @@ export class Empreintes {
     };
   }
 
-  /* Un sabot vient de se poser. On enregistre, le rendu suivra. */
+  /* Un pied vient de se poser. On enregistre, le rendu suivra. */
   ajouter(x, z, angle, force = 1) {
     if (!this.actif) return;
     if (this.file.length < this.reserve.length) {

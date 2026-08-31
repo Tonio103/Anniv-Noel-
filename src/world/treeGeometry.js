@@ -413,8 +413,16 @@ export function genererSapin(rand, detail = 6, simple = false, fond = false) {
     const phase = i * 2.39996;
 
     for (let b = 0; b < parEtage; b++) {
+      /* LE JITTER ANGULAIRE AGGRAVAIT LES TROUS QUE LA LARGEUR VENAIT DE
+         COMBLER. A 0,42 du secteur, deux branches voisines pouvaient
+         cumuler leur ecart dans le meme sens et s'ecarter de pres d'un
+         secteur entier — largement plus que ce qu'une lame, meme elargie,
+         peut couvrir. Le desordre reste voulu (c'est lui qui empeche les
+         cannelures parfaitement regulieres), mais resserre : assez pour
+         casser la grille, plus assez pour ouvrir un trou de la taille d'une
+         branche manquante. */
       const azimut = phase + (b / parEtage) * Math.PI * 2
-                   + (rand() - 0.5) * (Math.PI * 2 / parEtage) * 0.42;
+                   + (rand() - 0.5) * (Math.PI * 2 / parEtage) * 0.32;
 
       // Longueur propre a chaque branche : c'est elle qui dechire la silhouette.
       /* Longueur resserree autour du profil. A 0,62-1,28 fois la largeur
@@ -443,8 +451,16 @@ export function genererSapin(rand, detail = 6, simple = false, fond = false) {
            elargissant chaque lame jusqu'a ce que l'anneau se referme, la
            silhouette redevient pleine pour trois cents triangles, et la
            bascule a quarante metres cesse de se voir. */
+        /* LE NIVEAU PROCHE LAISSAIT PASSER LE CIEL ENTRE LES BRANCHES.
+           A 0,16-0,25, la largeur d'une lame couvrait a peine l'arc de son
+           propre secteur — le strict minimum pour qu'elle touche sa voisine
+           SANS jitter. Avec le tirage angulaire (ci-dessous), la moitie des
+           branches en ratait une partie, ce qui laissait des trous de neige
+           visibles a travers le houppier : le meme symptome « maigre » que
+           la densite, mais du cote de la largeur plutot que du compte. On
+           elargit pour que le RECOUVREMENT existe meme au pire tirage. */
         demiLarge: L * (fond ? 0.42 + rand() * 0.14
-                      : simple ? 0.20 + rand() * 0.09 : 0.16 + rand() * 0.09),
+                      : simple ? 0.24 + rand() * 0.10 : 0.21 + rand() * 0.11),
         plein: fond,
         segments,
         croisee: !fond,
@@ -609,10 +625,22 @@ export function eclairerAiguilles(materiau, { uniforms, transmission = 1 } = {})
 
           // 1. Transmission : elle ne vit que du cote non eclaire.
           float dos = clamp(-nl, 0.0, 1.0);
-          outgoingLight += diffuseColor.rgb * uLuneCol * pow(dos, 1.6) * 0.34 * uTransm;
+          outgoingLight += diffuseColor.rgb * uLuneCol * pow(dos, 1.6) * 0.40 * uTransm;
 
-          // 2. Le ciel arrive par le haut ; le pied de l'arbre est enfoui.
-          outgoingLight += diffuseColor.rgb * uCielCol * (0.10 + vHaut * 0.30) * 0.42;
+          /* 2. Le ciel arrive par le haut ; le pied de l'arbre est enfoui.
+
+             « LES SAPINS SONT MAIGRES » N'ETAIT PAS QUE LA GEOMETRIE.
+             A cote gauche ou a contre-jour, un etage entier ne recevait ni
+             lumiere directe (nl proche de zero) ni transmission (qui ne vit
+             que plein dos) : il ne restait que ce terme, et 0,10-0,40 * 0,42
+             l'ecrasait a un gris quasiment noir. La MASSE de l'arbre —
+             precisement ce qui distingue un conifere touffu d'un buisson
+             d'epines — devenait invisible, et il ne restait a l'oeil que le
+             bord eclaire (terme 3, ci-dessous) : des piquants brillants sur
+             fond noir. On remonte le plancher et la pente pour que le
+             feuillage reste lisible comme un VOLUME plein a n'importe quel
+             angle, pas seulement sur sa tranche. */
+          outgoingLight += diffuseColor.rgb * uCielCol * (0.17 + vHaut * 0.34) * 0.58;
 
           /* 3. Le bord des aiguilles s'allume, mais seulement face a la lune.
 
