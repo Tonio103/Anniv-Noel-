@@ -82,6 +82,27 @@ async function demarrer() {
     uVent: { value: new THREE.Vector2(0.85, 0.34) },
     uLuneCol: { value: new THREE.Color(0xFFD2A0) },
     uCielCol: { value: new THREE.Color(0x7A9CBC) },
+    /* LA RAFALE, EN COMMUN. Chaque systeme avait jusqu'ici son propre vent :
+       les sapins ondulaient sur leur sinus, la neige derivait a vitesse
+       constante, la brume avancait de son cote. Trois mouvements perpetuels
+       et independants — donc un air qui ne souffle jamais VRAIMENT, puisque
+       rien n'arrive et rien ne retombe.
+
+       Cette valeur-ci, de 0 a 1, est calculee une fois par image et lue par
+       tout le monde. Quand elle monte, les arbres se couchent, la neige file
+       a l'horizontale et la poudreuse se leve du sol EN MEME TEMPS. C'est la
+       simultaneite, pas l'amplitude, qui fait croire au vent. */
+    uRafale: { value: 0 },
+  };
+
+  /* Trois periodes sans rapport entre elles, donc une enveloppe qui ne se
+     repete pas avant tres longtemps : une rafale qui reviendrait toutes les
+     dix secondes se lirait comme une machine. La puissance resserre le
+     resultat vers le bas — le calme est l'etat normal, la rafale l'exception. */
+  const rafaleA = (t) => {
+    const s = Math.sin(t * 0.097) * 0.5 + Math.sin(t * 0.041 + 1.7) * 0.3
+            + Math.sin(t * 0.023 + 4.1) * 0.2;
+    return Math.pow(Math.max(0, s * 0.5 + 0.5), 2.2);
   };
 
   /* ---------------------------------------------------------------- monde */
@@ -510,6 +531,7 @@ async function demarrer() {
   /* ----------------------------------------------------------------- pas  */
   function pas(dt, t) {
     uniformsVent.uTemps.value = t;
+    uniformsVent.uRafale.value = rafaleA(t);
     horloge += dt;
 
     const cible = chemin.haltes[index];
@@ -782,6 +804,12 @@ async function demarrer() {
     ciel.maj(dt, t, camera);
     poudre.accorder(scene.fog);
     lumieres.accorder(ciel.actuel);
+    /* L'etalonnage et les rais suivent la meme ambiance que la lumiere : les
+       trois sont accordes au meme endroit, a la meme image, pour qu'aucun ne
+       puisse deriver des deux autres. Les rais partent de la lune, donc de
+       la direction de la lumiere principale. */
+    postfx.accorderGrade(ciel.actuel);
+    postfx.reglerRais(camera, lumieres.dir, 0.45);
     // Le feuillage suit la meme ambiance que la lumiere et la neige.
     uniformsVent.uLuneCol.value.set(ciel.actuel.soleil);
     uniformsVent.uCielCol.value.set(ciel.actuel.ciel);
@@ -793,6 +821,7 @@ async function demarrer() {
     }
     relief.maj(camera, ciel.actuel);
     foret.maj(camera);
+    neige.souffler(uniformsVent.uRafale.value);
     neige.maj(dt, t, camera, renderer);
     brume.maj(dt, t, camera, relief, ciel.actuel);
     details.maj(dt, t, camera, relief);
@@ -1097,6 +1126,9 @@ async function demarrer() {
     stations: STATIONS,
     brume, details, cabanes, apparitions, empreintes, fouillis, habitants, postfx, boucle, palier,
     son, sfx, ruisseau,
+    /* Le souffle partage et la neige qui le suit : sans eux exposes, une
+       rafale n'est verifiable qu'a l'oeil, donc pas verifiable du tout. */
+    vent: uniformsVent, neige,
     /* Le cout reel du personnage implicite, pour le banc `corps.mjs` : il
        n'est calculable qu'apres la construction, et personne d'autre n'a
        besoin de le connaitre. */

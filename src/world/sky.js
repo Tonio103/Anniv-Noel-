@@ -44,33 +44,70 @@ import { GLSL_NOISE } from '../core/noise.js';
    Les teintes ci-dessous gardent la chaleur mais rendent au bleu de quoi
    exister — rapport 1 : 0,72 : 0,45 au crepuscule. La neige reste doree, les
    sapins redeviennent verts. */
+/* LE SCENARIO DE COULEUR — la direction artistique de la balade.
+
+   Les champs `gr*` sont l'ETALONNAGE : ombres teintees, hautes lumieres
+   teintees, contraste, saturation, et la force avec laquelle tout cela
+   s'applique (voir la passe finale dans `core/postfx.js`). Ils changent en
+   meme temps que le ciel et le brouillard, donc la traversee ne change pas
+   seulement de decor : elle change de REGARD sur le decor.
+
+   Le scenario tient en une phrase : on part d'un reste de jour chaud, on
+   s'enfonce dans un froid de plus en plus dur et de plus en plus contraste,
+   le ciel s'ouvre et respire a la clairiere, puis la maison rechauffe tout
+   pour la fin. C'est un arc, pas cinq reglages independants — chaque ligne
+   n'a de sens que par rapport a celle d'avant.
+
+   `aurore` est l'autre variable de ce scenario : nulle tant qu'il fait
+   encore jour, elle s'installe avec la nuit et culmine a la clairiere, ou
+   le ciel est justement degage. */
 export const AMBIANCES = {
   crepuscule: {
     zenith: 0x14304C, horizon: 0x4A6E88, lueur: 0xE8A75C,
     brouillard: 0x40607A, densite: 0.0056, etoiles: 0.12,
     soleil: 0xFFDCB4, force: 1.75, ciel: 0x7A9CBC, sol: 0xD2DCE6, ambiant: 0.82,
+    aurore: 0.0,
+    // Le dernier jour : ombres bleu-vert, lumiere ambree. Le contraste du
+    // cinema d'hiver, sans encore la durete de la nuit.
+    grOmbres: 0x2A4C68, grHautes: 0xFFD8A4, grContraste: 1.05, grSature: 1.06, grForce: 0.20,
   },
   soir: {
     zenith: 0x0C1F38, horizon: 0x2E4C6E, lueur: 0xD08A54,
     brouillard: 0x2A4460, densite: 0.0064, etoiles: 0.45,
     soleil: 0xFFD4AE, force: 1.25, ciel: 0x5C7FA4, sol: 0xC8D4E0, ambiant: 0.70,
+    aurore: 0.28,
+    // Le chaud se retire dans les hautes lumieres, le froid gagne le reste.
+    grOmbres: 0x1E3A60, grHautes: 0xFFCF9E, grContraste: 1.09, grSature: 1.03, grForce: 0.24,
   },
   nuit: {
     zenith: 0x050E1E, horizon: 0x16304C, lueur: 0x2E5A7E,
     brouillard: 0x16283C, densite: 0.0072, etoiles: 1.0,
     soleil: 0xBFD8FF, force: 0.85, ciel: 0x3E6288, sol: 0xB4C4D4, ambiant: 0.62,
+    aurore: 1.0,
+    /* Plus rien de chaud : la lune est la seule source, et une lune est
+       BLEUE. La saturation descend juste sous 1 — la nuit lave les couleurs,
+       elle ne les exalte pas — mais le contraste, lui, monte. */
+    grOmbres: 0x14264A, grHautes: 0xCFE2FF, grContraste: 1.14, grSature: 0.97, grForce: 0.28,
   },
   clairiere: {
     /* Le ciel s'ouvre : plus d'etoiles, moins de brume, on respire. */
     zenith: 0x04101F, horizon: 0x1B3A58, lueur: 0x4E86A8,
     brouillard: 0x18304A, densite: 0.0048, etoiles: 1.0,
     soleil: 0xD6E6FF, force: 1.05, ciel: 0x4E77A0, sol: 0xBECDDA, ambiant: 0.78,
+    aurore: 1.0,
+    // On respire : le contraste se relache, l'image s'aere.
+    grOmbres: 0x16344F, grHautes: 0xDCECFF, grContraste: 1.07, grSature: 1.05, grForce: 0.24,
   },
   maison: {
     /* Derniere clairiere : une maison eclairee au loin rechauffe tout. */
     zenith: 0x061224, horizon: 0x2A3E52, lueur: 0xE8B26A,
     brouillard: 0x22354A, densite: 0.0058, etoiles: 0.86,
     soleil: 0xFFE2BE, force: 1.15, ciel: 0x577FA6, sol: 0xD6D0C2, ambiant: 0.88,
+    aurore: 0.55,
+    /* L'arrivee. Les hautes lumieres virent franchement au chaud et la
+       saturation remonte au-dessus de tout le reste du parcours : c'est le
+       seul moment de la balade ou l'image a le droit d'etre accueillante. */
+    grOmbres: 0x2E3048, grHautes: 0xFFE2B6, grContraste: 1.04, grSature: 1.12, grForce: 0.26,
   },
 };
 
@@ -89,7 +126,7 @@ const FRAG = /* glsl */ `
   varying vec3 vDir;
   uniform vec3 uZenith, uHorizon, uLueur;
   uniform vec3 uSoleilDir;
-  uniform float uEtoiles, uTemps;
+  uniform float uEtoiles, uTemps, uAurore;
 
   ${GLSL_NOISE}
 
@@ -209,10 +246,76 @@ const FRAG = /* glsl */ `
              * uEtoiles * smoothstep(0.0, 0.30, d.y);
     }
 
+    /* L'AURORE BOREALE.
+
+       Deux rideaux, a deux hauteurs et deux cadences, parce qu'un seul se
+       lit comme une bande posee sur le ciel alors qu'une vraie aurore est
+       toujours plusieurs draps qui se croisent.
+
+       CE QUI FAIT UNE AURORE, et sans quoi on obtient un simple nuage vert :
+
+       · LA LIGNE DE BASE SERPENTE. Le rideau n'est pas horizontal, il ondule
+         lentement sur toute la largeur du ciel. C'est cette ondulation, pas
+         la couleur, qui fait qu'on reconnait le phenomene.
+       · LES PLIS SONT VERTICAUX. Un rideau d'aurore est strie de haut en
+         bas — ce sont les lignes de champ magnetique. On l'obtient en
+         ECRASANT l'axe Y du bruit : la texture varie vite horizontalement et
+         lentement en hauteur, donc elle s'etire en colonnes.
+       · LE BAS EST VERT, LE HAUT VIRE. L'oxygene bas emet le vert, le haut
+         le rouge : toute aurore est donc un degrade vert → magenta, jamais
+         une teinte unie.
+
+       Le bruit est evalue sur la DIRECTION 3D, jamais sur un angle : un
+       atan() se replie a ±pi et laisserait une couture verticale nette en
+       travers du ciel, exactement la ou personne ne veut en voir une. */
+    if (uAurore > 0.01) {
+      float hautAur = smoothstep(0.0, 0.34, d.y);
+      if (hautAur > 0.001) {
+        vec3 lot = vec3(0.0);
+        for (int k = 0; k < 2; k++) {
+          float fk = float(k);
+          float base = 0.30 + fk * 0.26;
+          float vitesse = 0.016 + fk * 0.009;
+
+          // La ligne de base du rideau, qui serpente lentement.
+          float serpent = fbm3(d * (1.5 + fk * 0.7)
+                               + vec3(uTemps * vitesse, 0.0, fk * 11.3)) * 0.26;
+          float ecart = d.y - (base + serpent);
+          /* Des BANDES, pas un voile. La premiere version etalait le rideau
+             sur presque tout le ciel : joli, mais ca se lisait comme une
+             brume coloree et non comme une aurore. Une aurore est etroite —
+             c'est son bord net qui la rend spectaculaire. */
+          float rideau = exp(-ecart * ecart * (78.0 - fk * 24.0));
+          /* Le BAS DU RIDEAU EST PLUS LUMINEUX que le reste : c'est la que
+             les particules rencontrent l'atmosphere la plus dense. Sans cette
+             frange, le rideau est un degrade symetrique — donc un nuage. */
+          rideau *= 1.0 + 0.75 * exp(-pow((ecart + 0.035) * 26.0, 2.0));
+
+          // Les plis verticaux : Y ecrase, donc des colonnes.
+          float plis = fbm3(vec3(d.x, d.y * 0.15, d.z) * (8.5 + fk * 4.0)
+                            + vec3(uTemps * (0.05 + fk * 0.02), 0.0, fk * 5.1));
+          plis = smoothstep(0.40, 0.95, plis * 0.5 + 0.5);
+
+          // Vert en bas, bleu puis magenta en montant.
+          float mont = clamp((d.y - base + 0.18) * 2.4, 0.0, 1.0);
+          vec3 teinteA = mix(vec3(0.20, 1.00, 0.55), vec3(0.34, 0.72, 1.00), mont);
+          teinteA = mix(teinteA, vec3(0.86, 0.38, 0.94),
+                        smoothstep(0.55, 1.0, mont) * 0.55);
+
+          lot += teinteA * rideau * plis * (0.85 - fk * 0.30);
+        }
+        col += lot * uAurore * hautAur * 0.46;
+      }
+    }
+
     /* VOILES DE NUAGES HAUTS. Des cirrus etires par le vent d'altitude,
        eclaires par en dessous par la lueur du couchant. Ils donnent au ciel
        une profondeur qu'aucun degrade ne peut donner seul, et ils cassent la
-       regularite parfaite du fond. */
+       regularite parfaite du fond.
+
+       Ils passent APRES l'aurore, et c'est l'ordre physique : les cirrus
+       volent a dix kilometres, l'aurore a plus de cent. Un nuage doit donc
+       pouvoir la voiler, jamais l'inverse. */
     {
       vec3 cq = vec3(d.x, d.y * 2.6, d.z) * 2.2 + vec3(uTemps * 0.004, 0.0, 0.0);
       float voile = fbm3(cq) * 0.5 + 0.5;
@@ -238,6 +341,7 @@ export class Ciel {
       uLueur:     { value: new THREE.Color(AMBIANCES.crepuscule.lueur) },
       uSoleilDir: { value: new THREE.Vector3(-0.45, 0.34, -0.83).normalize() },
       uEtoiles:   { value: AMBIANCES.crepuscule.etoiles },
+      uAurore:    { value: AMBIANCES.crepuscule.aurore },
       uTemps:     { value: 0 },
     };
 
@@ -279,12 +383,18 @@ export class Ciel {
     const k = 1 - Math.exp(-0.55 * dt);
     const a = this.actuel, c = this.cible;
 
-    for (const clef of ['zenith', 'horizon', 'lueur', 'brouillard', 'soleil', 'ciel', 'sol']) {
+    /* Les teintes d'etalonnage s'interpolent comme les autres couleurs, et
+       les scalaires d'etalonnage comme les autres scalaires : c'est tout ce
+       qu'il faut pour qu'un changement de chapitre soit un FONDU de
+       direction artistique et non une bascule. */
+    for (const clef of ['zenith', 'horizon', 'lueur', 'brouillard', 'soleil', 'ciel', 'sol',
+                        'grOmbres', 'grHautes']) {
       this._c1.set(a[clef]); this._c2.set(c[clef]);
       this._c1.lerp(this._c2, k);
       a[clef] = this._c1.getHex();
     }
-    for (const clef of ['densite', 'etoiles', 'force', 'ambiant']) {
+    for (const clef of ['densite', 'etoiles', 'force', 'ambiant', 'aurore',
+                        'grContraste', 'grSature', 'grForce']) {
       a[clef] += (c[clef] - a[clef]) * k;
     }
 
@@ -292,6 +402,7 @@ export class Ciel {
     this.uniforms.uHorizon.value.set(a.horizon);
     this.uniforms.uLueur.value.set(a.lueur);
     this.uniforms.uEtoiles.value = a.etoiles;
+    this.uniforms.uAurore.value = a.aurore;
 
     this.scene.fog.color.set(a.brouillard);
     this.scene.fog.density = a.densite;

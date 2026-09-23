@@ -27,7 +27,7 @@ const VERT = /* glsl */ `
   attribute vec4 graine;      // xyz = position de base, w = taille relative
   uniform float uTemps;
   uniform vec3 uCam;
-  uniform float uEtendue, uChute, uPixels, uTaille, uDerive;
+  uniform float uEtendue, uChute, uPixels, uTaille, uDerive, uW, uRafale;
   varying float vAlpha;
   varying float vFlou;
 
@@ -39,9 +39,25 @@ const VERT = /* glsl */ `
     float vitesse = uChute * (0.55 + graine.w * 0.95);
     p.y -= uTemps * vitesse;
 
-    // Derive laterale, phase propre a chaque flocon, plus le vent d'ensemble.
+    /* Derive laterale, phase propre a chaque flocon, plus le vent d'ensemble.
+
+       LE VENT N'AVANCE PAS EN uTemps, MAIS EN uW, et la distinction est
+       la seule chose qui rend les rafales possibles ici. La derive est une
+       DISTANCE ACCUMULEE : ecrite comme un produit du temps par la vitesse,
+       elle relit tout le passe a chaque image. Il suffirait donc de faire
+       varier la force du vent pour que la totalite du trajet deja parcouru
+       soit recalculee, et la nappe entiere sauterait lateralement a chaque
+       changement.
+
+       uW est cette meme distance, mais integree pas a pas sur le
+       processeur (voir la methode maj) : elle ne revient jamais sur ce qui
+       est deja parcouru. Le vent peut alors forcir et retomber sans qu'un
+       seul flocon ne se teleporte.
+
+       L'ondulation, elle, n'accumule rien — moduler son amplitude est donc
+       sans danger, et c'est ce qui fait voltiger la neige dans la bourrasque. */
     float ph = graine.x * 61.0 + graine.z * 37.0;
-    p.x += sin(uTemps * 0.62 + ph) * 0.9 + uTemps * uDerive;
+    p.x += sin(uTemps * 0.62 + ph) * 0.9 * (1.0 + uRafale * 1.5) + uW * uDerive;
     p.z += cos(uTemps * 0.47 + ph * 1.3) * 0.75;
     // Voltige : un petit mouvement en huit, tres visible de pres.
     p.x += sin(uTemps * 1.9 + ph * 2.7) * 0.16 * graine.w;
@@ -117,6 +133,8 @@ function couche(N, etendue, taille, opacite, biais) {
     uPixels: { value: 700 },
     uTaille: { value: taille },
     uDerive: { value: 0.6 },
+    uW: { value: 0 },
+    uRafale: { value: 0 },
     uOpacite: { value: opacite },
     uCouleur: { value: new THREE.Color(0xF4FAFF) },
   };
@@ -160,17 +178,43 @@ export class Neige {
     scene.add(this.loin.pts);
     scene.add(this.pres.pts);
     this.couches = [this.loin, this.pres];
+    // Distance parcourue par le vent, integree image par image (voir le
+    // nuanceur) : elle ne redescend jamais et ne se recalcule jamais.
+    this._w = 0;
+    this._rafale = 0;
   }
 
   maj(dt, temps, camera, renderer) {
     // La taille a l'ecran doit suivre la resolution, sinon les flocons sont
     // minuscules sur un ecran haute densite et enormes sur un petit.
     const px = renderer.domElement.height * 0.62;
+    /* Une rafale pousse la neige presque a l'horizontale. On borne `dt` DES
+       DEUX COTES, et les deux bornes ont chacune leur incident :
+
+       · EN HAUT, l'onglet remis au premier plan. Il livre un pas de
+         plusieurs secondes d'un coup, et la nappe ferait un bond lateral de
+         dizaines de metres.
+
+       · EN BAS, le saut de temps EN ARRIERE. Celui-la, je l'avais manque :
+         je bornais le maximum et j'ai suppose qu'un pas ne pouvait pas etre
+         negatif. Le banc a montre le contraire — la distance de vent
+         demarrait a -19 metres, parce qu'aller() replace la balade et que
+         l'horloge recule d'un cran au passage. Une distance accumulee qui
+         RECULE, c'est exactement la teleportation que toute cette mecanique
+         existe pour empecher, juste dans l'autre sens. */
+    this._w += Math.max(0, Math.min(dt, 0.1)) * (1 + 2.4 * this._rafale);
     for (const c of this.couches) {
       c.uniforms.uTemps.value = temps;
       c.uniforms.uCam.value.copy(camera.position);
       c.uniforms.uPixels.value = px;
+      c.uniforms.uW.value = this._w;
+      c.uniforms.uRafale.value = this._rafale;
     }
+  }
+
+  /* La force du souffle, partagee avec les sapins et la poudreuse. */
+  souffler(v) {
+    this._rafale = Math.min(Math.max(v, 0), 1);
   }
 
   /* Fait forcir ou faiblir la chute — utile dans les clairieres exposees.

@@ -39,6 +39,10 @@
 import * as THREE from 'three';
 import { damp } from './noise.js';
 
+// Temporaires de `reglerRais`, hors de la boucle : une projection par image.
+const _avant = new THREE.Vector3();
+const _pt = new THREE.Vector3();
+
 /* Un seul triangle couvrant l'ecran : moins de sommets qu'un quad, et pas de
    couture diagonale au milieu de l'image. */
 function trianglePlein() {
@@ -84,14 +88,75 @@ const FRAG_FLOU = /* glsl */ `
   }
 `;
 
+/* --- rais de lumiere : 1. ce qui reste du ciel ---------------------------- */
+/* On ne garde que LE CIEL, et noir partout ailleurs. C'est cette image-la
+   qu'on etire ensuite depuis la lune : la ou un tronc se tient, la trainee
+   s'interrompt, et c'est precisement cette interruption qui fait lire un
+   rayon plutot qu'un halo.
+
+   Le ciel se reconnait au tampon de profondeur : le dome n'y ecrit pas
+   (`depthWrite: false` dans sky.js), donc ses pixels gardent la valeur
+   d'effacement, exactement 1. Aucun autre objet ne peut valoir 1 — la
+   camera a un plan lointain fini. Le test est donc exact, pas approche. */
+const FRAG_CIEL = /* glsl */ `
+  varying vec2 vUv;
+  uniform sampler2D uSrc, uProfondeur;
+  uniform float uSeuil;
+  void main(){
+    float d = texture2D(uProfondeur, vUv).x;
+    vec3 c = texture2D(uSrc, vUv).rgb;
+    /* Seules les VRAIES sources tirent un rayon. Sans ce seuil, tout le
+       degrade du ciel participe et on obtient un voile uniforme au lieu de
+       faisceaux : c'est la lune et la lueur d'horizon qu'on veut etirer, pas
+       le bleu de fond. */
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    float garde = step(0.9999, d) * smoothstep(uSeuil, uSeuil * 2.2, l);
+    gl_FragColor = vec4(c * garde, 1.0);
+  }
+`;
+
+/* --- rais de lumiere : 2. l'etirement depuis la lune ---------------------- */
+/* Un flou RADIAL, pas gaussien : chaque pixel remonte vers la lune en
+   accumulant ce qu'il croise, avec une extinction geometrique. C'est la
+   methode de rendu des « god rays » en espace ecran — elle ne connait
+   evidemment rien a la vraie diffusion atmospherique, mais elle produit
+   exactement ce que l'oeil attend : des faisceaux qui partent d'un point,
+   se decoupent sur les troncs et se dissolvent en s'eloignant.
+
+   Le nombre d'echantillons est fige a la COMPILATION (une boucle GLSL ES
+   ne peut pas s'arreter sur une variable), d'ou la fabrication du source
+   par fonction plutot qu'une constante unique. */
+const fragRais = (n) => /* glsl */ `
+  #define N ${n}
+  varying vec2 vUv;
+  uniform sampler2D uSrc;
+  uniform vec2 uLumiere;          // position de la lune, en UV d'ecran
+  uniform float uDensite, uExtinction, uPoids;
+  void main(){
+    vec2 uv = vUv;
+    vec2 pas = (vUv - uLumiere) * (uDensite / float(N));
+    float att = 1.0;
+    vec3 acc = vec3(0.0);
+    for (int i = 0; i < N; i++) {
+      uv -= pas;
+      acc += texture2D(uSrc, clamp(uv, 0.0, 1.0)).rgb * att;
+      att *= uExtinction;
+    }
+    gl_FragColor = vec4(acc * uPoids, 1.0);
+  }
+`;
+
 /* --- composition finale --------------------------------------------------- */
 const FRAG_FINAL = /* glsl */ `
   varying vec2 vUv;
-  uniform sampler2D uScene, uHalo, uFlou, uProfondeur;
+  uniform sampler2D uScene, uHalo, uFlou, uProfondeur, uRais;
   uniform float uExpo, uHaloForce, uVignette, uGrain, uAberr, uTemps;
   uniform float uNear, uFar, uFocus, uNet, uPlage, uDof;
   uniform vec3 uTeinte;
   uniform float uTeinteForce;
+  uniform float uRaisForce;
+  uniform vec3 uGrOmbres, uGrHautes;
+  uniform float uGrContraste, uGrSature, uGrForce;
 
   /* Le tampon de profondeur n'est pas lineaire : la precision est concentree
      pres de la camera. Il faut le redresser pour raisonner en metres. */
@@ -185,7 +250,44 @@ const FRAG_FINAL = /* glsl */ `
     // Halo AVANT la courbe : ajoute apres, il saturerait au lieu de se fondre.
     col += texture2D(uHalo, uv).rgb * uHaloForce;
 
+    /* Les rais s'ajoutent ici, pour la meme raison que le halo : ils sont de
+       la LUMIERE, et de la lumiere s'additionne avant la courbe de tonalite,
+       sinon elle ecrase les hautes lumieres au lieu de s'y fondre. */
+    if (uRaisForce > 0.0001) col += texture2D(uRais, uv).rgb * uRaisForce;
+
     col = aces(col * uExpo);
+
+    /* ETALONNAGE — LA DIRECTION ARTISTIQUE PROPREMENT DITE.
+
+       Jusqu'ici, traverser la foret ne changeait que les couleurs du DECOR :
+       le ciel virait, le brouillard suivait, et l'image restait rendue de la
+       meme facon d'un bout a l'autre. Un film ne procede pas ainsi — il
+       ETALONNE, et c'est l'etalonnage, bien plus que le contenu du plan, qui
+       fait qu'une sequence de nuit ne ressemble pas a une sequence de jour
+       assombrie.
+
+       Trois gestes, dans l'ordre ou un coloriste les pose :
+
+       1. le CONTRASTE, autour du gris moyen ;
+       2. la SATURATION, apres le contraste (l'inverse deriverait les teintes
+          des qu'on pousse un peu) ;
+       3. le SPLIT-TONING : une teinte pour les ombres, une autre pour les
+          hautes lumieres. C'est lui qui porte l'essentiel du caractere — des
+          ombres froides sous une lumiere chaude, c'est la nuit americaine de
+          tous les films d'hiver.
+
+       La teinte est NORMALISEE en luminance avant d'etre appliquee : elle ne
+       deplace donc que la couleur, jamais la luminosite. Sans cela, teinter
+       les ombres d'un bleu sombre les assombrirait encore, et on perdrait au
+       contraste ce qu'on gagne a la couleur. */
+    col = clamp((col - 0.5) * uGrContraste + 0.5, 0.0, 1.0);
+    float lum0 = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    col = clamp(mix(vec3(lum0), col, uGrSature), 0.0, 1.0);
+    {
+      vec3 teinte = mix(uGrOmbres, uGrHautes, smoothstep(0.0, 1.0, lum0));
+      teinte /= max(dot(teinte, vec3(0.2126, 0.7152, 0.0722)), 0.001);
+      col = clamp(mix(col, col * teinte, uGrForce), 0.0, 1.0);
+    }
 
     // Vignettage doux — il recentre le regard sans qu'on le remarque.
     col *= 1.0 - uVignette * smoothstep(0.15, 0.75, r2);
@@ -288,6 +390,9 @@ export class PostFX {
     this.rtB = new THREE.WebGLRenderTarget(2, 2, { ...commun, type: THREE.HalfFloatType });
     // Scene floutee, pour la profondeur de champ.
     this.rtC = new THREE.WebGLRenderTarget(2, 2, { ...commun, type: THREE.HalfFloatType });
+    // Les rais etires. Une cible a part : rtA porte le halo et rtC le flou de
+    // profondeur de champ, tous deux encore necessaires a la composition.
+    this.rtD = new THREE.WebGLRenderTarget(2, 2, { ...commun, type: THREE.HalfFloatType });
 
     this.matHaut = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG_HAUT,
@@ -302,6 +407,38 @@ export class PostFX {
     this.matFlou = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG_FLOU,
       uniforms: { uSrc: { value: null }, uPas: { value: new THREE.Vector2() } },
+      depthTest: false, depthWrite: false,
+    });
+
+    /* LES RAIS. Deux passes, et le nombre d'echantillons suit le palier :
+       c'est une boucle de lectures de texture, donc exactement le genre de
+       chose qu'un telephone paie plein tarif. Douze suffisent a lire des
+       faisceaux ; au-dela c'est la douceur du degrade qui gagne, pas la
+       lisibilite. */
+    this.matCiel = new THREE.ShaderMaterial({
+      vertexShader: VERT, fragmentShader: FRAG_CIEL,
+      uniforms: {
+        uSrc: { value: null }, uProfondeur: { value: null },
+        uSeuil: { value: 0.42 },
+      },
+      depthTest: false, depthWrite: false,
+    });
+    const nRais = palier.nom === 'haut' ? 32 : palier.nom === 'moyen' ? 20 : 12;
+    this.matRais = new THREE.ShaderMaterial({
+      vertexShader: VERT, fragmentShader: fragRais(nRais),
+      uniforms: {
+        uSrc: { value: null },
+        uLumiere: { value: new THREE.Vector2(0.5, 0.5) },
+        /* La densite est la LONGUEUR du faisceau, en fraction de la distance
+           qui separe le pixel de la lune : a 1, un rayon remonterait jusqu'a
+           elle et l'image entiere se remplirait. On en prend les trois quarts,
+           ce qui laisse les faisceaux se dissoudre avant d'atteindre leur
+           source — c'est ce qui les fait lire comme de l'air, et non comme
+           des traits. */
+        uDensite: { value: 0.76 },
+        uExtinction: { value: 0.965 },
+        uPoids: { value: 1 / nRais },
+      },
       depthTest: false, depthWrite: false,
     });
 
@@ -338,9 +475,26 @@ export class PostFX {
         uDof: { value: complet ? 0.72 : 0.28 },
         uTeinte: { value: new THREE.Color(0x5C0A0E) },
         uTeinteForce: { value: 0 },
+        uRais: { value: null },
+        uRaisForce: { value: 0 },
+        /* L'etalonnage part NEUTRE et c'est le ciel qui l'accorde a chaque
+           image (`accorderGrade`), exactement comme il accorde deja la
+           lumiere et le brouillard. Neutre ici veut dire : aucun contraste
+           ajoute, aucune saturation ajoutee, teintes grises — si le ciel ne
+           branchait rien, l'image resterait celle d'avant. */
+        uGrOmbres: { value: new THREE.Color(0x808080) },
+        uGrHautes: { value: new THREE.Color(0x808080) },
+        uGrContraste: { value: 1 },
+        uGrSature: { value: 1 },
+        uGrForce: { value: 0 },
       },
       depthTest: false, depthWrite: false,
     });
+
+    /* Toujours une texture valide, meme quand les rais sont eteints : le
+       branchement qui les saute vit dans le nuanceur, et un echantillonneur
+       non lie reste un echantillonneur declare. */
+    this.matFinal.uniforms.uRais.value = this.rtD.texture;
 
     this.l = 2; this.h = 2;
     // Les valeurs nominales, pour pouvoir y revenir apres un assombrissement.
@@ -375,6 +529,7 @@ export class PostFX {
     this.rtA.setSize(fl, fh);
     this.rtB.setSize(fl, fh);
     this.rtC.setSize(fl, fh);
+    this.rtD.setSize(fl, fh);
     this._flouL = fl; this._flouH = fh;
   }
 
@@ -458,6 +613,49 @@ export class PostFX {
     u.uAberr.value = damp(u.uAberr.value, cible, 2.6, dt);
   }
 
+  /* OU EST LA LUNE, A L'ECRAN ? C'est de ce point que partent les rais, et
+     c'est la seule chose que la passe radiale a besoin de savoir.
+
+     Deux garde-fous, et ils comptent autant que le calcul lui-meme :
+
+     · QUAND ELLE EST DERRIERE, IL N'Y A PAS DE RAIS. Projeter un point situe
+       derriere la camera renvoie des coordonnees miroir, parfaitement
+       plausibles et completement fausses : on obtiendrait des faisceaux
+       partant d'un coin de l'ecran, a l'oppose exact de la lumiere. On teste
+       donc le sens AVANT de projeter, jamais le resultat de la projection.
+
+     · QUAND ELLE SORT DU CADRE, ILS S'ETEIGNENT EN DOUCEUR. Sans cela, le
+       jour ou la camera la perd d'un demi-degre, toute la trainee
+       disparaitrait d'une image a l'autre — un clignotement, la pire chose
+       qu'on puisse offrir a un plan-sequence. */
+  reglerRais(camera, dirMonde, force = 1) {
+    const u = this.matFinal.uniforms;
+    if (!this.actif || !dirMonde) { u.uRaisForce.value = 0; return; }
+
+    camera.getWorldDirection(_avant);
+    const face = _avant.dot(dirMonde);
+    if (face <= 0.05) { u.uRaisForce.value = 0; return; }
+
+    _pt.copy(camera.position).addScaledVector(dirMonde, 900).project(camera);
+    this.matRais.uniforms.uLumiere.value.set(_pt.x * 0.5 + 0.5, _pt.y * 0.5 + 0.5);
+
+    const dx = Math.max(0, Math.abs(_pt.x) - 1);
+    const dy = Math.max(0, Math.abs(_pt.y) - 1);
+    const hors = Math.min(1, Math.hypot(dx, dy) / 0.8);
+    u.uRaisForce.value = force * Math.min(1, face * 2.2) * (1 - hors);
+  }
+
+  /* L'etalonnage suit l'ambiance du ciel, au meme titre que la lumiere et le
+     brouillard — c'est ce qui garantit qu'ils ne divergent jamais. */
+  accorderGrade(a) {
+    const u = this.matFinal.uniforms;
+    if (a.grOmbres !== undefined) u.uGrOmbres.value.set(a.grOmbres);
+    if (a.grHautes !== undefined) u.uGrHautes.value.set(a.grHautes);
+    if (a.grContraste !== undefined) u.uGrContraste.value = a.grContraste;
+    if (a.grSature !== undefined) u.uGrSature.value = a.grSature;
+    if (a.grForce !== undefined) u.uGrForce.value = a.grForce;
+  }
+
   rendre(scene, camera, temps) {
     const r = this.renderer;
     if (!this.actif) { r.setRenderTarget(null); r.render(scene, camera); return; }
@@ -496,7 +694,23 @@ export class PostFX {
     this.matFlou.uniforms.uPas.value.set(0, 2.0 / lh);
     this._passe(this.matFlou, this.rtC);
 
-    // 5. composition a l'ecran
+    /* 5. les rais. Deux passes, et SEULEMENT si la lune est effectivement
+       dans le champ : quand elle est derriere la camera, l'etirement
+       partirait d'un point situe hors de l'ecran et ne produirait qu'une
+       bavure diagonale. `reglerRais` met alors la force a zero, et on
+       economise les deux passes entieres plutot que de les calculer pour
+       les multiplier par rien. */
+    if (this.matFinal.uniforms.uRaisForce.value > 0.0001) {
+      this.matCiel.uniforms.uSrc.value = this.rtScene.texture;
+      this.matCiel.uniforms.uProfondeur.value = this.profondeur;
+      this._passe(this.matCiel, this.rtB);
+
+      this.matRais.uniforms.uSrc.value = this.rtB.texture;
+      this._passe(this.matRais, this.rtD);
+      this.matFinal.uniforms.uRais.value = this.rtD.texture;
+    }
+
+    // 6. composition a l'ecran
     this.matFinal.uniforms.uScene.value = this.rtScene.texture;
     this.matFinal.uniforms.uHalo.value = this.rtA.texture;
     this.matFinal.uniforms.uFlou.value = this.rtC.texture;

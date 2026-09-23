@@ -681,12 +681,13 @@ export function appliquerVent(materiau, { amplitude = 1, uniforms }) {
   materiau.onBeforeCompile = (shader) => {
     shader.uniforms.uTemps = uniforms.uTemps;
     shader.uniforms.uVent = uniforms.uVent;
+    shader.uniforms.uRafale = uniforms.uRafale;
     shader.uniforms.uAmpVent = { value: amplitude };
 
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `
         #include <common>
-        uniform float uTemps, uAmpVent;
+        uniform float uTemps, uAmpVent, uRafale;
         uniform vec2 uVent;
       `)
       .replace('#include <begin_vertex>', `
@@ -707,8 +708,20 @@ export function appliquerVent(materiau, { amplitude = 1, uniforms }) {
           float souffle = sin(uTemps * 0.62 + phase) * 0.72
                         + sin(uTemps * 1.63 + phase * 2.3) * 0.28;
 
-          // La rafale traverse la foret : elle arrive plus tard au loin.
-          float rafale = 0.55 + 0.45 * sin(uTemps * 0.21 - ancre.z * 0.012);
+          /* LA RAFALE TRAVERSE LA FORET : elle arrive plus tard au loin.
+
+             Le terme spatial, celui qui retranche la profondeur de l'ancre,
+             est ce qui fait voyager le front : deux arbres distants de
+             cinquante metres ne plient pas au meme instant, et c'est ce
+             decalage qui se lit comme une bourrasque qui passe plutot que
+             comme une foret qui respire d'un bloc.
+
+             Sa FORCE, elle, vient desormais de uRafale, partagee avec la
+             neige et la poudreuse (voir main.js). Le voyage reste local a
+             l'arbre, la puissance est commune a tout le monde : quand le
+             souffle monte, tout monte ensemble. */
+          float voyage = 0.55 + 0.45 * sin(uTemps * 0.21 - ancre.z * 0.012);
+          float rafale = voyage * (0.62 + 0.95 * uRafale);
 
           float prise = pow(clamp(transformed.y, 0.0, 1.0), 1.7);
 
