@@ -143,6 +143,26 @@ export class Cerf {
     this._flick = 0;                           // coup de queue
     this._prochainFlick = 3 + Math.random() * 5;
 
+    /* --- LE SOUFFLE, ET POURQUOI IL MANQUAIT ---------------------------------
+
+       Les oscillations du corps sont toutes multipliees par `bat`, qui vaut
+       zero des que l'animal s'arrete. A l'arret, le corps est donc
+       RIGOUREUSEMENT immobile : meme hauteur, meme assiette, au millimetre,
+       image apres image. Or c'est exactement la que le visiteur le regarde
+       le plus longtemps — les neuf haltes durent le temps qu'on lise une
+       carte. Le commentaire en tete de ce fichier dit qu'une tete
+       parfaitement immobile fait une figurine ; un CORPS parfaitement
+       immobile la fait tout autant, et plus longtemps.
+
+       Plus genant encore : les naseaux expulsent deja de la buee (voir
+       `creerSouffle` dans deerMesh.js). L'animal souffle donc visiblement
+       sans que rien ne se souleve en lui. C'est une contradiction que
+       l'oeil enregistre sans la nommer.
+
+       Une respiration au repos tourne autour de dix-huit par minute. */
+    this._respire = Math.random() * Math.PI * 2;
+    this._enMarche = 1;
+
     /* Evenements de poser, consommes par le son pour les crissements. */
     this.posers = [];
     this._auSol = { AG: true, AD: true, PG: true, PD: true };
@@ -401,10 +421,34 @@ export class Cerf {
     const enMouvement = this.vitesse > 0.05;
     const yRacine = this.racine.position.y;
 
+    /* LE SOUFFLE. Il ne vit qu'a l'arret : en marche, le tangage de la
+       foulee est dix fois plus ample et le souffle n'y ajouterait qu'un
+       battement parasite. La bascule est LISSEE — un souffle qui
+       s'allumerait net a l'instant ou l'animal pose son dernier sabot se
+       verrait comme un declic.
+
+       Un centimetre et demi au garrot, pas plus. C'est peu, et c'est le
+       point : on ne doit jamais POUVOIR dire que le cerf respire, on doit
+       seulement ne plus pouvoir dire qu'il est en carton. */
+    this._enMarche = damp(this._enMarche, enMouvement ? 1 : 0, 3, dt);
+    const auRepos = 1 - this._enMarche;
+    this._respire += dt * 1.85;
+    const souffle = Math.sin(this._respire) * 0.5 + 0.5;
+    const leve = souffle * 0.016 * auRepos;
+
     /* --- chaque membre ---------------------------------------------------- */
     for (const mb of this.membres) {
       const phase = (this.cycle + (1 - ALLURES[this.allure].phases[mb.nom])) % 1;
       this._cible.copy(mb.repos);
+      /* LE SOUFFLE SOULEVE LE CORPS, PAS L'ANIMAL.
+
+         La cible du sabot est exprimee dans le repere DU CORPS. Si on leve
+         le corps sans rien faire d'autre, la cible monte avec lui et le
+         sabot quitte le sol — le cerf respirerait en levitant. On retranche
+         donc exactement ce qu'on vient d'ajouter : le corps monte, les
+         appuis restent plantes ou ils sont, ce qui est precisement ce que
+         fait un animal qui respire debout. */
+      this._cible.y -= leve;
 
       let auSol = true;
 
@@ -460,8 +504,14 @@ export class Cerf {
        de la foulee. Faible amplitude : trop, et l'animal semble boiter. */
     const bat = enMouvement ? 1 : 0;
     this.corps.position.y = this.hauteurGarrot
-      + Math.sin(this.cycle * Math.PI * 4) * 0.028 * bat;
-    this.corps.rotation.x = Math.sin(this.cycle * Math.PI * 4 + 0.8) * 0.030 * bat;
+      + Math.sin(this.cycle * Math.PI * 4) * 0.028 * bat
+      + leve;
+    /* Le poitrail se souleve un peu plus que la croupe : une inspiration
+       gonfle la cage thoracique, pas l'arriere-train. Quatre milliemes de
+       radian, soit un quart de degre — invisible isolement, mais c'est ce
+       qui distingue un corps qui respire d'un corps qu'on monte au cric. */
+    this.corps.rotation.x = Math.sin(this.cycle * Math.PI * 4 + 0.8) * 0.030 * bat
+      - souffle * 0.004 * auRepos;
     this.corps.rotation.z = Math.sin(this.cycle * Math.PI * 2) * 0.035 * bat;
 
     /* --- tete, cou, queue -------------------------------------------------
