@@ -44,13 +44,45 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ITER = 1_000_000;
 const LEURRES = 16;      // taille apparente de la liste d'invites
 
-/* La meme normalisation ici et dans la page, sans quoi une adresse tapee
-   avec une majuscule ne retomberait pas sur la bonne cle. On se limite a
-   ce qui est sur : espaces en trop et casse. On ne touche NI aux points du
-   nom, NI aux suffixes en « + » — certains fournisseurs les ignorent,
-   d'autres non, et « corriger » l'adresse de quelqu'un serait le meilleur
-   moyen de lui fermer la porte au nez. */
-const normaliser = (a) => a.trim().toLowerCase();
+/* LA MEME NORMALISATION ICI ET DANS LA PAGE, AU CARACTERE PRES.
+
+   C'est le seul endroit du systeme ou une divergence ne fait pas de bruit :
+   elle ne casse rien, elle ferme simplement la porte au nez de quelqu'un
+   d'invite, sans message et sans trace. Toute modification ici doit etre
+   reportee a l'identique dans `build/gate.template.html`.
+
+   Trois regles, et pas une de plus :
+
+   · ESPACES ET CASSE. Une adresse recopiee depuis un carnet d'adresses
+     arrive reguliere­ment avec une majuscule ou une espace finale.
+
+   · FORME UNICODE (NFC). « ç » s'ecrit soit d'un seul caractere (U+00E7),
+     soit d'un « c » suivi d'une cedille combinante (U+0327). A l'oeil c'est
+     identique ; en octets, et donc pour PBKDF2, ce sont deux adresses
+     differentes. Sans cette normalisation, la porte s'ouvrirait ou non
+     selon le clavier, le systeme ou le copier-coller de celui qui tape —
+     un defaut impossible a diagnostiquer pour qui le subit.
+
+   · LES POINTS ET LES SUFFIXES « + » CHEZ GMAIL SEULEMENT. Gmail les
+     ignore : `jean.dupont@gmail.com` et `jeandupont@gmail.com` sont la
+     meme boite. Quelqu'un qui tape son adresse sans les points serait
+     refuse alors qu'il est invite. La regle est appliquee UNIQUEMENT aux
+     domaines ou elle est vraie — ailleurs, les points font partie du nom,
+     et les retirer inventerait une adresse qui n'existe pas. */
+const normaliser = (a) => {
+  const s = a.trim().toLowerCase().normalize('NFC');
+  const at = s.lastIndexOf('@');
+  if (at < 0) return s;
+  let local = s.slice(0, at);
+  let domaine = s.slice(at + 1);
+  if (domaine === 'gmail.com' || domaine === 'googlemail.com') {
+    const plus = local.indexOf('+');
+    if (plus >= 0) local = local.slice(0, plus);
+    local = local.split('.').join('');
+    domaine = 'gmail.com';
+  }
+  return local + '@' + domaine;
+};
 
 const adresses = (process.env.NOEL_EMAILS || '')
   .split(/[,;\n]+/)
@@ -110,8 +142,17 @@ const vrais = uniques.map(emballer);
 /* Les leurres : du bruit de la meme taille exacte qu'un vrai emballage
    (32 octets de cle + 16 de sceau). Ils ne s'ouvrent jamais, et rien ne les
    distingue des vrais — le fichier ne dit donc pas combien de personnes
-   sont invitees. */
-const leurres = Array.from({ length: Math.max(0, LEURRES - vrais.length) }, () => ({
+   sont invitees.
+
+   La taille du lot est ARRONDIE AU PALIER SUPERIEUR, et il reste toujours au
+   moins un leurre. Une simple soustraction (`LEURRES - vrais.length`) aurait
+   suffi tant que la liste est courte, puis serait tombee a zero le jour ou
+   elle depasse seize noms : le nombre d'invites redeviendrait alors lisible,
+   sans que rien ne le signale, et precisement le jour ou il y a le plus de
+   monde a ne pas exposer. Une protection qui s'evapore en silence quand on
+   s'en sert davantage n'en est pas une. */
+const total = LEURRES * Math.ceil((vrais.length + 1) / LEURRES);
+const leurres = Array.from({ length: total - vrais.length }, () => ({
   iv: randomBytes(12).toString('base64'),
   w: randomBytes(48).toString('base64'),
 }));

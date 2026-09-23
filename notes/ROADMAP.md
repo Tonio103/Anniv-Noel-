@@ -79,8 +79,13 @@ a les moyens de mieux faire.
   déjà exportée dans le shell :
 
   ```bash
-  for a in ${NOEL_EMAILS//,/ }; do grep -c "$a" index.html; done   # tout à 0
+  grep -oE "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}" index.html | sort -u
   ```
+
+  Cette forme-là plutôt qu'une boucle sur `$NOEL_EMAILS` : elle ne dépend pas
+  du découpage de la variable, et surtout elle attrape *toute* adresse, y
+  compris une qu'on n'aurait pas pensé à chercher. Elle ne doit montrer que
+  le `prenom@exemple.fr` affiché en exemple dans le champ de saisie.
 
   L'ancien mécanisme reposait sur un mot de passe partagé, et la consigne qui
   interdisait de l'écrire le citait elle-même en toutes lettres, deux fois,

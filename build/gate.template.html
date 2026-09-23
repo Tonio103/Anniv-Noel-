@@ -123,6 +123,32 @@ var P = {
   it:   __ITER__
 };
 
+/* LA MEME NORMALISATION QUE DANS build/encrypt.mjs, AU CARACTERE PRES.
+
+   C'est le seul endroit du systeme ou une divergence ne fait pas de bruit :
+   elle ne casse rien, elle ferme simplement la porte au nez de quelqu'un
+   d'invite, sans message et sans trace.
+
+   · espaces et casse ;
+   · forme Unicode NFC — « ç » s'ecrit soit d'un seul caractere, soit d'un
+     « c » suivi d'une cedille combinante ; identiques a l'oeil, differents
+     en octets, donc differents pour PBKDF2 ;
+   · points et suffixes « + » ignores CHEZ GMAIL SEULEMENT, ou c'est vrai —
+     ailleurs les points font partie du nom. */
+function normaliser(a){
+  var s = a.trim().toLowerCase().normalize("NFC");
+  var at = s.lastIndexOf("@");
+  if(at < 0) return s;
+  var local = s.slice(0, at), domaine = s.slice(at+1);
+  if(domaine === "gmail.com" || domaine === "googlemail.com"){
+    var plus = local.indexOf("+");
+    if(plus >= 0) local = local.slice(0, plus);
+    local = local.split(".").join("");
+    domaine = "gmail.com";
+  }
+  return local + "@" + domaine;
+}
+
 function b64(s){
   var bin = atob(s), a = new Uint8Array(bin.length);
   for(var i=0;i<bin.length;i++) a[i] = bin.charCodeAt(i);
@@ -210,9 +236,7 @@ function penalty(){
 
 async function submit(){
   if(blocked) return;
-  /* La meme normalisation que dans encrypt.mjs, au caractere pres : sans
-     cela une majuscule de trop fermerait la porte a quelqu'un d'invite. */
-  var val = (pw.value||'').trim().toLowerCase();
+  var val = normaliser(pw.value||'');
   if(!val) return;
   btn.disabled = true; lock.classList.add('busy'); err.classList.remove('on');
   try{
