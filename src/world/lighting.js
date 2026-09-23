@@ -45,6 +45,29 @@ export class Lumieres {
          meme largeur de flou en metres sur tous les paliers — gratuit,
          puisque le noyau reste a cinq echantillons quel que soit le rayon. */
       s.radius = 3.2 * (palier.ombreTaille / 1024);
+      /* SANS CETTE LIGNE, AUCUN DES SIX REGLAGES CI-DESSUS N'EXISTE.
+
+         C'est le piege classique des cameras de three.js, et il ne dit
+         jamais rien : `left`, `right`, `top`, `bottom`, `near` et `far` ne
+         sont que des CHAMPS. Ce qui sert au rendu, c'est la matrice de
+         projection, et elle n'est recalculee que sur demande.
+         `LightShadow.updateMatrices()`, appele a chaque image par le
+         moteur, ne la recalcule PAS : il replace la camera et compose la
+         matrice d'ombre a partir de la projection existante.
+
+         La projection restait donc celle par defaut de
+         `DirectionalLightShadow` — une boite de DIX METRES DE COTE, au lieu
+         des cent seize voulus. Dans une foret de sapins de vingt metres
+         semes sur soixante, autant dire que rien d'utile n'entrait dans la
+         carte : elle etait correctement dimensionnee, correctement remplie,
+         correctement lue, et vide de tout ce qui comptait.
+
+         Le defaut etait invisible a la lecture du code (les six lignes ont
+         l'air de fonctionner) et invisible a l'oeil (on ne remarque pas
+         une ombre absente, on trouve juste que « ca fait synthetique »).
+         Il a fallu le mesurer : basculer `shadow.intensity` de 1 a 0 ne
+         changeait pas un pixel, a six endroits du parcours. */
+      s.camera.updateProjectionMatrix();
     }
     scene.add(this.soleil);
     scene.add(this.soleil.target);
