@@ -35,6 +35,12 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
     uSoleilCol:  { value: new THREE.Color(0xFFD2A0) },
     uCielCol:    { value: new THREE.Color(0x7A9CBC) },
     uScintille:  { value: palier.nom === 'bas' ? 0.55 : 1.0 },
+    /* La direction du vent, normalisee. Elle reprend `uVent` de main.js :
+       le vent ne tourne jamais dans cette balade, donc une constante suffit,
+       mais les sastrugi DOIVENT s'aligner dessus — des vagues creusees en
+       travers du vent qui souffle seraient la faute la plus visible qu'on
+       puisse commettre sur un champ de neige. */
+    uVentDir:    { value: new THREE.Vector2(0.85, 0.34).normalize() },
     uEmpreintes: { value: empreintes },
     uEmpMin:     { value: new THREE.Vector2(emprise ? emprise.xmin : 0, emprise ? emprise.zmin : 0) },
     uEmpTaille:  { value: new THREE.Vector2(
@@ -67,7 +73,7 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
         uniform vec3 uSoleilDir, uSoleilCol, uCielCol;
         uniform float uScintille, uAEmpreintes, uEmpPas;
         uniform sampler2D uEmpreintes;
-        uniform vec2 uEmpMin, uEmpTaille;
+        uniform vec2 uEmpMin, uEmpTaille, uVentDir;
         ${GLSL_NOISE}
 
         /* L'AXE V DE LA CARTE EST L'OPPOSE DE L'AXE Z DU MONDE.
@@ -167,6 +173,50 @@ export function creerNeige(palier, { empreintes = null, emprise = null } = {}) {
           float tasse = clamp(plaque, 0.0, 1.0);
           diffuseColor.rgb *= 0.93 + tasse * 0.11;
           roughnessFactor = clamp(roughnessFactor - (tasse - 0.5) * 0.16, 0.30, 1.0);
+
+          /* LES SASTRUGI — les vagues que le vent creuse dans un champ de
+             neige, et ce qui manquait le plus a ce sol.
+
+             Le probleme etait le suivant : les ondulations fines ci-dessus
+             s'eteignent a cent vingt metres et le grain a vingt-deux, pour
+             une raison parfaitement valable (au-dela, ils scintillent d'un
+             pixel a l'autre). Mais le sol occupe la moitie basse de CHAQUE
+             image, et passe quarante metres il ne restait donc qu'une
+             variation d'albedo sur une surface geometriquement lisse : une
+             nappe. C'est exactement ce qui trahit la neige de synthese.
+
+             Les sastrugi resolvent ca parce qu'ils sont l'inverse du grain :
+             BASSE frequence — plusieurs metres de longueur d'onde, donc
+             aucun risque de scintillement, donc aucune raison de les
+             attenuer avec la distance. Ce sont eux qui donnent au champ son
+             echelle et sa matiere quand on le regarde loin.
+
+             Ils sont surtout DIRECTIONNELS, et c'est ce qui les rend
+             credibles : le vent etire ses cretes DANS son axe, donc la
+             forme varie vite en travers et lentement dans le sens du
+             souffle. Un bruit isotrope donnerait des bosses de taupe.
+
+             Le gradient est ramene en coordonnees monde par les deux axes
+             du repere du vent — sans ca, la normale pencherait dans une
+             direction sans rapport avec le relief qu'on vient de dessiner. */
+          {
+            vec2 dv = normalize(uVentDir);
+            vec2 tv = vec2(-dv.y, dv.x);          // en travers du vent
+            float le = dot(vMonde.xz, dv);
+            float tr = dot(vMonde.xz, tv);
+
+            float s0 = fbm3(vec3(le * 0.035, 0.0, tr * 0.155));
+            float sT = fbm3(vec3(le * 0.035, 0.0, (tr + 0.9) * 0.155));
+            float sL = fbm3(vec3((le + 3.2) * 0.035, 0.0, tr * 0.155));
+
+            vec2 g = (s0 - sT) * tv + (s0 - sL) * dv;
+            normal = normalize(normal + vec3(g.x, 0.0, g.y) * 0.85);
+
+            /* La crete est balayee, donc plus dure et plus claire ; le creux
+               garde la poudreuse. Une variation tres legere suffit — c'est
+               le relief qui porte la lecture, la couleur ne fait qu'appuyer. */
+            diffuseColor.rgb *= 0.985 + s0 * 0.030;
+          }
 
           // Empreintes : la neige est tassee, donc plus sombre et inclinee
           // vers l'interieur du creux.
