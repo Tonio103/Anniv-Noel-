@@ -436,19 +436,34 @@ export class Cerf {
     const souffle = Math.sin(this._respire) * 0.5 + 0.5;
     const leve = souffle * 0.016 * auRepos;
 
+    /* LE REPORT D'APPUI. Un quadrupede debout ne tient pas sur ses quatre
+       pattes a parts egales : il pose son poids d'un cote, puis de l'autre,
+       indefiniment. C'est un mouvement lent — plusieurs secondes par
+       bascule — et c'est le seul qui distingue un animal arrete d'un animal
+       en pause. Le souffle dit qu'il est vivant ; le report dit qu'il a un
+       poids.
+
+       Deux sinus de periodes incommensurables (10,1 s et 15,3 s) : la
+       somme ne se repete jamais a l'echelle d'une halte, donc on ne peut
+       pas prendre le rythme en defaut. Le roulis et le deport lateral vont
+       ENSEMBLE — le torse penche du cote ou le poids passe ; les dissocier
+       donnerait un balancement de metronome au lieu d'un transfert. */
+    const report = (Math.sin(temps * 0.62) * 0.62
+                  + Math.sin(temps * 0.41 + 1.7) * 0.38) * auRepos;
+    const roul = report * 0.012;        // 0,7 degre au plus
+    const lat  = report * 0.008;        // huit millimetres au plus
+    /* Le tangage du poitrail fait partie du souffle (voir plus bas) et doit
+       donc etre compense au meme titre : c'est une rotation du corps comme
+       une autre, et son bras de levier est le plus long des trois puisque
+       les sabots avant et arriere sont a un demi-metre de l'axe. */
+    const tang = -souffle * 0.004 * auRepos;
+    const cosR = Math.cos(-roul), sinR = Math.sin(-roul);
+    const cosT = Math.cos(-tang), sinT = Math.sin(-tang);
+
     /* --- chaque membre ---------------------------------------------------- */
     for (const mb of this.membres) {
       const phase = (this.cycle + (1 - ALLURES[this.allure].phases[mb.nom])) % 1;
       this._cible.copy(mb.repos);
-      /* LE SOUFFLE SOULEVE LE CORPS, PAS L'ANIMAL.
-
-         La cible du sabot est exprimee dans le repere DU CORPS. Si on leve
-         le corps sans rien faire d'autre, la cible monte avec lui et le
-         sabot quitte le sol — le cerf respirerait en levitant. On retranche
-         donc exactement ce qu'on vient d'ajouter : le corps monte, les
-         appuis restent plantes ou ils sont, ce qui est precisement ce que
-         fait un animal qui respire debout. */
-      this._cible.y -= leve;
 
       let auSol = true;
 
@@ -490,6 +505,50 @@ export class Cerf {
         auSol = g < -0.4;
       }
 
+      /* LE SOUFFLE ET LE REPORT DEPLACENT LE CORPS, PAS L'ANIMAL.
+
+         La cible du sabot est exprimee dans le repere DU CORPS. Si on bouge
+         le corps sans rien faire d'autre, les cibles le suivent et les
+         quatre sabots quittent le sol — le cerf respirerait en levitant et
+         se balancerait en patinant.
+
+         On applique donc aux cibles la transformation INVERSE exacte de
+         celle qu'on applique au corps plus bas. Three.js compose un objet en
+         `monde = translation . rotation`, donc pour qu'un point p' du repere
+         corps retombe sur le point p0 qu'il occupait sans balancement :
+
+             translation + R . p' = p0   d'ou   p' = R⁻¹ . (p0 - translation)
+
+         soit : on retranche d'abord le deport, on tourne ensuite de l'angle
+         oppose. L'ordre n'est pas interchangeable — tourner d'abord ferait
+         pivoter le deport avec le reste.
+
+         Le bras de levier n'est pas negligeable : un sabot pend a pres d'un
+         metre sous l'origine du corps, si bien que les 0,012 rad de roulis
+         le deplaceraient de douze millimetres a eux seuls. C'est exactement
+         l'ordre de grandeur d'un patinage visible.
+
+         CETTE CORRECTION VIENT EN DERNIER, ET C'EST VOULU. Tout ce qui
+         precede — la foulee, le suivi du relief, le grattage — raisonne sur
+         la position que le sabot doit occuper DANS LE MONDE, et `sabotMonde`
+         en decoule, qui sert aux empreintes et au son des posers. Corriger
+         plus tot aurait donc decale les empreintes de huit millimetres par
+         rapport aux sabots qui les laissent. */
+      this._cible.y -= leve;
+      this._cible.x -= lat;
+      {
+        /* Three.js compose les angles d'Euler dans l'ordre XYZ, donc la
+           rotation du corps vaut R = Rx . Rz et son inverse Rz⁻¹ . Rx⁻¹ :
+           on defait le tangage d'abord, le roulis ensuite. Inverser ces
+           deux lignes laisserait une erreur croisee. */
+        const cy = this._cible.y, cz = this._cible.z;
+        this._cible.y = cy * cosT - cz * sinT;
+        this._cible.z = cy * sinT + cz * cosT;
+        const cx = this._cible.x, cy2 = this._cible.y;
+        this._cible.x = cx * cosR - cy2 * sinR;
+        this._cible.y = cx * sinR + cy2 * cosR;
+      }
+
       this._resoudre(mb, this._cible);
 
       /* Front montant de poser : le son s'y accroche. */
@@ -501,18 +560,49 @@ export class Cerf {
 
     /* --- oscillations du corps -------------------------------------------
        Deux appuis par cycle, donc le tangage bat a deux fois la frequence
-       de la foulee. Faible amplitude : trop, et l'animal semble boiter. */
-    const bat = enMouvement ? 1 : 0;
+       de la foulee. Faible amplitude : trop, et l'animal semble boiter.
+
+       CE FACTEUR ETAIT BINAIRE, ET IL CLAQUAIT.
+
+       `bat` valait `enMouvement ? 1 : 0`, et `enMouvement` bascule quand la
+       vitesse passe sous 0,05 m/s — ou elle est justement forcee a zero d'un
+       coup, juste au-dessus. A cette image-la, tous les termes de foulee du
+       corps, du cou, de la tete et de la queue etaient multiplies par zero
+       SANS TRANSITION, quelle que soit la position du cycle a cet instant.
+
+       Le cycle, lui, ne tombe pas a un endroit choisi : il tombe ou il veut.
+       Sur cinquante arrets et cinquante departs, le pire cas atteint la
+       pleine amplitude — 28,6 mm de saut vertical et 35 milliradians de
+       roulis EN UNE IMAGE, contre 15,9 mm pour une image de marche normale.
+       Deux degres de bascule du torse en un soixantieme de seconde : c'est
+       un a-coup, et il se produisait aux dix-huit transitions du parcours,
+       donc a chacune des neuf haltes, a l'arrivee comme au depart.
+
+       Le remede existait deja : `_enMarche` est la version amortie de ce
+       meme booleen, introduite pour fondre le souffle. La faire servir aux
+       deux met fin au claquement sans rien ajouter — et les deux termes
+       convergent vers zero ensemble, puisqu'a l'arret le cycle s'aligne sur
+       un entier et annule le sinus de son cote.
+
+       `enMouvement` reste binaire la ou il doit l'etre : la cinematique des
+       pattes a besoin d'un etat franc pour trancher entre appui et
+       suspension. C'est le rendu du corps qu'on lisse, pas la decision. */
+    const bat = this._enMarche;
     this.corps.position.y = this.hauteurGarrot
       + Math.sin(this.cycle * Math.PI * 4) * 0.028 * bat
       + leve;
+    this.corps.position.x = lat;
     /* Le poitrail se souleve un peu plus que la croupe : une inspiration
        gonfle la cage thoracique, pas l'arriere-train. Quatre milliemes de
        radian, soit un quart de degre — invisible isolement, mais c'est ce
        qui distingue un corps qui respire d'un corps qu'on monte au cric. */
     this.corps.rotation.x = Math.sin(this.cycle * Math.PI * 4 + 0.8) * 0.030 * bat
       - souffle * 0.004 * auRepos;
-    this.corps.rotation.z = Math.sin(this.cycle * Math.PI * 2) * 0.035 * bat;
+    /* Le roulis de foulee n'est PAS compense sur les sabots, lui : pendant
+       la marche c'est la foulee qui decide ou le pied se pose, et cette
+       bascule-la fait partie du mouvement. Seul le report d'appui a l'arret
+       l'est, puisque la, par definition, rien ne doit bouger au sol. */
+    this.corps.rotation.z = Math.sin(this.cycle * Math.PI * 2) * 0.035 * bat + roul;
 
     /* --- tete, cou, queue -------------------------------------------------
        Un cerf en mouvement balance la tete. A l'arret, il la releve et
