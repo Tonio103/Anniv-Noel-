@@ -750,6 +750,11 @@ async function demarrer() {
       lumieres.poserLueur(null, undefined, 0);
     }
 
+    /* Le drone est mis a jour APRES le cerf : on lui passe donc la position
+       de l'image precedente. Un soixantieme de seconde de retard sur une
+       oreille ne se voit pas, et l'inverser obligerait a demeler la
+       dependance croisee entre le cadrage et l'animal qu'il cadre. */
+    cerf.ecouter(camera.position);
     cerf.maj(dt, t);
 
     /* Le son ET les traces se calent sur les posers reels, jamais sur une

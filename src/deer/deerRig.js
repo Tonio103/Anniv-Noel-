@@ -138,6 +138,13 @@ export class Cerf {
        pattes sont animees a la perfection. */
     this._oreilleD = 0; this._oreilleG = 0;   // pivot instantane de chaque oreille
     this._prochainOreille = 1 + Math.random() * 3;
+    /* L'ECOUTE : d'ou vient le bruit qu'il surveille. Ici, c'est le drone —
+       c'est-a-dire nous. Un cervide suivi garde en permanence une oreille
+       braquee sur ce qui le suit, meme quand il regarde ailleurs ; c'est
+       meme la raison d'etre de cette mobilite. */
+    this._ecoute = new THREE.Vector3();
+    this._aEcoute = false;
+    this._ecouteG = 0; this._ecouteD = 0;
     this._clin = 0;                            // 0 ouvert, 1 ferme
     this._prochainClin = 2 + Math.random() * 4;
     this._flick = 0;                           // coup de queue
@@ -342,11 +349,72 @@ export class Cerf {
     this._oreilleG = damp(this._oreilleG, 0, 5.5, dt);
     this._oreilleD = damp(this._oreilleD, 0, 5.5, dt);
 
+    /* --- l'ecoute de ce qui suit ------------------------------------------
+       Les coups d'oreille ci-dessus sont tires au sort : ils donnent la vie,
+       mais ils ne veulent rien dire. Un cerf, lui, oriente ses pavillons
+       vers ce qu'il surveille — et ce qu'il surveille, dans cette balade,
+       c'est le drone qui le suit. C'est le seul geste de tout le rig qui
+       reconnaisse la presence du spectateur ; sans lui, l'animal est suivi
+       par quelque chose qu'il ignore, ce qu'aucune proie ne fait.
+
+       Le relevement se prend dans le repere de LA TETE, pas du corps. La
+       difference n'est pas academique : aux haltes il se retourne vers nous,
+       et c'est justement la que les deux reperes divergent le plus. Pris sur
+       le corps, les pavillons resteraient braques vers l'arriere alors que
+       la tete nous fait face — un cerf qui vous regarde en ecoutant ailleurs.
+       Pris sur la tete, ils reviennent vers l'avant tout seuls a mesure
+       qu'il se tourne, ce qui est exactement ce que fait l'animal.
+
+       On lit le cap de la tete tel qu'il etait a l'image precedente : `_tics`
+       tourne avant que le cou et la tete ne soient reorientes. Un
+       soixantieme de seconde de retard sur un pavillon ne se voit pas. */
+    let ecouteG = 0, ecouteD = 0;
+    if (this._aEcoute) {
+      const dx = this._ecoute.x - this.racine.position.x;
+      const dz = this._ecoute.z - this.racine.position.z;
+      const cap = this.racine.rotation.y + this.cou.rotation.y + this.tete.rotation.y;
+      // Passage en repere tete. Le museau pointe vers -Z.
+      const lx = Math.cos(cap) * dx - Math.sin(cap) * dz;
+      const lz = Math.sin(cap) * dx + Math.cos(cap) * dz;
+      /* Ecart angulaire avec l'avant. Nul quand la source est pile devant,
+         PI quand elle est pile derriere. */
+      const ecart = Math.abs(Math.atan2(lx, -lz));
+      /* Zone morte de 35 degres devant : dans ce cone le pavillon au repos
+         capte deja la source, et le faire pivoter pour rien donnerait un
+         tic permanent — le defaut qu'on evite partout ailleurs ici. */
+      const arriere = clamp((ecart - 0.61) / (Math.PI - 0.61), 0, 1);
+      // L'oreille du cote de la source se braque plus franchement que l'autre.
+      const cote = Math.sign(lx) || 1;
+      ecouteG = arriere * (cote > 0 ? 1 : 0.62);
+      ecouteD = arriere * (cote < 0 ? 1 : 0.62);
+    }
+    // Lent : un pavillon se braque et TIENT. Un pavillon qui suit image par
+    // image la moindre oscillation du drone serait un radar, pas une oreille.
+    this._ecouteG = damp(this._ecouteG, ecouteG, 2.2, dt);
+    this._ecouteD = damp(this._ecouteD, ecouteD, 2.2, dt);
+
     if (this.oreilles) {
       for (const o of this.oreilles) {
-        const v = o.userData.cote > 0 ? this._oreilleG : this._oreilleD;
-        o.rotation.z = o.userData.reposZ + v * o.userData.cote * 0.9;
+        const cote = o.userData.cote;
+        const v = cote > 0 ? this._oreilleG : this._oreilleD;
+        const e = cote > 0 ? this._ecouteG : this._ecouteD;
+        o.rotation.z = o.userData.reposZ + v * cote * 0.9;
         o.rotation.x = o.userData.reposX - v * 0.5;
+        /* La rotation autour de Y n'est PAS neutre ici, alors que l'axe du
+           cornet est porte par Y. Elle le serait si l'oreille etait droite ;
+           mais elle est ecartee de cinquante degres (`reposZ`), et three.js
+           compose dans l'ordre XYZ, donc le Z s'applique en premier et sort
+           l'axe du cornet du plan de rotation. C'est cet ecartement qui rend
+           le pivot efficace — une oreille plaquee sur le crane ne pourrait
+           pas s'orienter, chez le cerf comme ici.
+
+           LE SIGNE A ETE MESURE, PAS DEDUIT. Je l'avais d'abord pose a
+           l'envers en deroulant la composition a la main : le pavillon se
+           detournait de la source au lieu de s'y braquer, en s'eloignant de
+           99,6° a 138,7°. Trois rotations composees sur un axe qui n'est pas
+           celui qu'on croit, ca se verifie en lisant l'angle dans le monde,
+           pas en raisonnant. */
+        o.rotation.y = e * cote * 0.9;
       }
     }
 
@@ -727,6 +795,14 @@ export class Cerf {
     // Bien plus faible qu'avant : c'est le CUMUL qui donne la densite, pas
     // l'opacite de chaque grain.
     p.material.opacity = 0.075 * clamp(this.vitesse / 4 + 0.35, 0, 1);
+  }
+
+  /* Ce qu'il surveille de l'oreille. La mise en scene lui passe la position
+     du drone : c'est le seul endroit ou l'animal sait que nous existons. */
+  ecouter(point) {
+    if (!point) { this._aEcoute = false; return; }
+    this._ecoute.copy(point);
+    this._aEcoute = true;
   }
 
   /* Position du garrot dans le monde — la camera vise ce point. */
