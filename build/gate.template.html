@@ -53,7 +53,7 @@ input{
   flex:1;min-width:0;padding:14px 16px;border-radius:12px;
   background:rgba(0,0,0,.28);border:1px solid rgba(242,193,78,.34);
   color:var(--cream);font-family:"Outfit",sans-serif;font-size:16px;
-  letter-spacing:.08em;text-align:center;text-transform:uppercase;outline:none;
+  letter-spacing:.01em;text-align:center;outline:none;
   transition:border-color .25s,box-shadow .25s;
 }
 input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(242,193,78,.18)}
@@ -85,15 +85,16 @@ button:disabled{opacity:.5;cursor:default;transform:none}
       <path d="M8 10V7a4 4 0 018 0v3"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor" stroke="none"/></svg>
   </div>
   <h1>Acc&egrave;s prot&eacute;g&eacute;</h1>
-  <p class="sub">Cette page contient des informations personnelles.<br>Le code vous a &eacute;t&eacute; envoy&eacute; s&eacute;par&eacute;ment.</p>
+  <p class="sub">Cette page contient des informations personnelles.<br>Entrez l'adresse e-mail &agrave; laquelle vous avez &eacute;t&eacute; invit&eacute;.</p>
   <div class="row">
-    <input id="pw" type="text" inputmode="text" autocomplete="off"
-           autocapitalize="characters" spellcheck="false" placeholder="CODE-XXXX-0000" aria-label="Code d'acces">
+    <input id="pw" type="email" inputmode="email" autocomplete="email"
+           autocapitalize="off" autocorrect="off" spellcheck="false"
+           placeholder="prenom@exemple.fr" aria-label="Votre adresse e-mail">
     <button id="go">Entrer</button>
   </div>
-  <div class="err" id="err">Code incorrect.</div>
+  <div class="err" id="err">Cette adresse n'est pas sur la liste.</div>
   <div class="bar" id="bar"><i id="barFill"></i></div>
-  <div class="hint">Ne le partagez pas, c'est juste pour nous &#10022;</div>
+  <div class="hint">C'est juste pour nous &#10022;</div>
 </div>
 
 <script>
@@ -104,14 +105,21 @@ button:disabled{opacity:.5;cursor:default;transform:none}
    AES-256-GCM · PBKDF2-SHA256 1000000 iterations · compression DEFLATE
    avant chiffrement · rembourrage aleatoire · salt+iv authentifies (AAD).
    Le bloc ci-dessous n'est pas du HTML : c'est du texte chiffre, illisible
-   sans le bon code meme en ouvrant le code source. Tout le dechiffrement
-   passe par window.crypto.subtle, une API native du navigateur.
+   sans une adresse invitee, meme en ouvrant le code source. Tout le
+   dechiffrement passe par window.crypto.subtle, une API native du navigateur.
+
+   `k` est la liste des emballages de la cle de contenu, un par adresse
+   autorisee — noyes dans des leurres pour que leur nombre ne se lise pas.
+   On n'y trouve NI les adresses, NI leurs empreintes : la page ne dit pas
+   qui est invite. On les essaie tous et c'est le sceau d'authentification
+   de GCM qui tranche, sans aucune comparaison explicite.
    ====================================================================== */
 
 var P = {
   salt: "__SALT__",
   iv:   "__IV__",
   data: "__DATA__",
+  k:    __KEYS__,
   it:   __ITER__
 };
 
@@ -129,6 +137,30 @@ async function derive(pass, salt, it){
     km, {name:"AES-GCM", length:256}, false, ["decrypt"]);
 }
 
+function aad(salt, iv){
+  var a = new Uint8Array(salt.length + iv.length);
+  a.set(salt, 0); a.set(iv, salt.length);
+  return a;
+}
+
+/* Essaie d'ouvrir chaque emballage avec la cle derivee de l'adresse tapee.
+   Un emballage qui n'est pas le sien echoue au sceau GCM et leve : c'est le
+   fonctionnement normal, pas une anomalie, et c'est aussi ce qui evite de
+   comparer quoi que ce soit en clair. Le premier qui s'ouvre rend la cle
+   de contenu ; si aucun ne s'ouvre, l'adresse n'est pas invitee. */
+async function ouvrirCle(cle, salt){
+  for(var i=0;i<P.k.length;i++){
+    var ivw = b64(P.k[i].iv);
+    try{
+      var brut = await crypto.subtle.decrypt(
+        {name:"AES-GCM", iv:ivw, additionalData:aad(salt, ivw)}, cle, b64(P.k[i].w));
+      return crypto.subtle.importKey(
+        "raw", brut, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+    }catch(e){ /* pas le sien : on passe au suivant */ }
+  }
+  throw new Error("non invite");
+}
+
 async function inflate(bytes){
   var ds = new DecompressionStream("deflate");
   var stream = new Blob([bytes]).stream().pipeThrough(ds);
@@ -137,11 +169,12 @@ async function inflate(bytes){
 
 async function unlock(pass){
   var salt = b64(P.salt), iv = b64(P.iv), data = b64(P.data);
-  var aad = new Uint8Array(salt.length + iv.length);
-  aad.set(salt, 0); aad.set(iv, salt.length);
-  var key = await derive(pass, salt, P.it);
+  /* Une seule derivation PBKDF2, quel que soit le nombre d'invites : c'est
+     elle qui coute une seconde, les essais d'emballage sont negligeables. */
+  var cle = await derive(pass, salt, P.it);
+  var key = await ouvrirCle(cle, salt);
   var buf = await crypto.subtle.decrypt(
-    {name:"AES-GCM", iv:iv, additionalData:aad}, key, data);
+    {name:"AES-GCM", iv:iv, additionalData:aad(salt, iv)}, key, data);
   var all = new Uint8Array(buf);
   /* 4 premiers octets = longueur reelle, le reste apres est du rembourrage */
   var len = (all[0]<<24 | all[1]<<16 | all[2]<<8 | all[3]) >>> 0;
@@ -177,7 +210,9 @@ function penalty(){
 
 async function submit(){
   if(blocked) return;
-  var val = (pw.value||'').trim().toUpperCase();
+  /* La meme normalisation que dans encrypt.mjs, au caractere pres : sans
+     cela une majuscule de trop fermerait la porte a quelqu'un d'invite. */
+  var val = (pw.value||'').trim().toLowerCase();
   if(!val) return;
   btn.disabled = true; lock.classList.add('busy'); err.classList.remove('on');
   try{

@@ -1,10 +1,12 @@
 /* Verification de bout en bout : on ouvre index.html tel qu'il sera publie,
-   on saisit le code, et on s'assure que l'experience demarre vraiment. */
+   on saisit une adresse invitee, et on s'assure que l'experience demarre
+   vraiment. On reprend la PREMIERE adresse de NOEL_EMAILS : celle avec
+   laquelle index.html vient d'etre construit, donc celle qui doit ouvrir. */
 import { chromium } from 'playwright-core';
 import { join, dirname } from 'node:path'; import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const code = process.env.NOEL_CODE;
-if (!code) { console.error('NOEL_CODE manquant'); process.exit(1); }
+const code = (process.env.NOEL_EMAILS || '').split(/[,;\n]+/).map(a=>a.trim().toLowerCase()).filter(Boolean)[0];
+if (!code) { console.error('NOEL_EMAILS manquant'); process.exit(1); }
 
 const nav = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox'] });
@@ -15,10 +17,10 @@ page.on('console', m=>{ if(m.type()==='error' && !/ERR_CONNECTION|fonts/.test(m.
 await page.goto('file://'+join(root,'index.html'), {waitUntil:'load'});
 console.log('titre du coffre :', await page.title());
 
-// mauvais code d'abord
-await page.fill('#pw','MAUVAIS-CODE'); await page.click('#go');
+// une adresse non invitee d'abord
+await page.fill('#pw','inconnu@exemple.invalid'); await page.click('#go');
 await page.waitForTimeout(9000);
-console.log('mauvais code -> erreur affichee :', await page.evaluate(()=>document.getElementById('err')?.classList.contains('on')));
+console.log('adresse non invitee -> erreur affichee :', await page.evaluate(()=>document.getElementById('err')?.classList.contains('on')));
 
 await page.reload({waitUntil:'load'});
 await page.fill('#pw', code);

@@ -71,18 +71,28 @@ a les moyens de mieux faire.
 
 ## Rappels qui ne doivent jamais sauter
 
-- Le mot de passe ne doit **jamais** apparaître dans le dépôt — ni dans le
-  code, ni dans ces notes, ni dans un message de commit. Il ne circule que
-  par la variable d'environnement `NOEL_CODE`, au moment du chiffrement.
-  Vérifier avec `grep -c "$NOEL_CODE" index.html` (doit valoir 0) avant tout
-  commit, la variable étant déjà exportée dans le shell.
+- Les adresses des invités ne doivent **jamais** apparaître dans le dépôt —
+  ni dans le code, ni dans ces notes, ni dans un message de commit. Elles ne
+  circulent que par la variable d'environnement `NOEL_EMAILS`, au moment du
+  chiffrement, et le fichier publié n'en contient ni la valeur ni l'empreinte
+  (voir `build/encrypt.mjs`). Vérifier avant tout commit, la variable étant
+  déjà exportée dans le shell :
 
-  Cette consigne s'écrivait elle-même en toutes lettres : elle citait le mot
-  de passe deux fois pour expliquer qu'il ne faut jamais l'écrire. Le fichier
-  est versionné et poussé, donc quiconque pouvait lire le dépôt pouvait lire
-  le code — la porte était grande ouverte à côté de la serrure. Une règle qui
-  s'énonce en se violant ne protège rien : on la formule désormais sans son
-  objet, et le `grep` passe par la variable plutôt que par la valeur.
+  ```bash
+  for a in ${NOEL_EMAILS//,/ }; do grep -c "$a" index.html; done   # tout à 0
+  ```
+
+  L'ancien mécanisme reposait sur un mot de passe partagé, et la consigne qui
+  interdisait de l'écrire le citait elle-même en toutes lettres, deux fois,
+  dans ce fichier versionné et poussé : quiconque pouvait lire le dépôt
+  pouvait lire le code. La porte était grande ouverte à côté de la serrure.
+  C'est ce qui a décidé du passage aux adresses — le mot de passe divulgué a
+  cessé d'être une clé, ce qui a réglé la fuite sans réécrire l'historique.
+  Une règle qui s'énonce en se violant ne protège rien.
+
+  Ne pas se méprendre sur ce que cela protège : une adresse e-mail est un
+  nom, pas un secret. C'est une porte qui dit « c'est pour toi », et elle
+  suffit ici ; il ne faut pas lui en demander plus.
 - Chaîne de vérification avant de committer : `build/build.mjs` →
   `build/parcours.mjs` → `build/collisions.mjs` → `build/sonApparitions.mjs`
   → `build/verifs.mjs` → `build/profil.mjs` → `encrypt.mjs` →

@@ -17,8 +17,19 @@ prix, liens, sources, liste à cocher — tout s'y trouve. Le reste de la balade
 s'y adapte tout seul : le nombre de haltes détermine la longueur du chemin, la
 densité de la forêt et le rythme de la descente vers la nuit.
 
-**Le mot de passe n'est jamais écrit dans le dépôt.** Il est passé au moment de
-la construction par une variable d'environnement.
+**L'accès se fait par adresse e-mail.** Le contenu est chiffré une seule fois
+avec une clé tirée au hasard ; cette clé est ensuite emballée séparément pour
+chaque adresse invitée. Le visiteur tape son adresse, le navigateur en dérive
+une clé et essaie chaque emballage — c'est le sceau d'authentification qui
+tranche. **Les adresses ne sont donc pas dans le fichier publié**, seulement
+des emballages indéchiffrables, noyés dans des leurres pour que le nombre
+d'invités ne se lise pas non plus. Elles ne sont jamais écrites dans le dépôt :
+elles sont passées à la construction par une variable d'environnement.
+
+Une adresse e-mail n'est pas un secret, c'est un nom : quiconque en connaît une
+qui est invitée peut ouvrir la page. Le million d'itérations rend coûteuse la
+recherche d'une adresse *inconnue*, pas la saisie d'une adresse connue. C'est
+une porte qui dit « c'est pour toi », pas une serrure.
 
 ---
 
@@ -26,7 +37,7 @@ la construction par une variable d'environnement.
 
 ```bash
 npm install
-NOEL_CODE="VOTRE-CODE" npm run build      # → index.html, chiffré, prêt à publier
+NOEL_EMAILS="un@exemple.fr, deux@exemple.fr" npm run build   # → index.html, chiffré
 ```
 
 Pendant le développement, pour éviter de rechiffrer à chaque essai :
