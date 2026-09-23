@@ -71,11 +71,18 @@ a les moyens de mieux faire.
 
 ## Rappels qui ne doivent jamais sauter
 
-- Le mot de passe (`NOEL-TONIO-ANNIV-1626`) ne doit **jamais** apparaître
-  dans le dépôt — seulement via la variable d'environnement `NOEL_CODE` au
-  moment du chiffrement. Vérifier avec
-  `grep -c "NOEL-TONIO-ANNIV-1626" index.html` (doit valoir 0) avant tout
-  commit.
+- Le mot de passe ne doit **jamais** apparaître dans le dépôt — ni dans le
+  code, ni dans ces notes, ni dans un message de commit. Il ne circule que
+  par la variable d'environnement `NOEL_CODE`, au moment du chiffrement.
+  Vérifier avec `grep -c "$NOEL_CODE" index.html` (doit valoir 0) avant tout
+  commit, la variable étant déjà exportée dans le shell.
+
+  Cette consigne s'écrivait elle-même en toutes lettres : elle citait le mot
+  de passe deux fois pour expliquer qu'il ne faut jamais l'écrire. Le fichier
+  est versionné et poussé, donc quiconque pouvait lire le dépôt pouvait lire
+  le code — la porte était grande ouverte à côté de la serrure. Une règle qui
+  s'énonce en se violant ne protège rien : on la formule désormais sans son
+  objet, et le `grep` passe par la variable plutôt que par la valeur.
 - Chaîne de vérification avant de committer : `build/build.mjs` →
   `build/parcours.mjs` → `build/collisions.mjs` → `build/sonApparitions.mjs`
   → `build/verifs.mjs` → `build/profil.mjs` → `encrypt.mjs` →
