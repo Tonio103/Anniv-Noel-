@@ -106,6 +106,10 @@ export class Cerf {
     this.vitesse = 0;
     this.vitesseCible = 0;
     this.cycle = 0;             // avancement du cycle de foulee [0,1)
+    /* L'horloge du CORPS. Distincte de celle des pattes : voir `maj()`. Elle
+       se fige des que l'animal s'immobilise, alors que celle des pattes
+       tourne encore un pas pour leur laisser le temps de rentrer. */
+    this._cycleCorps = 0;
     this.allure = 'trot';
 
     this.grattage = 0;          // >0 quand il creuse la neige
@@ -145,6 +149,10 @@ export class Cerf {
     this._ecoute = new THREE.Vector3();
     this._aEcoute = false;
     this._ecouteG = 0; this._ecouteD = 0;
+    /* Le rangement des pattes apres un arret : 1 pendant qu'il marche, puis
+       descend a zero en un peu moins d'une seconde — le temps qu'il faut aux
+       quatre sabots pour rentrer, un par un. */
+    this._rangement = 0;
     this._clin = 0;                            // 0 ouvert, 1 ferme
     this._prochainClin = 2 + Math.random() * 4;
     this._flick = 0;                           // coup de queue
@@ -203,6 +211,10 @@ export class Cerf {
         mb.attache.position.z + (mb.avant ? 0.02 : -0.02)
       );
       mb.sabotMonde = new THREE.Vector3();
+      /* Ou ce sabot-la est pose. Sert au rangement : quand l'animal s'arrete,
+         un sabot qui PORTE ne doit pas bouger d'un millimetre, et c'est cette
+         valeur qu'on lui tient pendant qu'il attend son tour de rentrer. */
+      mb.zGel = mb.repos.z;
       /* LE SENS DE PLIURE.
 
          Il ne se derive pas au tableau : `rotateOnAxis` tourne autour d'un axe
@@ -464,11 +476,47 @@ export class Cerf {
        lissage reste seul maitre de l'acceleration, donc aucun a-coup ne
        peut passer, et la relation foulee/vitesse qui interdit le glissement
        des sabots tient toujours. */
+    /* L'ALLURE SE CHOISIT A L'ARRET, ET NE CHANGE PLUS ENSUITE.
+
+       Elle suivait la vitesse instantanee : `vitesse > 3.4 ? 'trot' : 'pas'`.
+       Deux defauts en decoulaient, et ils ont la meme cause — ce seuil n'a
+       jamais ete remis a jour le jour ou l'allure de croisiere est passee de
+       4,2 a 3,3 m/s.
+
+       1. LE REGLAGE DE CADENCE N'A JAMAIS PRIS EFFET. Le commentaire des
+          ALLURES ci-dessus conclut « la cadence revient a 2,13 cycles par
+          seconde » : c'est 3,3 / 1,55, et 1,55 est la foulee du TROT. Tout
+          ce raisonnement visait donc le trot. Mais a 3,3 m/s on est sous le
+          seuil de 3,4, donc au PAS, de foulee 1,20 — soit 2,75 cycles par
+          seconde. Les pattes battaient 29 % plus vite que voulu, ce qui est
+          mot pour mot la plainte d'Antoine (« ses pattes bougent trop
+          vite ») que cette correction etait censee avoir reglee.
+
+       2. LES SABOTS SE TELEPORTAIENT EN PLEINE MARCHE. Les deux allures
+          n'ont pas le meme ordre de poser : au pas PG part a 0,0 et PD a
+          0,5 ; au trot c'est l'inverse. Changer de table deplace donc la
+          phase d'un membre d'une DEMI-FOULEE d'un seul coup. Or 3,3 est
+          colle sous le seuil, et le geste « presse » (`allant` jusqu'a
+          1,26) le franchit a chaque fois : mesure sur une marche continue,
+          un sabot en appui sautait de 536 mm dans une image ou le corps
+          n'avancait que de 57 mm.
+
+       On choisit donc l'allure sur la CONSIGNE, et uniquement quand
+       l'animal est immobile : un cerf choisit son allure puis la tient, il
+       n'en change pas au milieu d'une foulee. Plus aucun basculement ne
+       peut survenir en mouvement, et 3,3 m/s donne bien le trot voulu. */
+    /* Pas non plus pendant que les pattes rentrent : le rangement raisonne
+       sur les phases et la fraction d'appui de l'allure en cours, et les
+       changer a mi-chemin lui ferait relire le pas d'un autre patron.
+       `_rangement` porte ici la valeur de l'image precedente, ce qui suffit :
+       il vaut encore 1 a l'image ou la vitesse tombe sous le seuil. */
+    if (this.vitesse < 0.05 && this._rangement <= 0) {
+      this.allure = this.vitesseCible * this.allant > 2.0 ? 'trot' : 'pas';
+    }
+
     this.vitesse = damp(this.vitesse, this.vitesseCible * this.allant, 2.6, dt);
     if (this.vitesse < 0.05) this.vitesse = 0;
 
-    // L'allure suit la vitesse : on marche a l'approche, on trotte en route.
-    this.allure = this.vitesse > 3.4 ? 'trot' : 'pas';
     const A = ALLURES[this.allure];
 
     /* --- avancee sur le chemin ------------------------------------------- */
@@ -479,11 +527,59 @@ export class Cerf {
        La duree du cycle decoule de la foulee et de la vitesse. C'est cette
        relation, et elle seule, qui garantit l'absence de glissement. */
     const foulee = A.foulee;
+
+    /* LE RANGEMENT DES PATTES, ET CE QUI NE MARCHAIT PAS AVANT.
+
+       L'ancienne branche « a l'arret » amortissait `cycle` vers l'entier le
+       plus proche, avec pour commentaire qu'elle ramenait ainsi les sabots au
+       repos. Elle ne ramenait rien du tout : plus bas, tout le calcul de
+       foulee etait saute d'un bloc des que l'animal s'arretait, si bien que
+       les cibles se retrouvaient au repos AVANT que ce lissage ait le moindre
+       effet. Le cycle convergeait donc dans le vide, pendant que les sabots,
+       eux, se TELEPORTAIENT de leur position de foulee a leur position de
+       repos en une seule image — 156 mm mesures pour un sabot cense porter
+       l'animal, a chacune des neuf haltes.
+
+       Un animal qui s'arrete ne fait pas cela : il finit son pas. Le sabot
+       qui porte reste plante ou il est, et c'est celui qui est en l'air qui
+       se repose a sa place definitive. On entretient donc une cadence
+       residuelle pendant un peu moins d'une seconde apres l'arret — assez
+       pour que le cycle fasse un tour complet et que les quatre sabots aient
+       chacun leur moment de vol, dans leur ordre habituel. */
+    /* Le rangement s'arrete quand il est FINI, pas quand une minuterie expire.
+       Fixe a 0,88 s, il coupait parfois avant qu'un sabot ait eu son tour de
+       vol : celui-la restait en arriere puis rejoignait sa place d'un bond a
+       l'image ou la branche cessait de s'appliquer. On le termine donc sur
+       l'etat reel — les quatre sabots chez eux — avec un plafond de securite
+       pour qu'aucune configuration imprevue ne le laisse tourner sans fin. */
+    if (this.vitesse > 0.05) this._rangement = 1;
+    else if (this._rangement > 0) {
+      const restants = this.membres.some((mb) => mb.zGel !== mb.repos.z);
+      this._rangement = restants ? Math.max(0, this._rangement - dt / 2.2) : 0;
+    }
+
+    const cadence = this.vitesse > 0.05
+      ? this.vitesse
+      : (this._rangement > 0 ? foulee * 1.25 : 0);
+    if (cadence > 0) this.cycle = (this.cycle + (cadence * dt) / foulee) % 1;
+
+    /* LE TORSE ET LES PATTES N'ONT PLUS LA MEME HORLOGE.
+
+       Le tangage du corps, le balancement du cou, de la tete et de la queue
+       suivaient tous `cycle`. Or `cycle` continue desormais de tourner apres
+       l'arret, pour que les pattes finissent leur pas : le torse s'est donc
+       mis a rouler alors que l'animal ne bougeait plus. Ce roulis-la n'est
+       pas compense sur les sabots — a raison, pendant la marche c'est la
+       foulee qui decide ou le pied se pose — et il les faisait donc patiner
+       de 16 mm par image pendant tout le rangement.
+
+       Deux mouvements distincts veulent deux horloges : celle des pattes
+       tourne encore un pas apres l'arret, celle du corps se fige des que
+       l'animal s'immobilise. C'est aussi ce que fait l'animal — le torse se
+       tasse pendant que les pattes se rangent, il ne continue pas a tanguer.
+       L'extinction reste douce puisque `bat` fond separement. */
     if (this.vitesse > 0.05) {
-      this.cycle = (this.cycle + (this.vitesse * dt) / foulee) % 1;
-    } else {
-      // A l'arret, on ramene les sabots au repos sans faire tourner le cycle.
-      this.cycle = damp(this.cycle, Math.round(this.cycle), 6, dt) % 1;
+      this._cycleCorps = (this._cycleCorps + (this.vitesse * dt) / foulee) % 1;
     }
 
     const enMouvement = this.vitesse > 0.05;
@@ -550,6 +646,47 @@ export class Cerf {
           this._cible.z = mb.repos.z + lerp(demi, -demi, u);
           this._cible.y += Math.sin(u * Math.PI) * A.hauteur;
           auSol = false;
+        }
+        // La ou il pose : c'est de la qu'il repartira pour rentrer.
+        mb.zGel = this._cible.z;
+      } else if (this._rangement > 0) {
+        /* RANGEMENT — il finit son pas.
+
+           Le corps ne bouge plus. Toute derive d'un sabot en appui est donc
+           un RACLEMENT, et non plus le glissement compense d'une foulee : on
+           le tient rigoureusement immobile a l'endroit ou il s'est pose.
+           C'est le sabot en l'air, et lui seul, qui rejoint sa place — les
+           quatre y passent chacun leur tour, dans l'ordre de l'allure, parce
+           que la cadence residuelle fait encore tourner le cycle.
+
+           J'ai failli faire bien plus simple et bien plus faux : eteindre
+           progressivement l'amplitude de la foulee. Cela aurait supprime la
+           teleportation, mais en etalant ses 156 mm sur une seconde — le
+           sabot en appui aurait alors RACLE le sol au lieu de s'y teleporter.
+           Un defaut lisse reste un defaut ; il devient meme plus difficile a
+           nommer quand on le voit. */
+        if (phase >= A.appui) {
+          const u = (phase - A.appui) / (1 - A.appui);
+          this._cible.z = lerp(mb.zGel, mb.repos.z, smoothstep(0, 1, u));
+          this._cible.y += Math.sin(u * Math.PI) * A.hauteur * 0.62;
+          auSol = false;
+        } else {
+          /* C'EST LE RETOUR AU SOL QUI ACTE LE PAS, PAS UN SEUIL SUR LA PHASE.
+
+             J'avais d'abord ecrit `if (u > 0.98) mb.zGel = mb.repos.z`. A la
+             cadence de rangement, la phase avance de deux centiemes par
+             image : ce dernier centieme est enjambe une fois sur deux, le
+             sabot se posait sans que sa nouvelle place soit enregistree, et
+             l'image suivante le renvoyait a son ancienne position. Le
+             remede etait pire que le mal — 277 mm de saut contre 156 avant
+             correction. Un seuil qu'on ne franchit qu'en l'echantillonnant
+             pile au bon moment n'est pas une condition, c'est un pari.
+
+             On lit donc l'etat d'appui de l'image PRECEDENTE (`_auSol` n'est
+             ecrit qu'en fin de boucle) : s'il volait et qu'il touche, le pas
+             est fini, quel que soit l'endroit ou l'echantillonnage est tombe. */
+          if (!this._auSol[mb.nom]) mb.zGel = mb.repos.z;
+          this._cible.z = mb.zGel;
         }
       }
 
@@ -657,20 +794,20 @@ export class Cerf {
        suspension. C'est le rendu du corps qu'on lisse, pas la decision. */
     const bat = this._enMarche;
     this.corps.position.y = this.hauteurGarrot
-      + Math.sin(this.cycle * Math.PI * 4) * 0.028 * bat
+      + Math.sin(this._cycleCorps * Math.PI * 4) * 0.028 * bat
       + leve;
     this.corps.position.x = lat;
     /* Le poitrail se souleve un peu plus que la croupe : une inspiration
        gonfle la cage thoracique, pas l'arriere-train. Quatre milliemes de
        radian, soit un quart de degre — invisible isolement, mais c'est ce
        qui distingue un corps qui respire d'un corps qu'on monte au cric. */
-    this.corps.rotation.x = Math.sin(this.cycle * Math.PI * 4 + 0.8) * 0.030 * bat
+    this.corps.rotation.x = Math.sin(this._cycleCorps * Math.PI * 4 + 0.8) * 0.030 * bat
       - souffle * 0.004 * auRepos;
     /* Le roulis de foulee n'est PAS compense sur les sabots, lui : pendant
        la marche c'est la foulee qui decide ou le pied se pose, et cette
        bascule-la fait partie du mouvement. Seul le report d'appui a l'arret
        l'est, puisque la, par definition, rien ne doit bouger au sol. */
-    this.corps.rotation.z = Math.sin(this.cycle * Math.PI * 2) * 0.035 * bat + roul;
+    this.corps.rotation.z = Math.sin(this._cycleCorps * Math.PI * 2) * 0.035 * bat + roul;
 
     /* --- tete, cou, queue -------------------------------------------------
        Un cerf en mouvement balance la tete. A l'arret, il la releve et
@@ -683,11 +820,11 @@ export class Cerf {
     const r = this._regardLisse;
 
     this.cou.rotation.x = lerp(
-      0.10 + Math.sin(this.cycle * Math.PI * 2) * 0.045 * bat,
+      0.10 + Math.sin(this._cycleCorps * Math.PI * 2) * 0.045 * bat,
       -0.30, r
     );
     this.cou.rotation.y = r * 0.95;
-    this.tete.rotation.x = lerp(-0.16 + Math.sin(this.cycle * Math.PI * 2 + 1.1) * 0.05 * bat, 0.22, r);
+    this.tete.rotation.x = lerp(-0.16 + Math.sin(this._cycleCorps * Math.PI * 2 + 1.1) * 0.05 * bat, 0.22, r);
     this.tete.rotation.y = r * 0.55;
 
     // Grattage : la tete plonge vers le sol.
@@ -712,9 +849,9 @@ export class Cerf {
        il suit la foulee et non une horloge propre. */
     const coup = Math.sin(this._flick * Math.PI) * (0.9 + Math.random() * 0.05);
     this.queue.rotation.x = 0.12 - coup * 0.62
-      + Math.sin(this.cycle * Math.PI * 2) * 0.05 * bat;
+      + Math.sin(this._cycleCorps * Math.PI * 2) * 0.05 * bat;
     this.queue.rotation.z = coup * 0.30 * (this._flick > 0.5 ? 1 : -1)
-      + Math.sin(this.cycle * Math.PI * 4 + 0.7) * 0.04 * bat;
+      + Math.sin(this._cycleCorps * Math.PI * 4 + 0.7) * 0.04 * bat;
 
     /* L'OMBRE DE CONTACT SUIT LE SOL.
 
