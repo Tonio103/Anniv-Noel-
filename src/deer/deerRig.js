@@ -153,6 +153,11 @@ export class Cerf {
        descend a zero en un peu moins d'une seconde — le temps qu'il faut aux
        quatre sabots pour rentrer, un par un. */
     this._rangement = 0;
+    /* L'inertie longitudinale du torse : sa vitesse precedente, l'angle de
+       tangage courant et la vitesse de cet angle. Voir `maj()`. */
+    this._vPrec = 0;
+    this._tangI = 0;
+    this._tangV = 0;
     this._clin = 0;                            // 0 ouvert, 1 ferme
     this._prochainClin = 2 + Math.random() * 4;
     this._flick = 0;                           // coup de queue
@@ -517,6 +522,50 @@ export class Cerf {
     this.vitesse = damp(this.vitesse, this.vitesseCible * this.allant, 2.6, dt);
     if (this.vitesse < 0.05) this.vitesse = 0;
 
+    /* L'INERTIE DU TORSE — l'anticipation au depart et le tassement a l'arret.
+
+       Il demarrait et s'arretait comme un objet sans masse : la vitesse
+       montait et descendait en douceur, et rien dans le corps ne disait qu'il
+       y avait quelque chose a mettre en mouvement. Un animal qui s'elance
+       laisse sa masse en arriere une fraction de seconde et se cabre ; un
+       animal qui freine pique du nez, puis se retablit en oscillant une fois.
+
+       Plutot que deux minuteries — une pour le depart, une pour l'arret — un
+       seul ressort amorti pose sur le tangage, force par l'ACCELERATION
+       REELLE. Les deux effets en sortent du meme coup, et surtout ils ne
+       peuvent pas se desynchroniser de ce que fait l'animal : ils sont
+       calcules a partir de son mouvement, pas declares a cote.
+
+       Sous-amorti volontairement (zeta = 0,45) : c'est le depassement qui
+       donne le tassement, un ressort critique se contenterait de rejoindre
+       sa position sans jamais donner l'impression d'un poids qu'on rattrape.
+
+       Le pas de temps est borne pour l'integration. Un ressort a 9 rad/s
+       integre par Euler explicite reste stable tant que le produit avec le
+       pas reste petit ; sur une image longue — un changement d'onglet, une
+       compilation de nuanceur — il divergerait, et une divergence ici ne se
+       rattrape jamais puisque l'etat se reinjecte a chaque image. */
+    const ds = Math.min(dt, 1 / 30);
+    const acc = clamp((this.vitesse - this._vPrec) / Math.max(dt, 1e-4), -25, 25);
+    this._vPrec = this.vitesse;
+    const viseI = clamp(-acc * 0.0062, -0.075, 0.075);
+    /* LE RESSORT DOIT ETRE PLUS LENT QUE CE QUI L'EXCITE.
+
+       Premier essai a 9 rad/s : aucun rebond, mesure a 0,8 % du pic. La
+       raison n'est pas le taux d'amortissement mais le RAPPORT DES VITESSES.
+       La consigne de vitesse s'eteint en exponentielle a 2,6/s ; un ressort
+       quatre fois plus rapide qu'elle la suit quasi statiquement, sans
+       jamais accumuler l'ecart qui produirait un depassement. Il decrivait
+       donc fidelement l'acceleration — et c'est precisement pour cela qu'on
+       ne voyait aucune masse : une masse, ca RETARDE.
+
+       A 4,4 rad/s il reste en arriere pendant le freinage, puis repasse de
+       l'autre cote quand la deceleration cesse. C'est ce depassement-la, et
+       lui seul, qu'on lit comme un poids qu'on rattrape. */
+    const wI = 4.4, zI = 0.30;
+    this._tangV += (wI * wI * (viseI - this._tangI) - 2 * zI * wI * this._tangV) * ds;
+    this._tangI += this._tangV * ds;
+
     const A = ALLURES[this.allure];
 
     /* --- avancee sur le chemin ------------------------------------------- */
@@ -620,7 +669,12 @@ export class Cerf {
        donc etre compense au meme titre : c'est une rotation du corps comme
        une autre, et son bras de levier est le plus long des trois puisque
        les sabots avant et arriere sont a un demi-metre de l'axe. */
-    const tang = -souffle * 0.004 * auRepos;
+    /* Le tangage d'inertie rejoint celui du souffle dans le lot COMPENSE : ce
+       sont deux rotations du corps, et les sabots poses ne doivent suivre ni
+       l'une ni l'autre. C'est d'autant plus vrai pour l'inertie que son
+       rebond survit a l'immobilisation — non compense, il ferait patiner les
+       quatre appuis pendant exactement le tassement qu'on cherche a montrer. */
+    const tang = -souffle * 0.004 * auRepos + this._tangI;
     const cosR = Math.cos(-roul), sinR = Math.sin(-roul);
     const cosT = Math.cos(-tang), sinT = Math.sin(-tang);
 
@@ -802,7 +856,7 @@ export class Cerf {
        radian, soit un quart de degre — invisible isolement, mais c'est ce
        qui distingue un corps qui respire d'un corps qu'on monte au cric. */
     this.corps.rotation.x = Math.sin(this._cycleCorps * Math.PI * 4 + 0.8) * 0.030 * bat
-      - souffle * 0.004 * auRepos;
+      + tang;
     /* Le roulis de foulee n'est PAS compense sur les sabots, lui : pendant
        la marche c'est la foulee qui decide ou le pied se pose, et cette
        bascule-la fait partie du mouvement. Seul le report d'appui a l'arret
