@@ -60,13 +60,19 @@ import { GLSL_NOISE } from '../core/noise.js';
 
    `aurore` est l'autre variable de ce scenario : nulle tant qu'il fait
    encore jour, elle s'installe avec la nuit et culmine a la clairiere, ou
-   le ciel est justement degage. */
+   le ciel est justement degage.
+
+   `halo` et `froid` disent le GRAND FROID sec : le halo de vingt-deux degres
+   autour de la lune, et la poudre de diamant — ces cristaux de glace en
+   suspension qui scintillent dans le faisceau de lune (voir cristaux.js).
+   Les deux n'existent que par nuit claire et glaciale ; ils culminent donc
+   a la clairiere, et la maison les adoucit. */
 export const AMBIANCES = {
   crepuscule: {
     zenith: 0x14304C, horizon: 0x4A6E88, lueur: 0xE8A75C,
     brouillard: 0x40607A, densite: 0.0056, etoiles: 0.12,
     soleil: 0xFFDCB4, force: 1.75, ciel: 0x7A9CBC, sol: 0xD2DCE6, ambiant: 0.82,
-    aurore: 0.0,
+    aurore: 0.0, halo: 0.0, froid: 0.1,
     // Le dernier jour : ombres bleu-vert, lumiere ambree. Le contraste du
     // cinema d'hiver, sans encore la durete de la nuit.
     grOmbres: 0x2A4C68, grHautes: 0xFFD8A4, grContraste: 1.05, grSature: 1.06, grForce: 0.20,
@@ -75,7 +81,7 @@ export const AMBIANCES = {
     zenith: 0x0C1F38, horizon: 0x2E4C6E, lueur: 0xD08A54,
     brouillard: 0x2A4460, densite: 0.0064, etoiles: 0.45,
     soleil: 0xFFD4AE, force: 1.25, ciel: 0x5C7FA4, sol: 0xC8D4E0, ambiant: 0.70,
-    aurore: 0.28,
+    aurore: 0.28, halo: 0.15, froid: 0.4,
     // Le chaud se retire dans les hautes lumieres, le froid gagne le reste.
     grOmbres: 0x1E3A60, grHautes: 0xFFCF9E, grContraste: 1.09, grSature: 1.03, grForce: 0.24,
   },
@@ -83,7 +89,7 @@ export const AMBIANCES = {
     zenith: 0x050E1E, horizon: 0x16304C, lueur: 0x2E5A7E,
     brouillard: 0x16283C, densite: 0.0072, etoiles: 1.0,
     soleil: 0xBFD8FF, force: 0.85, ciel: 0x3E6288, sol: 0xB4C4D4, ambiant: 0.62,
-    aurore: 1.0,
+    aurore: 1.0, halo: 0.65, froid: 1.0,
     /* Plus rien de chaud : la lune est la seule source, et une lune est
        BLEUE. La saturation descend juste sous 1 — la nuit lave les couleurs,
        elle ne les exalte pas — mais le contraste, lui, monte. */
@@ -94,7 +100,7 @@ export const AMBIANCES = {
     zenith: 0x04101F, horizon: 0x1B3A58, lueur: 0x4E86A8,
     brouillard: 0x18304A, densite: 0.0048, etoiles: 1.0,
     soleil: 0xD6E6FF, force: 1.05, ciel: 0x4E77A0, sol: 0xBECDDA, ambiant: 0.78,
-    aurore: 1.0,
+    aurore: 1.0, halo: 1.0, froid: 1.0,
     // On respire : le contraste se relache, l'image s'aere.
     grOmbres: 0x16344F, grHautes: 0xDCECFF, grContraste: 1.07, grSature: 1.05, grForce: 0.24,
   },
@@ -103,7 +109,7 @@ export const AMBIANCES = {
     zenith: 0x061224, horizon: 0x2A3E52, lueur: 0xE8B26A,
     brouillard: 0x22354A, densite: 0.0058, etoiles: 0.86,
     soleil: 0xFFE2BE, force: 1.15, ciel: 0x577FA6, sol: 0xD6D0C2, ambiant: 0.88,
-    aurore: 0.55,
+    aurore: 0.55, halo: 0.35, froid: 0.5,
     /* L'arrivee. Les hautes lumieres virent franchement au chaud et la
        saturation remonte au-dessus de tout le reste du parcours : c'est le
        seul moment de la balade ou l'image a le droit d'etre accueillante. */
@@ -126,7 +132,7 @@ const FRAG = /* glsl */ `
   varying vec3 vDir;
   uniform vec3 uZenith, uHorizon, uLueur;
   uniform vec3 uSoleilDir;
-  uniform float uEtoiles, uTemps, uAurore;
+  uniform float uEtoiles, uTemps, uAurore, uHalo;
 
   ${GLSL_NOISE}
 
@@ -200,6 +206,51 @@ const FRAG = /* glsl */ `
       float autour = pow(max(cosA, 0.0), 340.0);
       float loin   = pow(max(cosA, 0.0), 22.0);
       col += vec3(0.80, 0.86, 1.00) * (autour * 0.34 + loin * 0.045);
+
+      /* LE HALO DE VINGT-DEUX DEGRES.
+
+         Par nuit de grand froid, l'air se charge de minuscules prismes de
+         glace hexagonaux. Chacun devie la lumiere de la lune d'au moins
+         vingt-deux degres — c'est l'angle minimal de deviation d'un prisme
+         de glace a soixante degres — et tous ensemble dessinent autour d'elle
+         un anneau pale, d'un rayon toujours identique. C'est le signe le plus
+         sur d'un froid sec ; aucun autre temps ne le donne.
+
+         Trois details le rendent juste plutot que decoratif :
+         · le bord INTERIEUR est net et teinte de roux, le bord exterieur
+           s'evanouit dans le bleu — le rouge est le moins devie ;
+         · le ciel est plus SOMBRE a l'interieur de l'anneau : aucun prisme
+           ne renvoie de lumiere sous l'angle minimal ;
+         · de part et d'autre, a la hauteur exacte de la lune et juste au-dela
+           de l'anneau, deux taches plus vives : les paraselenes, dues aux
+           cristaux en plaquettes qui tombent a plat.
+
+         Il n'existe que par grand froid : son intensite suit l'ambiance
+         (nulle au crepuscule, entiere dans la clairiere). */
+      if (uHalo > 0.01) {
+        float ang = acos(clamp(cosA, -1.0, 1.0));
+        /* Un anneau FIN : un degre et demi de bord franc, puis une traine de
+           quelques degres. La premiere version en faisait sept, et la bande
+           claire se lisait comme un arc-en-ciel de brume. */
+        float x = (ang - 0.3840) / 0.010;            // 0 sur l'anneau
+        float anneau = smoothstep(-1.6, 0.0, x) * (1.0 - smoothstep(0.0, 3.5, x));
+        vec3 teinteAnneau = mix(vec3(1.00, 0.74, 0.56), vec3(0.74, 0.84, 1.00), smoothstep(-0.8, 2.0, x));
+        // Plus sombre dedans, hors du voisinage immediat de la lune.
+        float dedans = (1.0 - smoothstep(0.34, 0.384, ang)) * smoothstep(0.10, 0.22, ang);
+        col *= 1.0 - dedans * 0.07 * uHalo;
+        col += teinteAnneau * anneau * 0.050 * uHalo;
+
+        // Les paraselenes : meme hauteur que la lune, un peu au-dela de l'anneau.
+        float hLune = asin(clamp(versLune.y, -1.0, 1.0));
+        float hIci = asin(clamp(d.y, -1.0, 1.0));
+        float xp = (ang - 0.400) / 0.018;
+        float pare = exp(-xp * xp) * exp(-pow((hIci - hLune) / 0.022, 2.0));
+        // Une queue bleutee qui s'etire en s'eloignant de la lune.
+        float queue = smoothstep(0.40, 0.44, ang) * (1.0 - smoothstep(0.44, 0.56, ang))
+                    * exp(-pow((hIci - hLune) / 0.012, 2.0));
+        col += vec3(1.00, 0.86, 0.72) * pare * 0.16 * uHalo;
+        col += vec3(0.78, 0.86, 1.00) * queue * 0.035 * uHalo;
+      }
     }
 
     /* LES ETOILES. Elles etaient toutes de la meme taille et de la meme
@@ -342,6 +393,7 @@ export class Ciel {
       uSoleilDir: { value: new THREE.Vector3(-0.45, 0.34, -0.83).normalize() },
       uEtoiles:   { value: AMBIANCES.crepuscule.etoiles },
       uAurore:    { value: AMBIANCES.crepuscule.aurore },
+      uHalo:      { value: AMBIANCES.crepuscule.halo },
       uTemps:     { value: 0 },
     };
 
@@ -393,7 +445,7 @@ export class Ciel {
       this._c1.lerp(this._c2, k);
       a[clef] = this._c1.getHex();
     }
-    for (const clef of ['densite', 'etoiles', 'force', 'ambiant', 'aurore',
+    for (const clef of ['densite', 'etoiles', 'force', 'ambiant', 'aurore', 'halo', 'froid',
                         'grContraste', 'grSature', 'grForce']) {
       a[clef] += (c[clef] - a[clef]) * k;
     }
@@ -403,6 +455,7 @@ export class Ciel {
     this.uniforms.uLueur.value.set(a.lueur);
     this.uniforms.uEtoiles.value = a.etoiles;
     this.uniforms.uAurore.value = a.aurore;
+    this.uniforms.uHalo.value = a.halo;
 
     this.scene.fog.color.set(a.brouillard);
     this.scene.fog.density = a.densite;

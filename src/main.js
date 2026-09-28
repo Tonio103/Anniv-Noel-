@@ -20,6 +20,9 @@ import { Relief } from './world/terrain.js';
 import { accorderNeige } from './world/snowMaterial.js';
 import { Foret } from './world/forest.js';
 import { Neige } from './world/snowfall.js';
+import { Cretes } from './world/cretes.js';
+import { Cristaux } from './world/cristaux.js';
+import { ChasseNeige } from './world/chasseNeige.js';
 import { Brume } from './world/mist.js';
 import { Empreintes } from './world/footprints.js';
 import { Details } from './world/details.js';
@@ -162,6 +165,12 @@ async function demarrer() {
   const ruisseau = new Ruisseau(scene, chemin, relief, palier, clairieres);
 
   const neige = new Neige(scene, palier);
+  /* L'air et le lointain : les crêtes qui donnent sa profondeur a
+     l'horizon, la poudre de diamant des nuits glaciales, et le chasse-neige
+     que les rafales arrachent au sol. Voir chacun de leurs fichiers. */
+  const cretes = new Cretes(scene, ciel);
+  const cristaux = new Cristaux(scene, palier);
+  const chasseNeige = new ChasseNeige(scene, palier, relief);
   const brume = new Brume(scene, palier);
   const details = new Details(scene, palier);
   const cabanes = new Cabanes(scene, chemin, relief, palier, clairieres);
@@ -852,6 +861,7 @@ async function demarrer() {
     drone.maj(dt, t, cerf);
 
     ciel.maj(dt, t, camera);
+    cretes.maj(camera);
     poudre.accorder(scene.fog);
     lumieres.accorder(ciel.actuel);
     /* L'etalonnage et les rais suivent la meme ambiance que la lumiere : les
@@ -873,6 +883,8 @@ async function demarrer() {
     foret.maj(camera);
     neige.souffler(uniformsVent.uRafale.value);
     neige.maj(dt, t, camera, renderer);
+    cristaux.maj(dt, t, camera, renderer, ciel.actuel.froid, ciel.uniforms.uSoleilDir.value, uniformsVent.uRafale.value);
+    chasseNeige.maj(dt, t, camera, uniformsVent.uRafale.value, uniformsVent.uVent.value);
     brume.maj(dt, t, camera, relief, ciel.actuel);
     details.maj(dt, t, camera, relief);
     cabanes.maj(dt);
@@ -1180,7 +1192,7 @@ async function demarrer() {
     // non par son rang : un rang change des qu'on ajoute ou retire une idee.
     stations: STATIONS,
     brume, details, cabanes, apparitions, empreintes, fouillis, habitants, postfx, boucle, palier,
-    son, sfx, ruisseau, faune,
+    son, sfx, ruisseau, faune, cretes, cristaux, chasseNeige,
     /* Le souffle partage et la neige qui le suit : sans eux exposes, une
        rafale n'est verifiable qu'a l'oeil, donc pas verifiable du tout. */
     vent: uniformsVent, neige,

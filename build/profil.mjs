@@ -75,6 +75,9 @@ const r = await page.evaluate((ou) => {
   enrober(s.son, 'maj', 'son.maj');
   enrober(s.faune, 'maj', 'faune.maj');
   enrober(s.apparitions, 'maj', 'apparitions.maj');
+  enrober(s.cristaux, 'maj', 'cristaux.maj');
+  enrober(s.chasseNeige, 'maj', 'chasseNeige.maj');
+  enrober(s.cretes, 'maj', 'cretes.maj');
 
   // Combien de fois interroge-t-on la hauteur du terrain par image ?
   let nHauteur = 0, tHauteur = 0;
