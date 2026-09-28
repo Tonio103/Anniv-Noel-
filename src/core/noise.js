@@ -122,5 +122,28 @@ export const smoothstep = (e0, e1, x) => {
   const t = clamp((x - e0) / (e1 - e0), 0, 1);
   return t * t * (3 - 2 * t);
 };
-/* Amortissement independant du pas de temps : le meme ressenti a 30 ou 144 Hz. */
-export const damp = (a, b, lambda, dt) => lerp(a, b, 1 - Math.exp(-lambda * dt));
+/* Amortissement independant du pas de temps : le meme ressenti a 30 ou 144 Hz.
+
+   UN PAS NEGATIF NE DOIT RIEN FAIRE — ET IL FAISAIT EXPLOSER.
+
+   L'amortissement exponentiel est stable pour tout pas positif. Pour un pas
+   NEGATIF, `1 - exp(-lambda * dt)` devient un grand nombre negatif et le
+   `lerp` n'interpole plus : il EXTRAPOLE, d'un facteur exponentiel. Un seul
+   pas de -26 s, avec lambda = 10, multiplie l'ecart par 10^115.
+
+   Ce n'est pas theorique : au chargement de la page, en navigateur sans
+   ecran, la boucle a livre un pas negatif, et la pente lissee du cerf est
+   sortie a -1,1e116 avant meme la premiere image utile — les quatre sabots
+   a 10^21 metres du sol. Le defaut restait invisible tant que les grandeurs
+   amorties etaient deja a leur cible au chargement (0 vers 0 ne bouge pas,
+   quel que soit le facteur) ; il est apparu des qu'une d'elles ne l'etait
+   plus.
+
+   Ici on refuse donc tout pas qui ne soit pas strictement positif et fini :
+   c'est le seul endroit par lequel passent TOUS les amortissements du
+   projet, et une source de temps defaillante ne doit pas pouvoir y faire
+   autre chose que de ne rien changer. La boucle est bornee elle aussi
+   (voir loop.js) ; cette garde-ci reste, parce qu'une seule source fautive
+   suffirait. */
+export const damp = (a, b, lambda, dt) =>
+  (dt > 0 ? lerp(a, b, 1 - Math.exp(-lambda * dt)) : a);

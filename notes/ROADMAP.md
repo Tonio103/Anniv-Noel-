@@ -103,6 +103,18 @@ a les moyens de mieux faire.
   → `build/verifs.mjs` → `build/profil.mjs` → `encrypt.mjs` →
   `verifier.mjs` → grep de fuite. Les scripts de diagnostic jetables vont
   dans `build/_tmp_*.mjs` et se suppriment après usage.
+- **Toute modification du cerf passe par `build/rig.mjs`** — et d'abord par
+  lui, puisqu'il tourne en quelques secondes sans navigateur. Il mesure ce
+  qui ne se voit pas sur une capture : glissement des sabots au sol,
+  pattes en butée, à-coups du dos, stabilité à 30 et 10 images/s, sens des
+  rotations. Deux leçons y sont inscrites et ne doivent pas se perdre :
+  · **les conventions se mesurent, elles ne se supposent pas.** Le banc a
+    longtemps validé un cerf qui piquait du nez au départ, parce qu'il
+    testait le même signe (faux) que le code. Il mesure désormais le sens de
+    `rotation.x` en inclinant le corps, et exprime tout à partir de là ;
+  · **tout intégrateur doit être stable au pas de temps maximal** de la
+    boucle (0,1 s). Un ressort stable à 60 images/s a divergé à 30 pendant
+    le développement : sur un téléphone modeste, le cerf aurait explosé.
 - Seule une vraie marche pilotée par `s.simuler()` est fiable pour vérifier
   un cadrage caméra — une reconstruction synthétique de la pose caméra a
   produit des résultats trompeurs à plusieurs reprises.
