@@ -172,7 +172,7 @@ export class Faune {
       ch.cris.length = 0;
     }
 
-    if (drone) this._regarder(dt, drone);
+    this._regarder(dt, drone, cerf);
   }
 
   /* LE REGARD DU DRONE SUR LA FAUNE.
@@ -192,8 +192,18 @@ export class Faune {
      tete se tourne pendant le moment de l'animal — l'envol, la fuite, le
      cri, la traversee — puis revient au cerf. Les forces sont moderees :
      l'animal doit ENTRER dans le cadre, pas en chasser le cerf. */
-  _regarder(dt, drone) {
+  /* LE CERF AUSSI LES REGARDE. Tout ce qui attire le drone attire d'abord
+     l'animal, qui est bien plus pres : il tourne la tete vers l'envol, vers
+     le lievre qui detale, vers la chouette qui traverse — et sursaute quand
+     la chose surgit (force proche de 1). Voir deer/attitudes.js. Le cri de
+     la chouette, lui, n'est qu'une curiosite : il tourne la tete, sans
+     sursauter. */
+  _regarder(dt, drone, cerf) {
     const v = this._vise || (this._vise = new THREE.Vector3());
+    const regarder = (point, force, attention) => {
+      if (drone && force > 0.001) drone.coupDOeil(point, force);
+      if (cerf?.interesser && attention > 0.001) cerf.interesser(point, attention);
+    };
 
     // Les bouvreuils : deux secondes sur la troupe qui s'envole.
     for (const tr of this.passereaux.troupes) {
@@ -208,7 +218,7 @@ export class Faune {
       }
       if (!n) continue;
       v.divideScalar(n);
-      drone.coupDOeil(v, 0.42 * smoothstep(0, 0.35, t) * (1 - smoothstep(1.7, 2.4, t)));
+      regarder(v, 0.42 * smoothstep(0, 0.35, t) * (1 - smoothstep(1.7, 2.4, t)), t < 2.2 ? 1 : 0);
     }
 
     // Le lievre : toute sa fuite, jusqu'a ce qu'il atteigne le couvert.
@@ -217,7 +227,7 @@ export class Faune {
       l.fuiteDepuis = (l.fuiteDepuis ?? 0) + dt;
       const t = l.fuiteDepuis;
       v.copy(l.pos); v.y += 0.25;
-      drone.coupDOeil(v, 0.55 * smoothstep(0, 0.3, t) * (1 - smoothstep(2.4, 3.2, t)));
+      regarder(v, 0.55 * smoothstep(0, 0.3, t) * (1 - smoothstep(2.4, 3.2, t)), t < 2.6 ? 1 : 0);
     }
 
     /* La chouette : un regard vers le cri — c'est le son qui nous la fait
@@ -230,13 +240,13 @@ export class Faune {
           v.copy(ch.pos); v.y += 0.3;
           // Plus leger que pour le vol : a trente metres, la chouette ne
           // merite pas qu'on sorte le cerf du cadre, juste qu'on la montre.
-          drone.coupDOeil(v, 0.26 * smoothstep(0.25, 0.8, t) * (1 - smoothstep(2.0, 2.8, t)));
+          regarder(v, 0.26 * smoothstep(0.25, 0.8, t) * (1 - smoothstep(2.0, 2.8, t)), t < 2.6 ? 0.6 : 0);
         }
       }
       if (ch.etat === 1) {
         ch.volDepuis = (ch.volDepuis ?? 0) + dt;
         const t = ch.volDepuis;
-        drone.coupDOeil(ch.pos, 0.55 * smoothstep(0, 0.4, t) * (1 - smoothstep(2.6, 3.4, t)));
+        regarder(ch.pos, 0.55 * smoothstep(0, 0.4, t) * (1 - smoothstep(2.6, 3.4, t)), t < 3 ? 0.95 : 0);
       }
     }
   }

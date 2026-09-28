@@ -830,6 +830,14 @@ async function demarrer() {
       );
     }
     cerf.posers.length = 0;
+    /* Ce que le cerf fait de lui-meme et qui s'entend ou se voit ailleurs que
+       sur lui : l'ebrouement (un son) et la neige qu'il projette en se
+       secouant (la meme poudre que sous ses sabots, lancee depuis l'echine). */
+    for (const e of cerf.evenements) {
+      if (e.type === 'ebrouement') sfx.ebrouement(voixCerf?.entree);
+      else if (e.type === 'neige') poudre.poser(e.x, e.y, e.z, e.dx, e.dz, e.force);
+    }
+    cerf.evenements.length = 0;
     /* Apres le cerf, dont elle lit la position, et avant la poudre, qu'elle
        alimente quand le lievre retombe dans la neige. */
     faune.maj(dt, t, cerf, camera, empreintes, poudre, drone);

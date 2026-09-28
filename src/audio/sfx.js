@@ -347,4 +347,65 @@ export class Bruitages {
     g.gain.exponentialRampToValueAtTime(0.0008, t + 0.45);
     s.connect(f); f.connect(g); g.connect(sortie);
   }
+
+  /* --- L'EBROUEMENT -----------------------------------------------------------
+     Trois couches, dans l'ordre ou elles arrivent :
+     · un ebrouement de naseaux — l'expiration forcee par laquelle tout
+       ongule commence a se secouer ;
+     · le FROISSEMENT de la fourrure, un bruit moyen module au rythme meme du
+       battement du torse (4,2 Hz, voir attitudes.js) : c'est cette
+       modulation, plus que le timbre, qui fait entendre « il se secoue » ;
+     · la neige qui retombe, un souffle aigu et bref, un peu apres. */
+  ebrouement(sortie) {
+    if (!this.son.pret || !sortie) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+
+    // 1. les naseaux
+    {
+      const s = this._bruit(0.5);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.value = 380; f.Q.value = 1.3;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.18, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.32);
+      s.connect(f); f.connect(g); g.connect(sortie);
+    }
+
+    // 2. la fourrure, modulee par le battement
+    {
+      const dep = 0.16, duree = 1.25;
+      const s = this._bruit(dep + duree + 0.1);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 0.8;
+      const mod = ctx.createGain();
+      mod.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 4.2 * 2;          // deux bruits par battement : un par cote
+      const prof = ctx.createGain();
+      prof.gain.value = 0.5;
+      lfo.connect(prof); prof.connect(mod.gain);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, t + dep);
+      env.gain.linearRampToValueAtTime(0.10, t + dep + 0.25);
+      env.gain.setValueAtTime(0.10, t + dep + duree * 0.55);
+      env.gain.exponentialRampToValueAtTime(0.0006, t + dep + duree);
+      s.connect(f); f.connect(mod); mod.connect(env); env.connect(sortie);
+      lfo.start(t + dep); lfo.stop(t + dep + duree + 0.05);
+    }
+
+    // 3. la neige qui retombe
+    {
+      const dep = 0.45, duree = 1.1;
+      const s = this._bruit(dep + duree + 0.1);
+      const f = ctx.createBiquadFilter();
+      f.type = 'highpass'; f.frequency.value = 3200;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t + dep);
+      g.gain.linearRampToValueAtTime(0.035, t + dep + 0.2);
+      g.gain.exponentialRampToValueAtTime(0.0004, t + dep + duree);
+      s.connect(f); f.connect(g); g.connect(sortie);
+    }
+  }
 }

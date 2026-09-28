@@ -411,14 +411,26 @@ function matierePelage() {
        voir la neige du fond. */
   });
 
+  /* LA NEIGE SUR LE DOS : de 0 (robe nue) a 1, pilotee par le rig (voir
+     attitudes.js). Elle se pose sur ce qui regarde le ciel DANS LA POSE DE
+     LIAISON — la normale d'avant le squelette — et non dans le monde : ainsi
+     elle reste sur l'echine quand il baisse la tete pour gratter, au lieu de
+     glisser sur son front. C'est aussi ce que fait la vraie neige, qui colle
+     au poil ou elle est tombee. */
+  mat.userData.neige = { value: 0 };
+
   mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uNeigeDos = mat.userData.neige;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\n varying vec3 vLiaison;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n vLiaison = position;');
+      .replace('#include <common>', '#include <common>\n varying vec3 vLiaison;\n varying vec3 vNormLiaison;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n vLiaison = position;')
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vNormLiaison = objectNormal;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `
         #include <common>
         varying vec3 vLiaison;
+        varying vec3 vNormLiaison;
+        uniform float uNeigeDos;
         /* Pas de sin() : sur un sinus en precision reduite, un produit
            scalaire de cette ampleur ne se reduit plus correctement et rend
            des bandes regulieres au lieu d'un grain — voir postfx.js, ou le
@@ -477,7 +489,23 @@ function matierePelage() {
           return mix(a, b, f.z);
         }
       `)
+      .replace('#include <color_fragment>', `
+        #include <color_fragment>
+        /* La neige, en PLAQUES et non en voile : un bruit large decide ou
+           elle tient, et la couverture gagne a mesure que uNeigeDos monte —
+           d'abord le haut de l'echine et le crane, puis les flancs du dos. */
+        float neigeDos = 0.0;
+        if (uNeigeDos > 0.001) {
+          float dessus = smoothstep(0.30, 0.85, normalize(vNormLiaison).y);
+          float plaques = bruitDoux(vLiaison * vec3(7.0, 7.0, 5.0) + 13.0) * 0.7
+                        + bruitDoux(vLiaison * 23.0 + 3.0) * 0.3;
+          float seuil = 1.0 - uNeigeDos;
+          neigeDos = dessus * smoothstep(seuil, seuil + 0.16, plaques * 0.55 + dessus * 0.45);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.90, 0.96), neigeDos);
+        }
+      `)
       .replace('#include <opaque_fragment>', `
+        vec3 avantPoil = outgoingLight;
         {
           /* LE POIL SE CALCULE ICI, MAIS NE S'APPLIQUE QU'A LA FIN.
 
@@ -626,11 +654,23 @@ function matierePelage() {
              par le poil, c'est la lecture meme de « fourrure », la ou une
              tranche lisse ne dit que « volume ». */
           outgoingLight *= meche;
+
+          /* LA NEIGE N'EST NI POIL NI ROUSSE. Elle echappe au grain du
+             pelage et a la correction chaude qui empeche la robe de bleuir :
+             la neige, elle, DOIT bleuir, comme celle du sol. Elle echappe
+             aussi au lisere de lune, qui figure la translucidite du poil en
+             bordure — une plaque de neige est opaque. Elle garde la lumiere
+             qu'elle recoit, plus un plancher froid : sans lui, dans le
+             contre-jour permanent de la balade, elle virerait au gris. */
+          if (neigeDos > 0.0) {
+            vec3 n = avantPoil + diffuseColor.rgb * vec3(0.30, 0.33, 0.38) * 0.24;
+            outgoingLight = mix(outgoingLight, n, neigeDos);
+          }
         }
         #include <opaque_fragment>
       `);
   };
-  mat.customProgramCacheKey = () => 'pelage11';
+  mat.customProgramCacheKey = () => 'pelage12';
   return mat;
 }
 

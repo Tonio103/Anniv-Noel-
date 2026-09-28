@@ -151,6 +151,11 @@ const r = await page.evaluate(() => {
         ev.push({ t, s, v, quoi: a.enArret ? 'retient' : 'relache', nom: a.nom, phase: p });
       }
     }
+    const at = sc.cerf.attitudes;
+    if (at.ebroue >= 0 && !(ev.ebroueEnCours)) { ev.push({ t, s, v, quoi: 'ebrouement', phase: p }); ev.ebroueEnCours = true; }
+    if (at.ebroue < 0) ev.ebroueEnCours = false;
+    if (at.k > 0.5 && !ev.attentif) { ev.push({ t, s, v, quoi: 'attentif', phase: p }); ev.attentif = true; }
+    if (at.k < 0.1) ev.attentif = false;
     const immobile = v < 0.05;
     if (immobile !== arrete) { arrete = immobile; ev.push({ t, s, v, quoi: immobile ? 'arret' : 'depart', phase: p }); }
     // Le visiteur : il touche le cadeau, lit la carte, la referme.
@@ -230,6 +235,14 @@ verifier(ecartMax < 1.5, 'chaque arrivee tombe sur sa halte');
 const reculMax = Math.max(0, ...Object.values(r.reculs));
 console.log(`  recul max de progression : ${reculMax.toFixed(3)} (${Object.keys(r.reculs).length} scenes jouees)`);
 verifier(reculMax < 0.005, 'aucune apparition ne se rembobine');
+
+/* 7. CE QUE LE CERF FAIT DE LUI-MEME : il s'ebroue pendant les haltes (et
+   jamais en marchant), et il tourne la tete vers ce que fait la faune. */
+const ebr = r.ev.filter((e) => e.quoi === 'ebrouement');
+const att = r.ev.filter((e) => e.quoi === 'attentif');
+console.log(`  cerf : ${ebr.length} ebrouements (${ebr.map((e) => `${f1(e.s)} m, ${e.phase}`).join(' · ')}) · ${att.length} moments d'attention`);
+verifier(ebr.length >= 2 && ebr.every((e) => e.v < 0.05), 'il s ebroue aux haltes, jamais en marchant');
+verifier(att.length >= 4, 'il tourne la tete vers la faune (bouvreuils, lievre, chouette)');
 
 /* 6. LA CAMERA NE TRAVERSE RIEN : ni le paquet qu'elle filme, ni le cerf,
    ni un tronc. */

@@ -19,6 +19,7 @@
 
 import * as THREE from 'three';
 import { creerCerf } from './deerMesh.js';
+import { Attitudes } from './attitudes.js';
 import { damp, clamp, lerp, smoothstep } from '../core/noise.js';
 
 /* Phases de poser, en fraction de cycle.
@@ -118,6 +119,13 @@ export class Cerf {
 
     const m = creerCerf(palier);
     Object.assign(this, m);
+
+    /* Ce qu'il fait quand quelque chose se passe : l'attention, la neige sur
+       le dos, l'ebrouement, le flairage. Voir attitudes.js. Ses evenements
+       (le son de l'ebrouement, la neige projetee) sont lus et vides par la
+       mise en scene, comme les posers. */
+    this.attitudes = new Attitudes(this);
+    this.evenements = this.attitudes.evenements;
 
     this.s = 0;                 // distance parcourue sur le chemin
     this.vitesse = 0;
@@ -473,9 +481,12 @@ export class Cerf {
        tourne avant que le cou et la tete ne soient reorientes. Un
        soixantieme de seconde de retard sur un pavillon ne se voit pas. */
     let ecouteG = 0, ecouteD = 0;
-    if (this._aEcoute) {
-      const dx = this._ecoute.x - this.racine.position.x;
-      const dz = this._ecoute.z - this.racine.position.z;
+    /* Ce qui l'interesse l'emporte sur le drone : un envol a sa gauche
+       capte ses deux pavillons, meme si nous le suivons par la droite. */
+    const source = this.attitudes.source || (this._aEcoute ? this._ecoute : null);
+    if (source) {
+      const dx = source.x - this.racine.position.x;
+      const dz = source.z - this.racine.position.z;
       const cap = this.racine.rotation.y + this.cou.rotation.y + this.tete.rotation.y;
       // Passage en repere tete. Le museau pointe vers -Z.
       const lx = Math.cos(cap) * dx - Math.sin(cap) * dz;
@@ -567,6 +578,7 @@ export class Cerf {
        tourner a rebours, ou exploser. Une seule source de temps fautive
        suffit : chaque integrateur se protege lui-meme. */
     dt = dt > 0 ? Math.min(dt, 0.1) : 0;
+    this.attitudes.maj(dt, temps);
     this._vivre(dt);
     this._tics(dt);
 
@@ -905,7 +917,8 @@ export class Cerf {
 
     const leveTotal = leve + bond;
     const tang = tangLent + tangFoulee;
-    const roulTotal = roul + roulFoulee;
+    // L'ebrouement fait rouler le torse : compense sur les sabots comme le reste.
+    const roulTotal = roul + roulFoulee + this.attitudes.roulis;
     const cosR = Math.cos(-roulTotal), sinR = Math.sin(-roulTotal);
     const cosT = Math.cos(-tang), sinT = Math.sin(-tang);
 
@@ -1008,18 +1021,24 @@ export class Cerf {
       this._cible.y += (solPied - yRacine);
       mb.sabotMonde.set(mondeX, solPied, mondeZ);
 
-      /* Grattage : la patte avant droite racle la neige pour deterrer. */
-      if (this.grattage > 0 && mb.nom === 'AD') {
-        const g = Math.sin(this.grattage * Math.PI * 3.4);
-        this._cible.z -= 0.34 + g * 0.28;
-        this._cible.y += Math.max(0, g) * 0.30;
-        auSol = g < -0.4;
+      /* Grattage : la patte avant droite racle la neige pour deterrer — une
+         fois arrete, et apres avoir flaire (voir attitudes.js). Elle s'engage
+         et se desengage par `frappe`, de 0 a 1 : la version precedente
+         tirait la patte de trente-quatre centimetres en avant des le premier
+         instant, et l'y laissait au dernier, d'ou un saut du sabot a chaque
+         bord du geste. */
+      const frappe = mb.nom === 'AD' ? this.attitudes.frappe : 0;
+      if (frappe > 0.01) {
+        const g = this.attitudes.coupDeSabot();
+        this._cible.z -= (0.34 + g * 0.28) * frappe;
+        this._cible.y += Math.max(0, g) * 0.30 * frappe;
+        auSol = g < -0.4 || frappe < 0.2;
       }
 
       mb.cibleNue.copy(this._cible);
       mb.auSolImage = auSol;
       if (auSol) { mb.poidsAppui = 1; mb.levee = 0; }
-      else if (!actif || (this.grattage > 0 && mb.nom === 'AD')) mb.poidsAppui = 0;
+      else if (!actif || frappe > 0.01) mb.poidsAppui = 0;
     }
 
     /* --- L'ABAISSEMENT DU CORPS ---------------------------------------------
@@ -1362,6 +1381,12 @@ export class Cerf {
       this.tete.rotation.y += this.secousse * 0.12;
     }
 
+    /* L'attention, l'ebrouement et le flairage s'ajoutent en dernier. Le
+       regard mis en scene (vers le visiteur) et la tete plongee dans la
+       neige priment sur l'attention : on ne regarde pas un oiseau le museau
+       dans la poudreuse. */
+    this.attitudes.poserTete(Math.max(gGratte * 1.5, r * 1.6));
+
     /* La queue : au repos, plus un coup sec de temps en temps, plus un
        balancement passif quand il court — celui-la est subi, pas voulu, donc
        il suit la foulee et non une horloge propre. */
@@ -1451,6 +1476,10 @@ export class Cerf {
     // l'opacite de chaque grain.
     p.material.opacity = 0.075 * clamp(this.vitesse / 4 + 0.35, 0, 1);
   }
+
+  /* Ce qui attire son attention, a designer a chaque image : voir
+     attitudes.js. */
+  interesser(point, force = 1) { this.attitudes.interesser(point, force); }
 
   /* Ce qu'il surveille de l'oreille. La mise en scene lui passe la position
      du drone : c'est le seul endroit ou l'animal sait que nous existons. */

@@ -488,6 +488,120 @@ const SOULEVE = R.SOULEVE;
   R.grattage = { repos, plusBas };
 }
 
+/* === 11. LES ATTITUDES ====================================================
+   Ce que le cerf fait quand quelque chose se passe (deer/attitudes.js). On
+   mesure, comme ailleurs, ce qui se voit : ou pointe vraiment le museau,
+   si la tete avance par saccades ou en glissant, si les sabots restent
+   plantes pendant qu'il s'ebroue, et s'il frappe la neige en marchant. */
+{
+  // (a) L'attention : le museau se tourne vers la cible, a gauche comme a droite.
+  const angleMuseau = (c, cible) => {
+    c.racine.updateMatrixWorld(true);
+    const t = c.tete.getWorldPosition(new THREE.Vector3());
+    // Le museau pointe vers -Z local : l'oppose de getWorldDirection.
+    const d = c.tete.getWorldDirection(new THREE.Vector3()).negate();
+    const a1 = Math.atan2(d.x, d.z), a2 = Math.atan2(cible.x - t.x, cible.z - t.z);
+    return Math.abs(Math.atan2(Math.sin(a1 - a2), Math.cos(a1 - a2)));
+  };
+  const attention = {};
+  for (const cote of [-1, 1]) {
+    const c = nouveauCerf(0xA77E + cote, 60);
+    c.vitesseCible = 0; avancer(c, 200);
+    c.attitudes.neige = 0;              // pas d'ebrouement pendant la mesure
+    // Une cible a quatre metres, a cinquante-cinq degres du cap, a hauteur d'oeil.
+    const cap = c.racine.rotation.y + cote * 0.96;
+    const cible = new THREE.Vector3(
+      c.racine.position.x - Math.sin(cap) * 4, c.racine.position.y + 1.5, c.racine.position.z - Math.cos(cap) * 4);
+    const avant = angleMuseau(c, cible);
+    let sursautMax = 0, flick = 0;
+    for (let i = 0; i < 72; i++) {
+      c.interesser(cible, 1); pas(c);
+      sursautMax = Math.max(sursautMax, c.attitudes.sursaut);
+      flick = Math.max(flick, c._flick);
+    }
+    attention[cote] = { avant, apres: angleMuseau(c, cible), sursautMax, flick };
+  }
+  R.attention = attention;
+
+  // (b) Les saccades : une cible qui tourne autour de lui, sans a-coup.
+  {
+    const c = nouveauCerf(0x5ACC, 60);
+    c.vitesseCible = 0; avancer(c, 200);
+    c.attitudes.neige = 0;
+    const cible = new THREE.Vector3();
+    let prec = null, arrets = 0, n = 0, vMax = 0;
+    for (let i = 0; i < 300; i++) {
+      const a = c.racine.rotation.y - 0.9 + (i / 300) * 1.8;
+      cible.set(c.racine.position.x - Math.sin(a) * 4, c.racine.position.y + 1.4, c.racine.position.z - Math.cos(a) * 4);
+      c.interesser(cible, 0.7); pas(c);
+      if (i > 30 && prec !== null) {
+        const v = Math.abs(c.attitudes.lacet - prec) / H;
+        vMax = Math.max(vMax, v); n++;
+        if (v < 0.15) arrets++;
+      }
+      prec = c.attitudes.lacet;
+    }
+    R.saccades = { tenue: arrets / n, vMax };
+  }
+
+  // (c) L'ebrouement : a l'arret, le dos charge de neige.
+  {
+    const c = nouveauCerf(0xEB70, 60);
+    c.vitesseCible = 0; avancer(c, 200);
+    c.attitudes.neige = 0.8;
+    let debut = -1, neiges = 0, roulisMax = 0;
+    const neigeAvant = c.attitudes.neige;
+    let obs = null;
+    for (let i = 0; i < 60 * 14 && debut < 0; i++) {
+      pas(c);
+      for (const e of c.evenements) if (e.type === 'ebrouement') debut = i;
+      c.evenements.length = 0;
+    }
+    if (debut >= 0) {
+      // Le geste entier, sabots observes.
+      obs = observer(c, 100, (cc) => {
+        roulisMax = Math.max(roulisMax, Math.abs(cc.attitudes.roulis));
+        neiges += cc.evenements.filter((e) => e.type === 'neige').length;
+        cc.evenements.length = 0;
+        return true;
+      });
+    }
+    R.ebroue = { debut: debut / 60, neiges, roulisMax, glisse: obs ? obs.pire : Infinity,
+      neigeAvant, neigeApres: c.attitudes.neige, sain: obs ? obs.sain : false };
+  }
+
+  // (d) Le flairage : il arrive au pas, on lui dit de creuser comme main.js.
+  {
+    const c = nouveauCerf(0xF1A1, 60);
+    c.vitesseCible = 2.3; avancer(c, 300);
+    c.vitesseCible = 0;
+    const ad = () => { c.racine.updateMatrixWorld(true); const mb = c.membres.find((m) => m.nom === 'AD'); return mb.bas.localToWorld(new THREE.Vector3(0, -mb.L2, 0)); };
+    /* LE SAUT se lit dans la SECONDE difference de la position du sabot, pas
+       dans sa vitesse : une patte qui frappe la neige ou qui balance en
+       marche va vite (sept centimetres par image au pas), mais continument.
+       Une teleportation, elle, est une rupture. Mesure sur l'ancien geste :
+       354 mm quand la patte etait saisie en plein balancement, le cerf
+       encore en marche, et 74 mm quand elle etait relachee a la fin. Un vrai
+       coup de sabot, avec son impact, en fait 39 ; un poser de marche, 34. */
+    let frappeEnMarche = 0, frappeMax = 0, sautAD = 0, p1 = ad(), p0 = ad();
+    const m = new THREE.Vector3();
+    let museauMin = Infinity;
+    const N = Math.round(2.4 * 60);
+    for (let i = 0; i <= N + 90; i++) {
+      c.grattage = i <= N ? i / N : 0;
+      pas(c);
+      if (c.attitudes.frappe > 0.05 && c.vitesse > 0.25) frappeEnMarche++;
+      frappeMax = Math.max(frappeMax, c.attitudes.frappe);
+      const p = ad();
+      if (i > 1) sautAD = Math.max(sautAD, Math.hypot(p.x - 2 * p1.x + p0.x, p.y - 2 * p1.y + p0.y, p.z - 2 * p1.z + p0.z));
+      p0 = p1; p1 = p;
+      c.tete.localToWorld(m.set(0, 0, -0.30));
+      if (i < N * 0.3) museauMin = Math.min(museauMin, m.y - relief.hauteur(m.x, m.z));
+    }
+    R.flairage = { frappeEnMarche, frappeMax, sautAD, museauMin };
+  }
+}
+
 /* ========================================================================== */
 const verdicts = [];
 const verifier = (ok, quoi) => verdicts.push([ok, quoi]);
@@ -591,6 +705,26 @@ for (const [fps, b] of Object.entries(basses)) {
 verifier(fautifs.sain && Math.abs(fautifs.y - 1) < 0.25 && Math.abs(fautifs.pente) < 0.6,
   'insensible aux pas de temps negatifs, nuls ou invalides');
 verifier(grattage.plusBas < grattage.repos - 0.5, 'il baisse la tete pour gratter (museau vers la neige)');
+
+const { attention, saccades, ebroue, flairage } = R;
+const deg = (a) => (a * 57.3).toFixed(1) + '°';
+console.log('  --- attitudes -------------------------------------------------');
+console.log(`  attention : museau a ${deg(attention[-1].avant)} -> ${deg(attention[-1].apres)} de la cible a droite, ${deg(attention[1].avant)} -> ${deg(attention[1].apres)} a gauche · sursaut ${attention[1].sursautMax.toFixed(2)}`);
+console.log(`  saccades : tete immobile ${(saccades.tenue * 100).toFixed(0)} % du temps, pointes a ${saccades.vMax.toFixed(2)} rad/s`);
+console.log(`  ebrouement a ${ebroue.debut.toFixed(1)} s · ${ebroue.neiges} bouffees · roulis max ${deg(ebroue.roulisMax)} · glissement ${mm(ebroue.glisse)} mm · neige ${ebroue.neigeAvant.toFixed(2)} -> ${ebroue.neigeApres.toFixed(2)}`);
+console.log(`  flairage : frappes en marche ${flairage.frappeEnMarche} images · frappe max ${flairage.frappeMax.toFixed(2)} · pire rupture du sabot AD ${mm(flairage.sautAD)} mm · museau a ${flairage.museauMin.toFixed(2)} m pendant le flair`);
+for (const cote of [-1, 1]) {
+  const a = attention[cote];
+  verifier(a.apres < a.avant * 0.35, `il tourne la tete vers ce qui l interesse (${cote < 0 ? 'a droite' : 'a gauche'})`);
+}
+verifier(attention[1].sursautMax > 0.9 && attention[1].flick > 0.5, 'un evenement brusque le fait sursauter (tete, queue)');
+verifier(saccades.tenue > 0.4 && saccades.vMax > 1.5, 'il suit du regard par saccades, pas en glissant');
+verifier(ebroue.debut > 0 && ebroue.debut < 14, 'le dos charge de neige, il finit par s ebrouer');
+verifier(ebroue.sain && ebroue.roulisMax > 0.05 && ebroue.roulisMax < 0.15, 'le torse bat franchement, sans exces');
+verifier(ebroue.glisse < 0.004, 'les sabots restent plantes pendant l ebrouement (< 4 mm)');
+verifier(ebroue.neiges >= 10 && ebroue.neigeApres < 0.15, 'la neige quitte le dos, projetee');
+verifier(flairage.frappeEnMarche === 0 && flairage.frappeMax > 0.8, 'il ne frappe la neige qu une fois arrete');
+verifier(flairage.sautAD < 0.045, 'la patte qui gratte ne saute jamais (rupture < 45 mm)');
 
 let echecs = 0;
 for (const [ok, quoi] of verdicts) {
