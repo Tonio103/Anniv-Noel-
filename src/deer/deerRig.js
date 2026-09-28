@@ -122,6 +122,8 @@ export class Cerf {
     this.s = 0;                 // distance parcourue sur le chemin
     this.vitesse = 0;
     this.vitesseCible = 0;
+    // Pose par les apparitions : voir LA RETENUE, dans `maj`.
+    this.retenu = false;
     this.cycle = 0;             // avancement du cycle de foulee [0,1)
     /* L'horloge du CORPS. Distincte de celle des pattes : voir `maj()`. Elle
        se fige des que l'animal s'immobilise, alors que celle des pattes
@@ -414,7 +416,12 @@ export class Cerf {
           const d = Math.random();
           if (d < 0.45)      { this._geste = 'regarde'; this._dureeGeste = 2.2 + Math.random() * 1.1; }
           else if (d < 0.75) { this._geste = 'secoue';  this._dureeGeste = 0.9 + Math.random() * 0.4; }
-          else               { this._geste = 'presse';  this._dureeGeste = 3.0 + Math.random() * 2.0; }
+          /* Le coup d'allant n'a de sens qu'en croisiere. Tire pendant
+             l'approche d'une halte, il faisait arriver le cerf au cadeau a
+             pres de 2,9 m/s — le trot, qu'il fallait ensuite casser d'un
+             coup de frein en arrivant (vu par build/balade.mjs). */
+          else if (this.vitesseCible > 3) { this._geste = 'presse'; this._dureeGeste = 3.0 + Math.random() * 2.0; }
+          else               { this._geste = 'regarde'; this._dureeGeste = 2.2 + Math.random() * 1.1; }
           this._resteGeste = this._dureeGeste;
         }
       }
@@ -602,11 +609,22 @@ export class Cerf {
        changer a mi-chemin lui ferait relire le pas d'un autre patron.
        `_rangement` porte ici la valeur de l'image precedente, ce qui suffit :
        il vaut encore 1 a l'image ou la vitesse tombe sous le seuil. */
+    /* LA RETENUE. Deux voix commandent la marche : la balade (la consigne
+       de chaque phase) et les apparitions, qui arretent le cerf le temps
+       d'une scene. Elles ecrivaient toutes deux `vitesseCible`, et la
+       derniere a parler gagnait : une approche de halte qui commencait
+       pendant l'arret pour Kevin remettait le cerf en marche au milieu de
+       la scene, puis la fin de l'arret restaurait la vitesse de croisiere
+       memorisee — et le cerf arrivait au cadeau au trot. La retenue est
+       donc un etat a part, qui PRIME sur la consigne sans l'effacer : la
+       balade peut changer de phase pendant l'arret, et c'est sa consigne
+       du moment qui s'applique quand la scene le relache. */
+    const consigne = this.retenu ? 0 : this.vitesseCible;
     if (this.vitesse < 0.05 && this._rangement <= 0) {
-      this.allure = this.vitesseCible * this.allant > 2.0 ? 'trot' : 'pas';
+      this.allure = consigne * this.allant > 2.0 ? 'trot' : 'pas';
     }
 
-    this.vitesse = damp(this.vitesse, this.vitesseCible * this.allant, 2.6, dt);
+    this.vitesse = damp(this.vitesse, consigne * this.allant, 2.6, dt);
     if (this.vitesse < 0.05) this.vitesse = 0;
 
     /* L'INERTIE DU TORSE — l'anticipation au depart et le tassement a l'arret.

@@ -30,6 +30,7 @@ import { Fouillis } from './world/props.js';
 import { Poudre } from './world/puffs.js';
 import { Ruisseau } from './world/stream.js';
 import { Clairieres } from './world/clearing.js';
+import { Faune } from './world/faune/index.js';
 import { PostFX } from './core/postfx.js';
 import { Chemin } from './camera/path.js';
 import { Drone } from './camera/droneRig.js';
@@ -197,6 +198,14 @@ async function demarrer() {
     foret.modele, foret.matFeuillage, foret.matNeige
   );
 
+  /* LA FAUNE : bouvreuils, lievre, chouette. Construite apres la foret (elle
+     choisit ses refuges parmi les sapins et s'installe loin des troncs) et
+     apres les clairieres (elle evite les lanternes plantees pres du chemin).
+     Chaque rencontre est attachee a une halte : voir faune/sites.js. */
+  const faune = new Faune(scene, chemin, relief, palier, {
+    foret, stations: STATIONS, obstacles: habitants.obstacles,
+  });
+
   scene.environment = ciel.environnement(renderer);
   scene.environmentIntensity = 0.32;
 
@@ -313,6 +322,7 @@ async function demarrer() {
      de ne rien faire. */
   const apparitionsSon = new ApparitionsSon(son, sfx);
   apparitions.brancherSon(apparitionsSon);
+  faune.brancherSon(son, sfx);
   const ancreCadeau = new THREE.Object3D();
   scene.add(ancreCadeau);
   let voixCerf = null, voixSabots = null, voixCadeau = null;
@@ -355,6 +365,29 @@ async function demarrer() {
   /* Le sens de l'arc de camera, alterne d'une halte a l'autre. */
   const sensArc = () => (index % 2 === 0 ? 1 : -1);
 
+  /* LE CADRAGE DE MARCHE, en un seul endroit. Il etait ecrit dans l'entree
+     de chaque phase ; or une apparition peut retenir le cerf a cheval sur
+     deux phases (l'approche d'une halte commence pendant qu'on regarde
+     Kevin), et l'entree de la nouvelle phase recadrait alors le drone
+     par-dessus la scene. Pendant un arret, on ne touche donc plus au drone ;
+     c'est l'apparition qui rappelle cette fonction en relachant le cerf, et
+     le cadrage retrouve est celui de la phase ou l'on est A CE MOMENT-LA. */
+  function cadrerMarche() {
+    if (phase === PHASES.APPROCHE) {
+      drone.cadrer('approche');
+      /* L'arc commence des l'approche, doucement, et son SENS ALTERNE d'une
+         halte a l'autre. Sans cette alternance, les six haltes tournent
+         toutes du meme cote et le procede se voit ; avec, chaque arrivee
+         compose differemment sans qu'on sache pourquoi. */
+      drone.arc(sensArc() * 0.045, 0.15);
+    } else {
+      drone.cadrer('route');
+      drone.regarder(null, 0);
+      drone.arc(0, 0);
+    }
+  }
+  apparitions.surRelache = cadrerMarche;
+
   function entrerPhase(p) {
     phase = p;
     horloge = 0;
@@ -378,20 +411,13 @@ async function demarrer() {
            moitie ici. */
         cerf.vitesseCible = 3.3;
         cerf.regard = 0;
-        drone.cadrer('route');
-        drone.regarder(null, 0);
-        drone.arc(0, 0);
+        if (!apparitions.retient) cadrerMarche();
         panneau.attenuer(false);
         break;
 
       case PHASES.APPROCHE:
         cerf.vitesseCible = 2.3;
-        drone.cadrer('approche');
-        /* L'arc commence des l'approche, doucement, et son SENS ALTERNE d'une
-           halte a l'autre. Sans cette alternance, les six haltes tournent
-           toutes du meme cote et le procede se voit ; avec, chaque arrivee
-           compose differemment sans qu'on sache pourquoi. */
-        drone.arc(sensArc() * 0.045, 0.15);
+        if (!apparitions.retient) cadrerMarche();
         break;
 
       case PHASES.FOUILLE: {
@@ -464,6 +490,8 @@ async function demarrer() {
         trace.marquer(index - 1);
         cerf.regard = 0;
         cerf.vitesseCible = 3.3;
+        // Une scene l'attend deja a quelques metres : il ne s'ebranle pas.
+        if (apparitions.retiendrait(cerf.s)) cerf.retenu = true;
         drone.cadrer('route');
         drone.arc(0, 0);
         panneau.attenuer(false);
@@ -493,7 +521,8 @@ async function demarrer() {
        revient a la lisiere, mais les fenetres, elles, ne se referment pas
        toutes seules quand on saute en arriere. */
     apparitionsSon.toutFermer();
-    for (const sc of apparitions.scenes) sc.ouverte = false;
+    apparitions.reinitialiser();
+    cerf.retenu = false;
     // Meme chose pour l'attention du drone : sans ce relachement, une
     // apparition qui tenait la camera au moment du saut la garderait braquee
     // sur un point qui n'existe plus une fois revenu a la lisiere.
@@ -801,9 +830,17 @@ async function demarrer() {
       );
     }
     cerf.posers.length = 0;
+    /* Apres le cerf, dont elle lit la position, et avant la poudre, qu'elle
+       alimente quand le lievre retombe dans la neige. */
+    faune.maj(dt, t, cerf, camera, empreintes, poudre, drone);
     poudre.maj(dt, solPourPoudre);
     fin.maj(dt);
 
+    /* Le paquet est une zone interdite pour le drone : il tourne autour, il
+       ne passe pas au travers (voir droneRig, LES ZONES INTERDITES). Le rayon
+       suit la taille du paquet, et reste bien en deca du cadrage de halte,
+       pour ne l'ecarter que la ou il allait vraiment trop pres. */
+    if (halte.cadeau) drone.proteger(halte.cadeau.groupe.position, 1.5 + 0.6 * (halte.station?.scene?.gift?.size || 1));
     drone.maj(dt, t, cerf);
 
     ciel.maj(dt, t, camera);
@@ -836,8 +873,13 @@ async function demarrer() {
        ces deux phases (halte, cinematique d'ouverture, fin), on lui passe
        `null` : l'arret pour une apparition ne doit jamais entrer en
        conflit avec celui, deja en cours, d'une halte-cadeau. */
+    /* La reprise en fait partie : un cerf qui repart d'une halte avec une
+       scene a quelques metres devant lui doit pouvoir s'arreter pour elle
+       sans avoir d'abord repris le trot (voir `anticipe`, dans
+       apparitions). */
     const cadrageCroisiere =
-      phase === PHASES.ROUTE ? 'route' : phase === PHASES.APPROCHE ? 'approche' : null;
+      phase === PHASES.ROUTE || phase === PHASES.REPRISE ? 'route'
+        : phase === PHASES.APPROCHE ? 'approche' : null;
     apparitions.maj(dt, t, cerf, camera, drone, postfx, cadrageCroisiere);
     habitants.maj(t);
     relief.majEmpreintes();
@@ -1130,7 +1172,7 @@ async function demarrer() {
     // non par son rang : un rang change des qu'on ajoute ou retire une idee.
     stations: STATIONS,
     brume, details, cabanes, apparitions, empreintes, fouillis, habitants, postfx, boucle, palier,
-    son, sfx, ruisseau,
+    son, sfx, ruisseau, faune,
     /* Le souffle partage et la neige qui le suit : sans eux exposes, une
        rafale n'est verifiable qu'a l'oeil, donc pas verifiable du tout. */
     vent: uniformsVent, neige,

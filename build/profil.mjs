@@ -36,10 +36,15 @@ await page.goto('file://' + join(root, 'dist/experience.html') + `?debug=1&q=${q
                 { waitUntil: 'load', timeout: 60000 });
 await page.waitForFunction('window.__scene !== undefined', { timeout: 120000 });
 
-const r = await page.evaluate(() => {
+/* Ou mesurer : `HALTE` et `PHASE` placent la balade (par defaut, en route
+   vers la troisieme halte), `AVANCE` laisse filer quelques secondes avant de
+   chronometrer — de quoi tomber, par exemple, sur la fuite du lievre
+   (HALTE=5 PHASE=reprise AVANCE=1.5). */
+const ou = { halte: Number(process.env.HALTE || 3), phase: process.env.PHASE || 'route', avance: Number(process.env.AVANCE || 3) };
+const r = await page.evaluate((ou) => {
   const s = window.__scene;
-  s.aller(3, 'route');
-  s.simuler(3);
+  s.aller(ou.halte, ou.phase);
+  s.simuler(ou.avance);
 
   /* Enveloppes de chronometrage. On mesure la METHODE elle-meme, pas la
      ligne d'appel : ainsi on n'a rien a modifier dans les sources. */
@@ -68,6 +73,8 @@ const r = await page.evaluate(() => {
   enrober(s.empreintes, 'rendre', 'empreintes.rendre');
   enrober(s.postfx, 'rendre', 'postfx.rendre');
   enrober(s.son, 'maj', 'son.maj');
+  enrober(s.faune, 'maj', 'faune.maj');
+  enrober(s.apparitions, 'maj', 'apparitions.maj');
 
   // Combien de fois interroge-t-on la hauteur du terrain par image ?
   let nHauteur = 0, tHauteur = 0;
@@ -124,7 +131,7 @@ const r = await page.evaluate(() => {
     geometries: s.renderer.info.memory.geometries,
     scene: { objets, meshes, instances, instancesTotal, visiblesInst },
   };
-});
+}, ou);
 
 console.log(JSON.stringify(r, null, 2));
 await nav.close();

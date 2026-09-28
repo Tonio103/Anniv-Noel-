@@ -100,9 +100,28 @@ a les moyens de mieux faire.
   suffit ici ; il ne faut pas lui en demander plus.
 - Chaîne de vérification avant de committer : `build/build.mjs` →
   `build/parcours.mjs` → `build/collisions.mjs` → `build/sonApparitions.mjs`
-  → `build/verifs.mjs` → `build/profil.mjs` → `encrypt.mjs` →
-  `verifier.mjs` → grep de fuite. Les scripts de diagnostic jetables vont
-  dans `build/_tmp_*.mjs` et se suppriment après usage.
+  → `build/verifs.mjs` → `build/balade.mjs` → `build/profil.mjs` →
+  `encrypt.mjs` → `verifier.mjs` → grep de fuite. Les scripts de diagnostic
+  jetables vont dans `build/_tmp_*.mjs` et se suppriment après usage.
+  (`parcours.mjs` compte une erreur de page dans le bac à sable : la feuille
+  Google Fonts, refusée par le proxy. Ce n'est pas le code.)
+- **`build/balade.mjs` joue la balade entière** — toutes les phases, tous
+  les arrêts, le visiteur qui touche et referme les cartes — et juge ce
+  qu'aucun banc isolé ne voit : les **croisements** entre systèmes. C'est lui
+  qui a trouvé qu'une approche de halte relançait le cerf pendant l'arrêt
+  pour Kevin, que les scènes se rembobinaient après un arrêt, que le cerf
+  repartait de trois pas pour s'arrêter aussitôt, et que le drone traversait
+  un paquet. Il mesure aussi le temps que chaque animal passe **dans le
+  cadre portrait**. Le hasard y est fixé (`GRAINE=n` pour un autre tirage).
+  Leçon : deux systèmes qui écrivent la même variable (`vitesseCible`, le
+  cadrage du drone) finissent toujours par se contredire ; la retenue du cerf
+  est désormais un état à part (`cerf.retenu`), et le cadrage de marche n'est
+  écrit qu'à un seul endroit (`cadrerMarche`, dans `main.js`).
+- **La faune** (`src/world/faune/`) a son banc sans navigateur
+  (`build/faune.mjs` : fuite, piste, sens des ailes et des oreilles, coups
+  d'œil du drone) et ses captures (`build/vues-faune.mjs`). Elle vit aux
+  haltes, pas dans les « silences » du parcours : il n'y en a pas, une fois
+  comptée la fenêtre où chaque chose est réellement à l'image.
 - **Toute modification du cerf passe par `build/rig.mjs`** — et d'abord par
   lui, puisqu'il tourne en quelques secondes sans navigateur. Il mesure ce
   qui ne se voit pas sur une capture : glissement des sabots au sol,

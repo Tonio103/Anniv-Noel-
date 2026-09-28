@@ -176,6 +176,44 @@ async function toucher(page) {
   await page.close();
 }
 
+/* ================ 5. UNE APPARITION NE SE REJOUE PAS ====================== */
+/* Le cerf s'arrete devant certaines apparitions et la scene se deroule
+   jusqu'au bout pendant l'arret ; a la reprise, il reste quinze a vingt
+   metres de fenetre. La progression transmise a la scene retombait alors sur
+   l'abscisse du cerf, et la scene se rejouait sous nos yeux. On traverse
+   deux arrets (Kevin, puis le couloir de Shining) en espionnant chaque
+   progression transmise : elle ne doit jamais reculer. */
+{
+  const page = await nav.newPage({ viewport: { width: 390, height: 700 } });
+  page.on('pageerror', (e) => ko.push('erreur page (apparitions) : ' + e.message));
+  await page.goto(url + '?debug=1&q=bas', { waitUntil: 'load', timeout: 120000 });
+  await page.waitForFunction('window.__scene !== undefined', { timeout: 180000 });
+  const r = await page.evaluate(() => {
+    const sc = window.__scene;
+    const vus = {};
+    for (const a of sc.apparitions.scenes) {
+      const jouer = a.objet.userData.jouer;
+      a.objet.userData.jouer = (u, ...reste) => {
+        const v = vus[a.nom] || (vus[a.nom] = { max: 0, recul: 0, n: 0 });
+        v.recul = Math.max(v.recul, v.max - u);
+        v.max = Math.max(v.max, u);
+        v.n++;
+        return jouer(u, ...reste);
+      };
+    }
+    sc.aller(6);
+    sc.cerf.s = 340; sc.cerf.placer(340); sc.drone.poser(sc.cerf, sc.boucle.t);
+    sc.simuler(62);
+    return { vus, s: sc.cerf.s };
+  });
+  console.log('apparitions traversees :', Object.entries(r.vus)
+    .map(([nom, v]) => `${nom} (max ${v.max.toFixed(2)}, recul ${v.recul.toFixed(2)})`).join(', '), `· cerf a ${r.s.toFixed(0)} m`);
+  const vues = Object.keys(r.vus);
+  dire(vues.includes('kevin') && vues.includes('shining'), 'la traversee passe bien par deux arrets (Kevin, Shining)');
+  dire(Object.values(r.vus).every((v) => v.recul < 0.005), 'aucune apparition ne se rembobine apres un arret');
+  await page.close();
+}
+
 console.log('\n  OK  : ' + ok.join('\n        · '));
 if (ko.length) console.log('\n  KO  : ' + ko.join('\n        · '));
 console.log('\nechecs :', ko.length);

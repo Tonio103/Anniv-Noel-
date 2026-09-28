@@ -257,6 +257,83 @@ export class Bruitages {
     }
   }
 
+  /* --- UNE TROUPE DE BOUVREUILS S'ENVOLE ------------------------------------
+
+     Deux matieres, et c'est leur superposition qui fait l'envol :
+
+     · LE FROISSEMENT. Des dizaines de petites ailes qui battent d'un coup :
+       une rafale de bouffees de bruit tres breves (trente a soixante
+       millisecondes), filtrees dans le medium, de plus en plus espacees et
+       faibles a mesure que la troupe s'eloigne. Une seule bouffee longue se
+       lirait comme un souffle ; c'est le GRAIN de bouffees distinctes qui
+       fait les ailes.
+     · LES CRIS. Le bouvreuil n'a pas un chant eclatant : son cri est un
+       petit « piou » flute, doux, descendant. Deux a quatre, decales, pas
+       dans le meme ton — plusieurs oiseaux, pas un seul qui se repete. */
+  envol(sortie, nombre = 5) {
+    if (!this.son.pret || !sortie) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const bouffees = 8 + Math.min(10, nombre * 2);
+    for (let i = 0; i < bouffees; i++) {
+      const dep = Math.pow(i / bouffees, 1.6) * 0.75 + Math.random() * 0.03;
+      const dur = 0.03 + Math.random() * 0.03;
+      // `_bruit` demarre tout de suite : on lui donne la duree jusqu'a la fin
+      // de CETTE bouffee, retard compris — c'est l'enveloppe qui la place.
+      const s = this._bruit(dep + dur + 0.05);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 900 + Math.random() * 1500;
+      f.Q.value = 1.4;
+      const g = ctx.createGain();
+      const amp = 0.20 * (1 - i / bouffees * 0.7);
+      g.gain.setValueAtTime(0, t + dep);
+      g.gain.linearRampToValueAtTime(amp, t + dep + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0005, t + dep + dur);
+      s.connect(f); f.connect(g); g.connect(sortie);
+    }
+    const cris = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < cris; i++) {
+      const dep = 0.05 + i * (0.12 + Math.random() * 0.14);
+      const f0 = 2150 + Math.random() * 350, f1 = f0 * 0.74;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f0, t + dep);
+      o.frequency.exponentialRampToValueAtTime(f1, t + dep + 0.11);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t + dep);
+      g.gain.linearRampToValueAtTime(0.045, t + dep + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0003, t + dep + 0.13);
+      o.connect(g); g.connect(sortie);
+      o.start(t + dep); o.stop(t + dep + 0.16);
+    }
+  }
+
+  /* --- LA HULOTTE, ENFIN QUELQUE PART -----------------------------------------
+     Le meme hululement que celui de l'ambiance — deux notes graves et
+     soufflees, du bruit filtre plutot qu'une sinusoide — mais emis depuis
+     la chouette elle-meme. Celui de l'ambiance est panoramique au hasard ;
+     celui-ci tourne avec la camera, parce qu'on sait maintenant d'ou il
+     vient. */
+  hululement(sortie) {
+    if (!this.son.pret || !sortie) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    for (const [dep, f0, f1, duree, amp] of [
+      [0.00, 480, 340, 0.42, 0.22],
+      [0.58, 440, 305, 0.66, 0.28],
+    ]) {
+      const s = this._bruit(dep + duree + 0.15);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.Q.value = 3.6;
+      f.frequency.setValueAtTime(f0, t + dep);
+      f.frequency.exponentialRampToValueAtTime(f1, t + dep + duree);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t + dep);
+      g.gain.linearRampToValueAtTime(amp, t + dep + 0.06);
+      g.gain.exponentialRampToValueAtTime(0.0006, t + dep + duree);
+      s.connect(f); f.connect(g); g.connect(sortie);
+    }
+  }
+
   /* --- SOUFFLE DU CERF ---------------------------------------------------- */
   naseaux(sortie) {
     if (!this.son.pret || !sortie) return;

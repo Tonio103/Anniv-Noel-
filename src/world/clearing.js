@@ -316,6 +316,9 @@ export class Clairieres {
     // Reperes de travail pour les lanternes semees entre les haltes.
     const pL = new THREE.Vector3();
     const cL = new THREE.Vector3();
+    /* Ce qui est plante dans la neige pres du chemin, en monde : la faune s'y
+       reporte pour ne pas s'installer dans le piquet d'une lanterne. */
+    this.obstacles = [];
 
     for (let i = 0; i < stations.length; i++) {
       const st = stations[i];
@@ -360,6 +363,7 @@ export class Clairieres {
           l.position.set(x, relief.hauteur(x, z) - 0.06, z);
           l.rotation.y = rand() * 6.28;
           this.groupe.add(l);
+          this.obstacles.push({ x, z });
         }
       }
 
@@ -375,6 +379,7 @@ export class Clairieres {
           l.position.set(x, relief.hauteur(x, z) - 0.06, z);
           l.rotation.y = rand() * 0.6;
           this.groupe.add(l);
+          this.obstacles.push({ x, z });
         }
       }
 

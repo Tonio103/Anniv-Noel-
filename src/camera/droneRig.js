@@ -60,6 +60,10 @@ export class Drone {
     this._tan = new THREE.Vector3();
     this._interet = null;
     this._forceInteret = 0;
+    this._oeil = new THREE.Vector3();
+    this._forceOeil = 0;
+    this._zones = [{ x: 0, z: 0, r: 0 }, { x: 0, z: 0, r: 0 }, { x: 0, z: 0, r: 0 }, { x: 0, z: 0, r: 0 }];
+    this._zonesN = 0;
     this._premiere = true;
 
     this.orbite = 0;
@@ -92,6 +96,47 @@ export class Drone {
   regarder(point, force) {
     this._interet = point;
     this._forceInteret = force;
+  }
+
+  /* LES ZONES INTERDITES. Pendant une halte, le drone tourne autour du cerf
+     sur un cercle de quatre metres et demi environ — et le paquet, pose a
+     trois metres et demi du cerf, se trouve sur ce cercle. Rien ne l'en
+     ecartait : mesure sur une balade entiere (build/balade.mjs), la camera
+     passait a quarante-cinq centimetres du centre d'un paquet de soixante-
+     quinze, c'est-a-dire DEDANS, et l'image n'etait plus qu'un pan de carton.
+
+     Une zone interdite est un cylindre vertical ; on la declare a chaque
+     image (elle s'oublie d'elle-meme ensuite), comme le coup d'oeil. */
+  proteger(centre, rayon) {
+    if (this._zonesN >= this._zones.length) return;
+    const z = this._zones[this._zonesN++];
+    z.x = centre.x; z.z = centre.z; z.r = rayon;
+  }
+
+  /* Repousse `p` hors des zones, a l'horizontale, le long du rayon. */
+  _eviter(p) {
+    for (let i = 0; i < this._zonesN; i++) {
+      const z = this._zones[i];
+      const dx = p.x - z.x, dz = p.z - z.z;
+      const d = Math.hypot(dx, dz);
+      if (d >= z.r) continue;
+      if (d < 1e-4) { p.x = z.x - this._tan.x * z.r; p.z = z.z - this._tan.z * z.r; continue; }
+      p.x = z.x + (dx / d) * z.r;
+      p.z = z.z + (dz / d) * z.r;
+    }
+  }
+
+  /* LE COUP D'OEIL. Un operateur qui suit un sujet tourne la tete vers ce
+     qui bouge soudain a la lisiere de son champ — un envol, un lievre qui
+     part — puis revient a son sujet. C'est une attention de SECOND RANG :
+     elle ne s'exerce que la ou le point d'interet principal (le cadeau, une
+     apparition) laisse de la marge, et elle s'eteint d'elle-meme si on ne
+     la renouvelle pas a chaque image. Celui qui l'appelle n'a donc rien a
+     relacher : il cesse simplement de l'appeler. */
+  coupDOeil(point, force) {
+    if (force <= this._forceOeil) return;       // le plus fort l'emporte
+    this._oeil.copy(point);
+    this._forceOeil = force;
   }
 
   /* Cadrages memorises, choisis selon le moment de la balade. */
@@ -428,9 +473,16 @@ export class Drone {
     this._precPos.copy(this.pos);
     // Plus mou a l'horizontale qu'a la verticale : le retard se voit dans les
     // virages, mais la hauteur reste tenue.
+    /* Hors des zones interdites : la visee d'abord, pour que l'amorti vise
+       deja le bon cote ; puis la position amortie elle-meme, qui en
+       rattrapant sa cible couperait la corde du cercle. Glisser le long du
+       bord est continu — aucune secousse. */
+    this._eviter(cible);
     this.pos.x = damp(this.pos.x, cible.x, 1.9, dt);
     this.pos.z = damp(this.pos.z, cible.z, 1.9, dt);
     this.pos.y = damp(this.pos.y, cible.y, 3.1, dt);
+    this._eviter(this.pos);
+    this._zonesN = 0;
 
     this.camera.position.copy(this.pos);
 
@@ -463,8 +515,12 @@ export class Drone {
     avance.lerp(ancre, 0.55 + 0.30 * port);
 
     // Bascule vers le cadeau quand il y en a un.
-    if (this._interet && this._forceInteret > 0.001) {
-      avance.lerp(this._interet, clamp(this._forceInteret, 0, 1));
+    const forceInteret = this._interet ? clamp(this._forceInteret, 0, 1) : 0;
+    if (forceInteret > 0.001) avance.lerp(this._interet, forceInteret);
+    // Puis le coup d'oeil, dans la marge que l'interet principal laisse.
+    if (this._forceOeil > 0.001) {
+      avance.lerp(this._oeil, clamp(this._forceOeil, 0, 1) * (1 - 0.7 * forceInteret));
+      this._forceOeil = 0;
     }
 
     /* Decalage de cadrage : viser a cote du sujet le repousse vers le bord

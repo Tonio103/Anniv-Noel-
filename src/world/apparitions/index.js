@@ -154,6 +154,21 @@ export function sitesApparitions(chemin) {
 }
 
 /* ========================================================================== */
+/* OU LE CERF S'ARRETE POUR UNE SCENE. A une distance fixe de l'ancre —
+   plafonnee a la moitie de l'amorce de la scene, pour qu'une fenetre courte
+   ne force jamais un freinage qui deborderait sur ce qui la precede.
+
+   UN CERF IMMOBILE NE REPART PAS POUR S'ARRETER AUSSITOT. A la sortie d'une
+   halte, le point d'arret d'une apparition est souvent a un ou deux metres
+   devant lui : le journal de la balade (cerf, phases et arrets, image par
+   image) le montrait repartir, faire trois pas, et se figer de nouveau pour
+   Spider-Man — un demarrage pour rien, qui se lit comme un rate. A l'arret
+   et a moins de quatre metres, il regarde d'ou il est. */
+const ANTICIPE = 4;
+function pointArret(sc, vitesse) {
+  return sc.s - Math.min(14, sc.avant * 0.5) - (vitesse < 0.5 ? ANTICIPE : 0);
+}
+
 export class Apparitions {
   constructor(scene, chemin, relief, palier) {
     this.chemin = chemin;
@@ -356,6 +371,42 @@ export class Apparitions {
      ci-dessous se desactive de lui-meme : l'arret du cerf pour une
      apparition ne doit jamais entrer en conflit avec l'arret pour un
      cadeau. */
+  /* Vrai tant qu'une scene retient le cerf : la balade s'y reporte pour ne
+     pas recadrer le drone par-dessus l'arret. */
+  get retient() { return this._enArret; }
+
+  /* Une scene retiendrait-elle un cerf immobile en `s` ? La balade le
+     demande au moment de repartir d'une halte : la decision d'arret n'est
+     prise qu'apres le pas du cerf, et une seule image de consigne a 3,3 m/s
+     suffisait a lui faire esquisser un depart — une patte levee, aussitot
+     reposee. */
+  retiendrait(s) {
+    for (const sc of this.scenes) {
+      if (sc.arretFini || sc.enArret || sc.objet.userData.suitChemin) continue;
+      const u = (s - (sc.s - sc.avant)) / (sc.avant + sc.apres);
+      if (u > 0 && u < 1 && s >= pointArret(sc, 0)) return true;
+    }
+    return false;
+  }
+
+  /* Tout remettre comme avant le premier pas — au retour a la lisiere.
+     Forcer seulement `ouverte` a faux ne suffisait pas : une scene qui avait
+     retenu le cerf gardait `arretFini`, et ne l'arretait plus jamais lors
+     de la balade suivante. */
+  reinitialiser() {
+    for (const sc of this.scenes) {
+      sc.ouverte = false;
+      sc.enArret = false;
+      sc.arretFini = false;
+      sc.sEff = undefined;
+      sc.uJoue = 0;
+      sc.objet.visible = false;
+      sc.objet.userData.reinit?.();
+    }
+    this._enArret = false;
+    this.cibleFocus = null;
+  }
+
   maj(dt, t, cerf, camera, drone, postfx, cadrageBase) {
     const sReel = cerf.s;
     // Pour que `emettre` (ferme plus bas, sur chaque scene) puisse secouer
@@ -401,6 +452,7 @@ export class Apparitions {
           sc.enArret = false;
           sc.arretFini = false;
           sc.sEff = undefined;
+          sc.uJoue = 0;
         }
       }
 
@@ -413,7 +465,18 @@ export class Apparitions {
          n'en a que faire, mais celle qui se DEPLACE le long du chemin — la
          course-poursuite — a besoin de savoir ou l'on en est pour se placer
          par rapport a nous. */
-      const uu = clamp(u, 0, 1);
+      /* LA PROGRESSION NE RECULE JAMAIS. Pendant un arret, l'abscisse
+         effective file toute seule jusqu'au bout de la fenetre ; a la
+         reprise, elle retombe sur celle du cerf, reste en arriere — quinze
+         a vingt metres avant la fin. Transmise telle quelle, la scene se
+         REMBOBINAIT d'autant (mesure : 61 % de sa duree pour le couloir de
+         Shining) et se rejouait une seconde fois sous les yeux du visiteur,
+         portes de l'ascenseur refermees puis rouvertes. On transmet donc la
+         progression la plus avancee deja atteinte : une scene jouee jusqu'au
+         bout reste a sa derniere image — la plupart s'y sont deja effacees —
+         jusqu'a ce que le cerf sorte de la fenetre. */
+      const uu = Math.max(clamp(u, 0, 1), sc.uJoue || 0);
+      sc.uJoue = uu;
       sc.objet.userData.jouer(uu, t, camera, sc.s, dt);
 
       /* LE CERF S'ARRETE POUR LA REGARDER — SAUF CE QUI COURT DEJA TOUT SEUL.
@@ -428,15 +491,11 @@ export class Apparitions {
          son defile d'origine, deja regle ; seules celles qui restent SUR
          PLACE meritent qu'on s'y arrete.
 
-         Declenche a une distance fixe de l'ancre — plafonnee a la moitie de
-         l'amorce de la scene, pour qu'une fenetre courte ne force jamais un
-         freinage qui deborderait sur ce qui la precede. Une fois retenue,
-         la scene ne l'est qu'UNE fois : `arretFini`
-         empeche un second freinage si jamais on repassait par la
-         (recommencer()). */
+         Declenche a son `pointArret`. Une fois retenue, la scene ne l'est
+         qu'UNE fois : `arretFini` empeche un second freinage, jusqu'a ce que
+         `reinitialiser` remette tout a zero pour une nouvelle balade. */
       if (cadrageBase && !sc.arretFini && !sc.objet.userData.suitChemin) {
-        const rayon = Math.min(14, sc.avant * 0.5);
-        if (!sc.enArret && sReel >= sc.s - rayon) {
+        if (!sc.enArret && sReel >= pointArret(sc, cerf.vitesse)) {
           sc.enArret = true;
           /* LE CIEL A BESOIN D'UN AUTRE CADRAGE. « apparition » decale
              fortement la camera de cote — le bon choix pour un personnage
@@ -449,7 +508,12 @@ export class Apparitions {
         if (sc.enArret) {
           quelquUnTient = true;
           sc.sEff += dt * this._vitesseVirtuelle;
-          if (sc.sEff >= sc.s + sc.apres) { sc.enArret = false; sc.arretFini = true; }
+          if (sc.sEff >= sc.s + sc.apres) {
+            sc.enArret = false; sc.arretFini = true;
+            // Jouee jusqu'au bout : son son se retire avec elle, sans attendre
+            // que le cerf ait parcouru les metres qui restent de la fenetre.
+            this.son?.fermer(sc.nom);
+          }
         }
       }
 
@@ -524,8 +588,7 @@ export class Apparitions {
     if (cadrageBase) {
       if (quelquUnTient && !this._enArret) {
         this._enArret = true;
-        this._vitesseAvantArret = cerf.vitesseCible;
-        cerf.vitesseCible = 0;
+        cerf.retenu = true;
         // Le sens de l'orbite alterne d'une apparition a l'autre, comme aux
         // haltes : sans quoi les douze arrets tournent tous du meme cote.
         this._sensArc *= -1;
@@ -533,11 +596,19 @@ export class Apparitions {
         drone.arc(this._sensArc * 0.05, 0.10);
       } else if (!quelquUnTient && this._enArret) {
         this._enArret = false;
-        cerf.vitesseCible = this._vitesseAvantArret ?? cerf.vitesseCible;
-        drone.cadrer(cadrageBase);
-        drone.arc(0, 0);
+        cerf.retenu = false;
+        /* Le cadrage a retrouver est celui de la phase EN COURS, qui a pu
+           changer pendant l'arret (la croisiere devenue approche) : c'est la
+           balade qui sait le recomposer, arc de camera compris. */
+        if (this.surRelache) this.surRelache();
+        else { drone.cadrer(cadrageBase); drone.arc(0, 0); }
       }
     }
+
+    /* Filet de securite : une retenue posee par anticipation (voir
+       `retiendrait`) qu'aucune scene n'aurait finalement prise ne doit pas
+       immobiliser le cerf pour toujours. */
+    if (!this._enArret && cerf.retenu) cerf.retenu = false;
 
     postfx?.assombrir(assombrissement, dt);
     postfx?.teinter(teinteCouleur, teinteForce, dt);

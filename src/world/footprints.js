@@ -217,11 +217,17 @@ export class Empreintes {
     };
   }
 
-  /* Un pied vient de se poser. On enregistre, le rendu suivra. */
-  ajouter(x, z, angle, force = 1) {
+  /* Un pied vient de se poser. On enregistre, le rendu suivra.
+
+     `echelle` : la taille du puits rapportee a celui d'un sabot de cerf.
+     Le lievre s'en sert — ses pattes arriere creusent une trace de la
+     moitie environ, ses pattes avant d'un tiers. Sans ce facteur, un lievre
+     laisserait des trous de cerf, et sa piste se lirait comme celle d'un
+     second cerf invisible. */
+  ajouter(x, z, angle, force = 1, echelle = 1) {
     if (!this.actif) return;
     if (this.file.length < this.reserve.length) {
-      this.file.push({ x, z, angle, force, alea: Math.random() });
+      this.file.push({ x, z, angle, force, alea: Math.random(), echelle });
     }
   }
 
@@ -304,7 +310,7 @@ export class Empreintes {
            creuse en s'enfoncant, dont la neige se referme autour. Ce puits
            fait bel et bien vingt-cinq centimetres. Se caler dessus est a la
            fois plus juste et assez large pour que la carte le porte. */
-        const taille = (0.20 + e.force * 0.09) * (0.88 + e.alea * 0.24);
+        const taille = (0.20 + e.force * 0.09) * (0.88 + e.alea * 0.24) * (e.echelle ?? 1);
         m.visible = true;
         m.position.set(e.x, 0, e.z);
         m.scale.set(taille, taille * (1.30 + e.alea * 0.18), 1);
